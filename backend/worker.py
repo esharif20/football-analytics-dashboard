@@ -125,8 +125,13 @@ def download_video(video_url: str, video_id: str) -> Optional[Path]:
         return None
 
 
-def update_analysis_status(analysis_id: str, status: str, stage: str = "", progress: int = 0, error: str = ""):
-    """Update analysis status in dashboard."""
+# Track processing start time for ETA calculation
+_processing_start_time: Optional[float] = None
+_processing_total_frames: int = 0
+
+
+def update_analysis_status(analysis_id: str, status: str, stage: str = "", progress: int = 0, error: str = "", eta: Optional[int] = None):
+    """Update analysis status in dashboard with optional ETA."""
     data = {
         "status": status,
         "currentStage": stage,
@@ -134,14 +139,21 @@ def update_analysis_status(analysis_id: str, status: str, stage: str = "", progr
     }
     if error:
         data["error"] = error
+    if eta is not None:
+        data["eta"] = eta
     
     api_request(f"/worker/analysis/{analysis_id}/status", "POST", data)
 
 
 def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Dict[str, str]) -> Dict:
     """Run the CV pipeline on a video."""
+    global _processing_start_time
+    
     output_video = OUTPUT_DIR / f"{analysis_id}_annotated.mp4"
     radar_video = OUTPUT_DIR / f"{analysis_id}_radar.mp4"
+    
+    # Record start time for ETA calculation
+    _processing_start_time = time.time()
     
     # Build command
     cmd = [
@@ -176,6 +188,7 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
         
         # Stream output and update progress
         stages = ["detecting", "tracking", "classifying", "mapping", "computing", "rendering"]
+        stage_weights = [30, 20, 15, 10, 10, 15]  # Approximate time weights per stage
         current_stage_idx = 0
         
         for line in process.stdout:
@@ -187,8 +200,18 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
                 for i, stage in enumerate(stages):
                     if stage.lower() in line.lower():
                         current_stage_idx = i
-                        progress = int((i + 1) / len(stages) * 100)
-                        update_analysis_status(analysis_id, "processing", stage, progress)
+                        # Calculate weighted progress
+                        progress = sum(stage_weights[:i]) + stage_weights[i] // 2
+                        progress = min(progress, 95)  # Cap at 95% until complete
+                        
+                        # Calculate ETA based on elapsed time and progress
+                        eta = None
+                        if _processing_start_time and progress > 0:
+                            elapsed = time.time() - _processing_start_time
+                            estimated_total = elapsed / (progress / 100)
+                            eta = int(estimated_total - elapsed)
+                        
+                        update_analysis_status(analysis_id, "processing", stage, progress, eta=eta)
                         break
         
         process.wait()

@@ -130,3 +130,12 @@
 - [x] Pre-processed demo data for Test6.mp4
 - [x] Video hash caching with SHA256 + model config
 - [x] Skip re-processing for identical videos
+
+
+## Real-time WebSocket Updates
+- [x] Add WebSocket server to standalone backend
+- [x] Create WebSocket event types for progress updates
+- [x] Update worker to broadcast progress via WebSocket
+- [x] Update frontend Analysis page to use WebSocket
+- [x] Replace polling with WebSocket subscription
+- [x] Handle reconnection and error states

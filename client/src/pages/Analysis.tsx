@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { PIPELINE_MODES, PROCESSING_STAGES, EVENT_TYPES, PipelineMode } from "@shared/types";
 import { Streamdown } from "streamdown";
+import { useWebSocket, WSMessage } from "@/hooks/useWebSocket";
 
 // Pitch dimensions in meters
 const PITCH_WIDTH = 105;
@@ -50,11 +51,68 @@ export default function Analysis() {
   const [activeTab, setActiveTab] = useState("radar");
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Fetch analysis data
+  // Real-time progress state from WebSocket
+  const [realtimeProgress, setRealtimeProgress] = useState<{
+    progress?: number;
+    currentStage?: string;
+    eta?: number;
+  } | null>(null);
+
+  // WebSocket callbacks for real-time updates
+  const handleWSProgress = useCallback((data: WSMessage["data"]) => {
+    if (data) {
+      setRealtimeProgress({
+        progress: data.progress,
+        currentStage: data.currentStage,
+        eta: data.eta,
+      });
+    }
+  }, []);
+
+  const handleWSComplete = useCallback(() => {
+    setRealtimeProgress(null);
+    // Refetch analysis data when complete
+    utils.analysis.get.invalidate({ id: analysisId });
+  }, [analysisId]);
+
+  const handleWSError = useCallback((error: string) => {
+    console.error("WebSocket error:", error);
+    setRealtimeProgress(null);
+    utils.analysis.get.invalidate({ id: analysisId });
+  }, [analysisId]);
+
+  // Connect to WebSocket for real-time updates
+  const { isConnected: wsConnected } = useWebSocket({
+    analysisId,
+    onProgress: handleWSProgress,
+    onComplete: handleWSComplete,
+    onError: handleWSError,
+    enabled: isAuthenticated && analysisId > 0,
+  });
+
+  const utils = trpc.useUtils();
+
+  // Fetch analysis data - reduce polling interval when WebSocket is connected
   const { data: analysis, isLoading: analysisLoading, refetch } = trpc.analysis.get.useQuery(
     { id: analysisId },
-    { enabled: isAuthenticated && analysisId > 0, refetchInterval: 2000 }
+    { 
+      enabled: isAuthenticated && analysisId > 0, 
+      refetchInterval: wsConnected ? 10000 : 2000 // Slower polling when WS connected
+    }
   );
+
+  // Merge real-time progress with analysis data
+  const analysisWithRealtime = useMemo(() => {
+    if (!analysis) return null;
+    if (!realtimeProgress) return analysis;
+    
+    return {
+      ...analysis,
+      progress: realtimeProgress.progress ?? analysis.progress,
+      currentStage: realtimeProgress.currentStage ?? analysis.currentStage,
+      eta: realtimeProgress.eta,
+    };
+  }, [analysis, realtimeProgress]);
 
   const { data: events } = trpc.events.list.useQuery(
     { analysisId },
@@ -72,7 +130,6 @@ export default function Analysis() {
   );
 
   const generateCommentaryMutation = trpc.commentary.generate.useMutation();
-  const utils = trpc.useUtils();
 
   const mode = analysis?.mode as PipelineMode;
   const modeConfig = mode ? PIPELINE_MODES[mode] : null;
@@ -247,7 +304,7 @@ export default function Analysis() {
       <main className="container py-6">
         {/* Processing Status */}
         {(analysis.status === "pending" || analysis.status === "processing" || analysis.status === "uploading") && (
-          <ProcessingStatus analysis={analysis} />
+          <ProcessingStatus analysis={analysisWithRealtime || analysis} wsConnected={wsConnected} />
         )}
 
         {/* Failed Status */}
@@ -425,18 +482,21 @@ function StatusBadge({ status, progress }: { status: string; progress: number })
 }
 
 // Processing Status Component with ETA and Termination
-function ProcessingStatus({ analysis }: { analysis: any }) {
+function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; wsConnected?: boolean }) {
   const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.id === analysis.currentStage);
   const utils = trpc.useUtils();
   
-  // Fetch ETA
+  // Fetch ETA - slower polling when WebSocket connected (real-time ETA comes via WS)
   const { data: etaData } = trpc.analysis.getEta.useQuery(
     { id: analysis.id },
     { 
-      enabled: analysis.status === "processing" || analysis.status === "pending",
-      refetchInterval: 5000 
+      enabled: (analysis.status === "processing" || analysis.status === "pending") && !wsConnected,
+      refetchInterval: wsConnected ? 30000 : 5000 
     }
   );
+  
+  // Use real-time ETA from WebSocket if available, otherwise fall back to polling
+  const displayEta = analysis.eta !== undefined ? analysis.eta * 1000 : etaData?.remainingMs;
   
   // Terminate mutation
   const terminateMutation = trpc.analysis.terminate.useMutation({
@@ -510,14 +570,17 @@ function ProcessingStatus({ analysis }: { analysis: any }) {
           </div>
           
           {/* ETA Display */}
-          {etaData && (
+          {(displayEta !== undefined || etaData) && (
             <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Estimated time remaining</span>
+                {wsConnected && (
+                  <span className="text-xs text-green-500 font-medium">(Live)</span>
+                )}
               </div>
               <span className="font-semibold text-primary">
-                {formatTime(etaData.remainingMs)}
+                {formatTime(displayEta ?? etaData?.remainingMs ?? 0)}
               </span>
             </div>
           )}

@@ -7,6 +7,8 @@ import express from "express";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
+import { createServer } from "http";
+import { initWebSocket, broadcastProgress, broadcastComplete, broadcastError } from "./websocket";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +17,11 @@ const __dirname = path.dirname(__filename);
 import * as db from "./db.standalone";
 
 const app = express();
+const httpServer = createServer(app);
 app.use(express.json({ limit: "100mb" }));
+
+// Initialize WebSocket server
+initWebSocket(httpServer);
 
 // Serve static files from uploads directory
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -233,14 +239,24 @@ app.get("/api/worker/pending", async (req, res) => {
 app.post("/api/worker/analysis/:id/status", async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, currentStage, progress, error } = req.body;
+    const { status, currentStage, progress, error: errorMsg, eta } = req.body;
+    const analysisId = parseInt(id);
+    
     await db.updateAnalysisStatus(
-      parseInt(id),
+      analysisId,
       status,
       progress || 0,
       currentStage,
-      error
+      errorMsg
     );
+    
+    // Broadcast progress via WebSocket
+    if (status === "failed" && errorMsg) {
+      broadcastError(analysisId, errorMsg);
+    } else {
+      broadcastProgress(analysisId, status, progress || 0, currentStage, eta);
+    }
+    
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: String(error) });
@@ -251,9 +267,10 @@ app.post("/api/worker/analysis/:id/complete", async (req, res) => {
   try {
     const { id } = req.params;
     const { annotatedVideo, radarVideo, analytics, tracks } = req.body;
+    const analysisId = parseInt(id);
     
     // Update analysis with results
-    await db.updateAnalysisResults(parseInt(id), {
+    await db.updateAnalysisResults(analysisId, {
       annotatedVideoUrl: annotatedVideo || undefined,
       radarVideoUrl: radarVideo || undefined,
       analyticsDataUrl: analytics ? JSON.stringify(analytics) : undefined,
@@ -261,7 +278,10 @@ app.post("/api/worker/analysis/:id/complete", async (req, res) => {
     });
     
     // Mark as completed
-    await db.updateAnalysisStatus(parseInt(id), "completed", 100, "done", undefined);
+    await db.updateAnalysisStatus(analysisId, "completed", 100, "done", undefined);
+    
+    // Broadcast completion via WebSocket
+    broadcastComplete(analysisId, { analytics, tracks });
     
     // If analytics data provided, create statistics
     if (analytics) {
@@ -370,7 +390,7 @@ async function startServer() {
     app.use(vite.middlewares);
   }
 
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║                                                            ║
