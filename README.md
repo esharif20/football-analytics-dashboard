@@ -1,162 +1,274 @@
 # Football Analysis Dashboard
 
-A full-stack application for analyzing football match footage using computer vision and AI. Upload tactical wide-shot videos (DFL Bundesliga style) and get real-time player tracking, team classification, heatmaps, pass networks, and AI-generated tactical commentary.
+A full-stack application for analyzing football match footage using computer vision and AI. Upload tactical wide-shot videos and get real-time player tracking, team classification, heatmaps, pass networks, and AI-generated tactical commentary.
+
+## Quick Start (Mac)
+
+### Prerequisites
+
+- **Node.js 18+** - `brew install node`
+- **pnpm** - `npm install -g pnpm`
+- **Python 3.10+** - `brew install python@3.11`
+- **MySQL** (optional for local dev) - `brew install mysql`
+
+### 1. Clone and Install
+
+```bash
+git clone <your-repo-url>
+cd football-dashboard
+pnpm install
+```
+
+### 2. Set Up Environment
+
+**Option A: Local Development Mode (Recommended for Testing)**
+
+Create a `.env` file in the project root:
+
+```bash
+# .env
+LOCAL_DEV_MODE=true
+DATABASE_URL="mysql://root:password@localhost:3306/football"
+JWT_SECRET="any-random-string-for-local-dev"
+```
+
+This mode:
+- Bypasses Manus OAuth (auto-logged in as "Local Developer")
+- Uses local filesystem for file storage (`./uploads/`)
+- Works without any external API keys
+
+**Option B: Full Manus Mode (Production)**
+
+```bash
+# .env
+DATABASE_URL="mysql://user:pass@host:3306/football"
+JWT_SECRET="your-session-secret"
+VITE_APP_ID="manus_app_id"
+OAUTH_SERVER_URL="https://api.manus.im"
+VITE_OAUTH_PORTAL_URL="https://manus.im/login"
+BUILT_IN_FORGE_API_URL="https://..."
+BUILT_IN_FORGE_API_KEY="your-forge-key"
+```
+
+### 3. Set Up Database
+
+```bash
+# Start MySQL (if using local)
+brew services start mysql
+
+# Create database
+mysql -u root -e "CREATE DATABASE football;"
+
+# Push schema
+pnpm db:push
+```
+
+### 4. Run the Dashboard
+
+```bash
+pnpm dev
+```
+
+Open http://localhost:3000 in your browser.
+
+---
+
+## CV Pipeline Setup (For Video Processing)
+
+The Python pipeline processes videos and generates tracking data.
+
+### 1. Set Up Python Environment
+
+```bash
+cd backend
+chmod +x setup.sh
+./setup.sh
+source venv/bin/activate
+```
+
+### 2. Download Models
+
+Download your custom-trained models and place them in `backend/models/`:
+
+```
+backend/models/
+├── player_detection.pt
+├── ball_detection.pt
+└── pitch_detection.pt
+```
+
+Or use the setup script which downloads them automatically.
+
+### 3. Run the Pipeline
+
+```bash
+# Full analysis
+python main.py \
+  --source-video-path input_videos/your_video.mp4 \
+  --target-video-path output_videos/result.mp4 \
+  --mode all
+
+# Just radar view (faster)
+python main.py \
+  --source-video-path input_videos/your_video.mp4 \
+  --target-video-path output_videos/result.mp4 \
+  --mode radar
+```
+
+### Pipeline Modes
+
+| Mode | Description | Speed |
+|------|-------------|-------|
+| `all` | Full analysis with annotated + radar video | Slowest |
+| `radar` | Radar view only | Fast |
+| `team` | Team classification | Medium |
+| `track` | Object tracking only | Fast |
+| `players` | Player detection only | Fastest |
+| `ball` | Ball detection + interpolation | Fast |
+| `pitch` | Pitch keypoint detection | Fast |
+
+---
 
 ## Project Structure
 
 ```
 football-dashboard/
 │
-├── backend/                 # 🐍 Python CV Pipeline (runs separately)
-│   ├── main.py              # CLI entry point
-│   ├── setup.sh             # One-command setup (Mac/Linux/GPU)
-│   ├── config.py            # Pipeline configuration
-│   │
-│   ├── pipeline/            # Pipeline modes (all, radar, team, etc.)
-│   ├── trackers/            # YOLO detection + ByteTrack
-│   ├── team_assigner/       # SigLIP + UMAP + KMeans
-│   ├── pitch/               # Pitch detection & homography
-│   ├── analytics/           # Possession, kinematics, events
-│   └── utils/               # Shared utilities
-│
-├── client/                  # ⚛️ React Frontend
+├── client/                  # React Frontend (Vite)
 │   └── src/
 │       ├── pages/           # Home, Upload, Dashboard, Analysis
-│       └── components/      # UI components
+│       ├── components/      # UI components (shadcn/ui)
+│       └── lib/             # Utilities, tRPC client
 │
-├── server/                  # 🚀 Express + tRPC API
+├── server/                  # Express + tRPC API
 │   ├── routers.ts           # API endpoints
-│   └── db.ts                # Database queries
+│   ├── db.ts                # Database queries
+│   ├── storage.ts           # File storage (local/cloud)
+│   └── _core/               # Auth, context, middleware
+│       └── localMode.ts     # Local dev mode config
 │
-├── drizzle/                 # 🗄️ Database Schema
-│   └── schema.ts            # Videos, analyses, events, tracks
+├── backend/                 # Python CV Pipeline
+│   ├── main.py              # CLI entry point
+│   ├── config.py            # Pipeline configuration
+│   ├── setup.sh             # One-command setup
+│   │
+│   ├── pipeline/            # Pipeline modes
+│   │   ├── all.py           # Full analysis
+│   │   ├── radar.py         # Radar view
+│   │   ├── team.py          # Team classification
+│   │   └── ...
+│   │
+│   ├── trackers/            # Detection & tracking
+│   │   ├── tracker.py       # Main tracker (YOLO + ByteTrack)
+│   │   └── ball_tracker.py  # Ball-specific tracking
+│   │
+│   ├── team_assigner/       # Team classification
+│   │   └── team_assigner.py # SigLIP + UMAP + KMeans
+│   │
+│   ├── pitch/               # Pitch detection
+│   │   ├── view_transformer.py  # Homography
+│   │   └── homography_smoother.py
+│   │
+│   ├── analytics/           # Statistics computation
+│   │   ├── possession.py
+│   │   └── kinematics.py
+│   │
+│   └── utils/               # Shared utilities
+│       ├── cache.py         # Stub caching
+│       └── device.py        # GPU/MPS detection
 │
-└── shared/                  # 📦 Shared TypeScript types
-    └── types.ts             # Pipeline modes, API types
+├── drizzle/                 # Database schema
+│   └── schema.ts
+│
+└── shared/                  # Shared TypeScript types
+    └── types.ts
 ```
 
-## Quick Start
-
-### Option 1: Dashboard Only (View/Upload Interface)
-
-```bash
-# Install Node.js dependencies
-pnpm install
-
-# Push database schema
-pnpm db:push
-
-# Start development server
-pnpm dev
-```
-
-Dashboard runs at `http://localhost:3000`
-
-### Option 2: Full Pipeline (CV Processing)
-
-```bash
-# Navigate to backend
-cd backend
-
-# Run setup (creates venv, installs deps, downloads models)
-chmod +x setup.sh
-./setup.sh
-
-# Activate environment
-source venv/bin/activate
-
-# Process a video
-python main.py --video /path/to/video.mp4 --mode all
-```
-
-## API Keys Required
-
-| Key | Required | Purpose | How to Get |
-|-----|----------|---------|------------|
-| **Roboflow API Key** | Optional | Fallback for pitch detection if custom model fails | [roboflow.com](https://roboflow.com) - Free tier available |
-| **Gemini API Key** | Optional | AI tactical commentary generation | [ai.google.dev](https://ai.google.dev) - Free tier available |
-
-**Note:** The pipeline works without any API keys using the custom-trained models. API keys are only needed for fallback/enhanced features.
-
-### Setting API Keys
-
-Create a `.env` file in the `backend/` directory:
-
-```bash
-# backend/.env
-ROBOFLOW_API_KEY=your_roboflow_key_here  # Optional - for pitch detection fallback
-```
-
-For the dashboard AI commentary, add your Gemini key in the web interface settings.
-
-## Pipeline Modes
-
-| Mode | Description | Output |
-|------|-------------|--------|
-| `all` | Full analysis | Annotated video, radar, tracks JSON, analytics JSON |
-| `radar` | Radar view only | Radar video, tracks JSON |
-| `team` | Team classification | Tracks with team IDs |
-| `track` | Object tracking | Tracks JSON |
-| `players` | Player detection | Player bounding boxes |
-| `ball` | Ball detection | Ball positions with interpolation |
-| `pitch` | Pitch detection | Keypoints, homography matrix |
+---
 
 ## Mac Compatibility
 
-The pipeline is fully compatible with Mac (both Apple Silicon and Intel):
+### Apple Silicon (M1/M2/M3/M4)
 
-- **Apple Silicon (M1/M2/M3)**: Uses MPS (Metal Performance Shaders) for GPU acceleration
-- **Intel Mac**: CPU-only processing (slower but functional)
+The pipeline automatically uses **MPS (Metal Performance Shaders)** for GPU acceleration:
 
-The setup script automatically detects your hardware and installs the appropriate PyTorch version.
-
-## Output Files
-
-After processing, outputs are saved to `backend/output_videos/<video_name>/`:
-
-```
-output_videos/<video_name>/
-├── <video_name>_annotated.mp4   # Video with bounding boxes & overlays
-├── <video_name>_radar.mp4       # 2D pitch radar view
-├── <video_name>_tracks.json     # Raw tracking data
-└── <video_name>_analytics.json  # Computed statistics
+```python
+# Automatic detection in backend/utils/device.py
+if torch.backends.mps.is_available():
+    device = "mps"  # Uses Apple GPU
 ```
 
-## Tech Stack
+### Intel Mac
 
-| Component | Technology |
-|-----------|------------|
-| **Frontend** | React 19, TypeScript, Tailwind CSS 4 |
-| **API** | Express 4, tRPC 11, Drizzle ORM |
-| **Database** | MySQL/TiDB |
-| **CV Pipeline** | Python 3.10+, PyTorch, Ultralytics YOLO |
-| **Tracking** | ByteTrack, supervision |
-| **Team Classification** | SigLIP, UMAP, KMeans |
+Falls back to CPU processing (slower but works).
 
-## Camera Support
+### Troubleshooting
 
-| Camera Type | Status |
-|-------------|--------|
-| Tactical Wide Shot (DFL Bundesliga style) | ✅ Supported |
-| Broadcast Camera Angle | 🔜 Coming Soon |
+**"MPS not available"**
+- Ensure macOS 12.3+ and PyTorch 1.12+
+- Run: `pip install torch torchvision --upgrade`
 
-## Troubleshooting
+**Models not downloading**
+- Download manually from Google Drive links in `backend/setup.sh`
+- Place in `backend/models/`
 
-### "MPS not available" on Mac
-Ensure you have macOS 12.3+ and PyTorch 1.12+. The setup script handles this automatically.
-
-### Models not downloading
-If gdown fails, manually download from Google Drive:
-- [player_detection.pt](https://drive.google.com/uc?id=17PXFNlx-jI7VjVo_vQnB1sONjRyvoB-q)
-- [ball_detection.pt](https://drive.google.com/uc?id=1isw4wx-MK9h9LMr36VvIWlJD6ppUvw7V)
-- [pitch_detection.pt](https://drive.google.com/uc?id=1Ma5Kt86tgpdjCTKfum79YMgNnSjcoOyf)
-
-Place them in `backend/models/`.
-
-### Slow processing
-- Use GPU if available (CUDA or MPS)
+**Slow processing**
+- Use `--mode radar` for faster results
 - Reduce video resolution before processing
-- Use `--mode radar` for faster processing (skips annotated video)
+
+---
+
+## API Keys (Optional)
+
+| Key | Purpose | Required? |
+|-----|---------|-----------|
+| Roboflow | Pitch detection fallback | No - custom model works |
+| Gemini | AI tactical commentary | No - basic stats still work |
+
+The pipeline works fully offline with your custom models.
+
+---
+
+## Development Workflow
+
+### Dashboard Development
+
+```bash
+# Start dev server with hot reload
+pnpm dev
+
+# Run tests
+pnpm test
+
+# Type check
+pnpm check
+```
+
+### Pipeline Development
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Run with debug output
+python main.py --video test.mp4 --mode all --verbose
+
+# Test specific module
+python -c "from trackers import Tracker; print('OK')"
+```
+
+---
+
+## Connecting Pipeline to Dashboard
+
+Currently, the pipeline runs independently. To see results in the dashboard:
+
+1. **Manual**: Run pipeline, then import JSON results via dashboard API
+2. **Automated**: Set up a worker service (see `GPU_SETUP.md`)
+
+The dashboard polls for analysis status and displays results when available.
+
+---
 
 ## License
 

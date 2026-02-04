@@ -1,7 +1,20 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
+/**
+ * Storage Module
+ * 
+ * Supports two modes:
+ * 1. Manus Forge Storage (production) - Uses cloud storage via Manus API
+ * 2. Local File Storage (development) - Saves files to local filesystem
+ * 
+ * Set LOCAL_DEV_MODE=true to use local storage
+ */
 
 import { ENV } from './_core/env';
+import { isLocalDevMode } from './_core/localMode';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Local storage directory (relative to project root)
+const LOCAL_STORAGE_DIR = process.env.LOCAL_STORAGE_DIR || './uploads';
 
 type StorageConfig = { baseUrl: string; apiKey: string };
 
@@ -67,7 +80,51 @@ function buildAuthHeaders(apiKey: string): HeadersInit {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
-export async function storagePut(
+// ============================================================================
+// LOCAL STORAGE FUNCTIONS
+// ============================================================================
+
+function ensureLocalStorageDir(subPath: string): string {
+  const fullPath = path.join(LOCAL_STORAGE_DIR, path.dirname(subPath));
+  if (!fs.existsSync(fullPath)) {
+    fs.mkdirSync(fullPath, { recursive: true });
+  }
+  return path.join(LOCAL_STORAGE_DIR, subPath);
+}
+
+async function localStoragePut(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  _contentType = "application/octet-stream"
+): Promise<{ key: string; url: string }> {
+  const key = normalizeKey(relKey);
+  const filePath = ensureLocalStorageDir(key);
+  
+  // Convert data to Buffer if needed
+  const buffer = typeof data === "string" 
+    ? Buffer.from(data) 
+    : Buffer.from(data);
+  
+  fs.writeFileSync(filePath, buffer);
+  
+  // Return a local URL that can be served by Express
+  const url = `/uploads/${key}`;
+  
+  console.log(`[Local Storage] Saved: ${filePath}`);
+  return { key, url };
+}
+
+async function localStorageGet(relKey: string): Promise<{ key: string; url: string }> {
+  const key = normalizeKey(relKey);
+  const url = `/uploads/${key}`;
+  return { key, url };
+}
+
+// ============================================================================
+// CLOUD STORAGE FUNCTIONS (Manus Forge)
+// ============================================================================
+
+async function cloudStoragePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
@@ -92,11 +149,40 @@ export async function storagePut(
   return { key, url };
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
+async function cloudStorageGet(relKey: string): Promise<{ key: string; url: string }> {
   const { baseUrl, apiKey } = getStorageConfig();
   const key = normalizeKey(relKey);
   return {
     key,
     url: await buildDownloadUrl(baseUrl, key, apiKey),
   };
+}
+
+// ============================================================================
+// EXPORTED FUNCTIONS (Auto-switch based on mode)
+// ============================================================================
+
+export async function storagePut(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  contentType = "application/octet-stream"
+): Promise<{ key: string; url: string }> {
+  if (isLocalDevMode()) {
+    return localStoragePut(relKey, data, contentType);
+  }
+  return cloudStoragePut(relKey, data, contentType);
+}
+
+export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+  if (isLocalDevMode()) {
+    return localStorageGet(relKey);
+  }
+  return cloudStorageGet(relKey);
+}
+
+/**
+ * Get the local storage directory path (for serving static files)
+ */
+export function getLocalStorageDir(): string {
+  return LOCAL_STORAGE_DIR;
 }

@@ -100,3 +100,14 @@
 - [x] Add CLI arguments for model source selection
 - [x] Add player model selection in Upload UI
 - [x] Document player model option in README
+
+
+## Codebase Refactor & Local Setup
+- [x] Refactor codebase following SWE best practices
+- [x] Clear separation of concerns (client/server/backend)
+- [x] Create comprehensive Mac-friendly README
+- [x] Add local dev mode to bypass Manus OAuth/Forge dependencies
+- [x] Include player_detection.pt model in backend
+- [x] Create one-command setup script for Mac (setup-mac.sh)
+- [x] Add video analysis caching system (utils/cache.py)
+- [ ] Create worker service to connect pipeline to dashboard (future)
