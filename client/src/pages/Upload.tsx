@@ -1,0 +1,380 @@
+import { useState, useCallback } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
+import { useLocation } from "wouter";
+import { getLoginUrl } from "@/const";
+import {
+  Activity,
+  Upload as UploadIcon,
+  FileVideo,
+  X,
+  Loader2,
+  Layers,
+  Radar,
+  Users,
+  Target,
+  User,
+  Circle,
+  Map,
+  ArrowLeft,
+  CheckCircle2,
+} from "lucide-react";
+import { Link } from "wouter";
+import { PIPELINE_MODES, PipelineMode } from "@shared/types";
+
+const MODE_ICONS: Record<PipelineMode, React.ReactNode> = {
+  all: <Layers className="w-5 h-5" />,
+  radar: <Radar className="w-5 h-5" />,
+  team: <Users className="w-5 h-5" />,
+  track: <Target className="w-5 h-5" />,
+  players: <User className="w-5 h-5" />,
+  ball: <Circle className="w-5 h-5" />,
+  pitch: <Map className="w-5 h-5" />,
+};
+
+export default function Upload() {
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
+  
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedMode, setSelectedMode] = useState<PipelineMode>("all");
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const uploadMutation = trpc.video.upload.useMutation();
+  const createAnalysisMutation = trpc.analysis.create.useMutation();
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile && droppedFile.type.startsWith("video/")) {
+      setFile(droppedFile);
+      if (!title) {
+        setTitle(droppedFile.name.replace(/\.[^/.]+$/, ""));
+      }
+    } else {
+      toast.error("Please upload a video file");
+    }
+  }, [title]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      if (!title) {
+        setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
+      }
+    }
+  }, [title]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!file) {
+      toast.error("Please select a video file");
+      return;
+    }
+    
+    if (!title.trim()) {
+      toast.error("Please enter a title");
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress(Math.round((e.loaded / e.total) * 50));
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+
+      setUploadProgress(60);
+
+      // Upload video
+      const { id: videoId } = await uploadMutation.mutateAsync({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
+        fileBase64,
+      });
+
+      setUploadProgress(80);
+
+      // Create analysis job
+      const { id: analysisId } = await createAnalysisMutation.mutateAsync({
+        videoId,
+        mode: selectedMode,
+      });
+
+      setUploadProgress(100);
+      toast.success("Video uploaded successfully! Starting analysis...");
+      
+      // Navigate to analysis page
+      navigate(`/analysis/${analysisId}`);
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Failed to upload video. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle>Sign In Required</CardTitle>
+            <CardDescription>Please sign in to upload videos</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a href={getLoginUrl()}>
+              <Button className="w-full">Sign In</Button>
+            </a>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container flex items-center justify-between h-16">
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <Activity className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="font-semibold text-lg">Upload Video</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="container py-8">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8">
+          {/* Video Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileVideo className="w-5 h-5" />
+                Video File
+              </CardTitle>
+              <CardDescription>
+                Upload football match footage for analysis (MP4, MOV, AVI supported)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div
+                className={`dropzone ${isDragging ? "active" : ""} ${file ? "border-primary" : ""}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {file ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <FileVideo className="w-6 h-6 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">{file.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {(file.size / (1024 * 1024)).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setFile(null)}
+                    >
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="py-8">
+                    <UploadIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium mb-2">
+                      Drag and drop your video here
+                    </p>
+                    <p className="text-muted-foreground mb-4">
+                      or click to browse files
+                    </p>
+                    <Input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="video-upload"
+                    />
+                    <Label htmlFor="video-upload">
+                      <Button type="button" variant="outline" asChild>
+                        <span>Browse Files</span>
+                      </Button>
+                    </Label>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Video Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Video Details</CardTitle>
+              <CardDescription>
+                Add a title and optional description for your video
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., Arsenal vs Chelsea - Premier League"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Add notes about the match, teams, or specific moments to analyze..."
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pipeline Mode Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Analysis Mode</CardTitle>
+              <CardDescription>
+                Select the type of analysis to run on your video
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(Object.entries(PIPELINE_MODES) as [PipelineMode, typeof PIPELINE_MODES[PipelineMode]][]).map(
+                  ([mode, config]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setSelectedMode(mode)}
+                      className={`mode-card text-left ${selectedMode === mode ? "selected" : ""}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          selectedMode === mode ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"
+                        }`}>
+                          {MODE_ICONS[mode]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{config.name}</span>
+                            {selectedMode === mode && (
+                              <CheckCircle2 className="w-4 h-4 text-primary" />
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {config.description}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Submit */}
+          <div className="flex items-center justify-between">
+            <Link href="/dashboard">
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </Link>
+            <Button type="submit" disabled={!file || !title.trim() || uploading} size="lg">
+              {uploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading... {uploadProgress}%
+                </>
+              ) : (
+                <>
+                  <UploadIcon className="w-4 h-4 mr-2" />
+                  Start Analysis
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Upload Progress */}
+          {uploading && (
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${uploadProgress}%` }} />
+            </div>
+          )}
+        </form>
+      </main>
+    </div>
+  );
+}
