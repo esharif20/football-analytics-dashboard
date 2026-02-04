@@ -201,6 +201,41 @@ export async function updateAnalysisResults(
   await db.update(analyses).set(results).where(eq(analyses.id, id));
 }
 
+// ==================== Worker Queries ====================
+
+export async function getPendingAnalyses(): Promise<Array<{
+  id: number;
+  videoId: number;
+  videoUrl: string;
+  mode: string;
+  modelConfig: Record<string, string>;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get pending analyses with their video URLs
+  const result = await db
+    .select({
+      id: analyses.id,
+      videoId: analyses.videoId,
+      mode: analyses.mode,
+      videoUrl: videos.originalUrl,
+    })
+    .from(analyses)
+    .innerJoin(videos, eq(analyses.videoId, videos.id))
+    .where(eq(analyses.status, "pending"))
+    .orderBy(analyses.createdAt)
+    .limit(10);
+  
+  return result.map(r => ({
+    id: r.id,
+    videoId: r.videoId,
+    videoUrl: r.videoUrl,
+    mode: r.mode,
+    modelConfig: {},
+  }));
+}
+
 // ==================== Event Queries ====================
 
 export async function createEvents(eventList: InsertEvent[]): Promise<void> {

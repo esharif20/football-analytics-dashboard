@@ -53,6 +53,53 @@ async function startServer() {
   
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // Worker API endpoints (for Python worker to call)
+  app.get("/api/worker/pending", async (req, res) => {
+    try {
+      const { getPendingAnalyses } = await import("../db");
+      const analyses = await getPendingAnalyses();
+      res.json({ analyses });
+    } catch (error) {
+      console.error("Worker API error:", error);
+      res.status(500).json({ error: "Failed to get pending analyses" });
+    }
+  });
+  
+  app.post("/api/worker/analysis/:id/status", async (req, res) => {
+    try {
+      const { updateAnalysisStatus } = await import("../db");
+      const id = parseInt(req.params.id);
+      const { status, currentStage, progress, error: errorMessage } = req.body;
+      await updateAnalysisStatus(id, status, progress || 0, currentStage, errorMessage);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Worker API error:", error);
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+  
+  app.post("/api/worker/analysis/:id/complete", async (req, res) => {
+    try {
+      const { updateAnalysisResults, updateAnalysisStatus } = await import("../db");
+      const id = parseInt(req.params.id);
+      const { annotatedVideo, radarVideo, analytics, tracks } = req.body;
+      
+      await updateAnalysisResults(id, {
+        annotatedVideoUrl: annotatedVideo,
+        radarVideoUrl: radarVideo,
+        analyticsDataUrl: analytics ? JSON.stringify(analytics) : undefined,
+        trackingDataUrl: tracks ? JSON.stringify(tracks) : undefined,
+      });
+      await updateAnalysisStatus(id, "completed", 100, "done");
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Worker API error:", error);
+      res.status(500).json({ error: "Failed to complete analysis" });
+    }
+  });
+  
   // tRPC API
   app.use(
     "/api/trpc",
