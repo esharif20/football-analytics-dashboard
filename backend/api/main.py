@@ -1,8 +1,8 @@
 """
 Football Analytics - FastAPI Backend
-Pure Python backend for local development without Node.js dependencies
+Simple Python backend - no authentication required
 """
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -14,7 +14,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from api.routers import videos, analysis, events, tracks, statistics, auth
-from api.services.database import init_db, get_db
+from api.services.database import init_db
 from api.services.websocket_manager import manager
 
 @asynccontextmanager
@@ -30,17 +30,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS for React frontend
+# CORS - allow all origins for local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(videos.router, prefix="/api/videos", tags=["Videos"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
 app.include_router(events.router, prefix="/api/events", tags=["Events"])
@@ -54,7 +54,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         while True:
             data = await websocket.receive_json()
-            # Handle subscription messages
             if data.get("type") == "subscribe":
                 analysis_id = data.get("analysisId")
                 if analysis_id:
@@ -68,18 +67,33 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "football-analytics-api"}
+    return {"status": "healthy", "service": "football-analytics"}
+
+# Serve output files (annotated videos, etc.)
+output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "outputs")
+os.makedirs(output_dir, exist_ok=True)
+
+@app.get("/api/outputs/{analysis_id}/{filename}")
+async def serve_output_file(analysis_id: int, filename: str):
+    """Serve output files (annotated videos, etc.)"""
+    file_path = os.path.join(output_dir, str(analysis_id), filename)
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}
+    return FileResponse(file_path)
 
 # Serve static files (for production build of React frontend)
 frontend_build_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
 if os.path.exists(frontend_build_path):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_build_path, "assets")), name="assets")
+    # Serve assets
+    assets_path = os.path.join(frontend_build_path, "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
     
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         """Serve React frontend for all non-API routes"""
         if full_path.startswith("api/") or full_path.startswith("ws"):
-            raise HTTPException(status_code=404)
+            return {"error": "Not found"}
         
         file_path = os.path.join(frontend_build_path, full_path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
@@ -88,4 +102,9 @@ if os.path.exists(frontend_build_path):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    print("\n" + "="*60)
+    print("  Football Analytics Dashboard")
+    print("  Open http://localhost:8000 in your browser")
+    print("  API docs at http://localhost:8000/docs")
+    print("="*60 + "\n")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

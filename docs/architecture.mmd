@@ -1,0 +1,87 @@
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#10b981', 'primaryTextColor': '#fff', 'primaryBorderColor': '#059669', 'lineColor': '#6b7280', 'secondaryColor': '#1f2937', 'tertiaryColor': '#111827', 'background': '#0d1117', 'mainBkg': '#161b22', 'nodeBorder': '#30363d', 'clusterBkg': '#161b22', 'clusterBorder': '#30363d', 'titleColor': '#f0f6fc', 'edgeLabelBackground': '#161b22'}}}%%
+
+flowchart TB
+    subgraph USER["👤 User"]
+        Browser["Web Browser"]
+    end
+
+    subgraph FRONTEND["Frontend Layer"]
+        direction TB
+        React["⚛️ React + Vite"]
+        Upload["📤 Video Upload"]
+        Dashboard["📊 Dashboard"]
+        Visualizations["🎯 Visualizations"]
+    end
+
+    subgraph BACKEND["Backend Layer"]
+        direction TB
+        FastAPI["⚡ FastAPI Server"]
+        WebSocket["🔌 WebSocket"]
+        SQLite["🗄️ SQLite DB"]
+        Storage["📁 File Storage"]
+    end
+
+    subgraph PIPELINE["CV Pipeline"]
+        direction TB
+        subgraph DETECTION["Detection Stage"]
+            YOLO["YOLOv8 Detection"]
+            Players["Players & Ball"]
+            Pitch["Pitch Keypoints"]
+        end
+        subgraph TRACKING["Tracking Stage"]
+            ByteTrack["ByteTrack"]
+            Interpolation["Ball Interpolation"]
+        end
+        subgraph ANALYSIS["Analysis Stage"]
+            Teams["Team Classification<br/>SigLIP + UMAP + KMeans"]
+            Homography["Homography Transform"]
+            Events["Event Detection"]
+        end
+        subgraph OUTPUT["Output Stage"]
+            Analytics["Analytics JSON"]
+            Video["Annotated Video"]
+            Radar["2D Radar View"]
+        end
+    end
+
+    subgraph MODELS["ML Models"]
+        PlayerModel["player_detection.pt"]
+        BallModel["ball_detection.pt"]
+        PitchModel["pitch_keypoints.pt"]
+        SigLIP["SigLIP Embeddings"]
+    end
+
+    Browser --> React
+    React --> Upload
+    React --> Dashboard
+    React --> Visualizations
+    
+    Upload --> FastAPI
+    Dashboard --> FastAPI
+    FastAPI --> WebSocket
+    FastAPI --> SQLite
+    FastAPI --> Storage
+    
+    FastAPI --> YOLO
+    YOLO --> Players
+    YOLO --> Pitch
+    
+    Players --> ByteTrack
+    Pitch --> Homography
+    ByteTrack --> Interpolation
+    
+    Interpolation --> Teams
+    Homography --> Teams
+    Teams --> Events
+    
+    Events --> Analytics
+    Events --> Video
+    Events --> Radar
+    
+    MODELS -.-> DETECTION
+    
+    Analytics --> SQLite
+    Video --> Storage
+    Radar --> Storage
+    
+    WebSocket -.->|"Real-time Updates"| Browser

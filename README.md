@@ -4,29 +4,29 @@ A full-stack application for analyzing football match footage using computer vis
 
 ---
 
-## Quick Start (Local Development)
-
-**For running on your laptop with pure FastAPI (no Node.js required):**
+## Quick Start
 
 ```bash
 # Clone the repository
 git clone https://github.com/esharif20/football-analytics-dashboard.git
 cd football-analytics-dashboard
 
-# One-command setup and run
-make setup-local
-make local
+# Setup (one time)
+make setup
+
+# Run
+make run
 ```
 
-Open http://localhost:8000 in your browser.
+Open **http://localhost:8000** in your browser.
 
-**That's it!** The local mode uses FastAPI + SQLite, so you only need Python and Node.js (for building the frontend).
+**No authentication required** - just upload a video and start analyzing.
 
 ---
 
 ## System Architecture
 
-![System Architecture](https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/QiweQNeftGgWJTaS.png)
+![System Architecture](https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/qnWaZAlvezOpVSiR.png)
 
 ### Architecture Overview
 
@@ -158,7 +158,7 @@ football-dashboard/
 - **Node.js 18+** - `brew install node` (for building frontend)
 - **pnpm** - `npm install -g pnpm`
 
-### Local Development Setup
+### Setup
 
 ```bash
 # 1. Clone the repository
@@ -166,41 +166,26 @@ git clone https://github.com/esharif20/football-analytics-dashboard.git
 cd football-analytics-dashboard
 
 # 2. Setup (installs Python + Node dependencies, builds frontend)
-make setup-local
+make setup
 
-# 3. Add your model (optional - for full pipeline)
-cp /path/to/player_detection.pt backend/pipeline/models/
-
-# 4. Run the application
-make local
+# 3. Run the application
+make run
 ```
 
 Open http://localhost:8000 in your browser.
-
-### What `make local` Does
-
-1. Creates Python virtual environment
-2. Installs FastAPI and dependencies
-3. Builds the React frontend
-4. Initializes SQLite database
-5. Starts FastAPI server serving both API and frontend
 
 ---
 
 ## Available Commands
 
 ```bash
-# LOCAL DEVELOPMENT (Recommended)
-make local          # Run with FastAPI backend
-make setup-local    # Install dependencies for local mode
+make setup    # Install all dependencies
+make run      # Start dashboard at http://localhost:8000
+make check    # Check system requirements
+make clean    # Remove all dependencies
 
-# PIPELINE
-make process VIDEO=/path/to/video.mp4    # Process a video
-
-# UTILITIES
-make check          # Check system requirements
-make clean          # Remove all dependencies
-make test           # Run tests
+# Process video directly via CLI
+make process VIDEO=/path/to/video.mp4
 ```
 
 ---
@@ -264,9 +249,7 @@ make check
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/auth/me` | GET | Get current user |
-| `/api/auth/login` | POST | Login |
-| `/api/auth/logout` | POST | Logout |
+
 | `/api/videos` | GET | List videos |
 | `/api/videos` | POST | Upload video |
 | `/api/videos/{id}` | GET | Get video |

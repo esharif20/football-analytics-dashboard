@@ -1,16 +1,16 @@
 """
 Videos Router - Video upload and management
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from pydantic import BaseModel
 from typing import Optional, List
 import os
 import shutil
 from datetime import datetime
 
-from api.routers.auth import require_user
 from api.services.database import (
-    create_video, get_video_by_id, get_videos_by_user, delete_video as db_delete_video
+    create_video, get_video_by_id, get_all_videos, delete_video as db_delete_video,
+    compute_file_hash, get_video_by_hash
 )
 
 router = APIRouter()
@@ -33,35 +33,33 @@ class VideoResponse(BaseModel):
     created_at: str
 
 @router.get("")
-async def list_videos(request: Request, user: dict = Depends(require_user)):
-    """List all videos for current user"""
-    videos = get_videos_by_user(user["id"])
+async def list_videos():
+    """List all videos"""
+    videos = get_all_videos()
     return videos
 
 @router.get("/{video_id}")
-async def get_video(video_id: int, request: Request, user: dict = Depends(require_user)):
+async def get_video(video_id: int):
     """Get video by ID"""
     video = get_video_by_id(video_id)
-    if not video or video["user_id"] != user["id"]:
+    if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     return video
 
 @router.post("")
 async def upload_video(
-    request: Request,
     title: str = Form(...),
     description: str = Form(None),
-    file: UploadFile = File(...),
-    user: dict = Depends(require_user)
+    file: UploadFile = File(...)
 ):
     """Upload a new video"""
     # Validate file type
-    if not file.content_type.startswith("video/"):
+    if not file.content_type or not file.content_type.startswith("video/"):
         raise HTTPException(status_code=400, detail="File must be a video")
     
     # Generate unique filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_filename = f"{user['id']}_{timestamp}_{file.filename}"
+    safe_filename = f"{timestamp}_{file.filename}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
     
     # Save file
@@ -71,15 +69,24 @@ async def upload_video(
     # Get file size
     file_size = os.path.getsize(file_path)
     
+    # Check if video already exists (by hash) - for caching
+    file_hash = compute_file_hash(file_path)
+    existing = get_video_by_hash(file_hash)
+    if existing:
+        # Remove duplicate file, return existing video
+        os.remove(file_path)
+        return {
+            "id": existing["id"],
+            "url": f"/api/videos/file/{os.path.basename(existing['file_path'])}",
+            "duplicate": True,
+            "message": "Video already exists, using cached version"
+        }
+    
     # Create database record
     video_id = create_video(
-        user_id=user["id"],
         title=title,
-        description=description,
-        original_url=f"/api/videos/file/{safe_filename}",
-        file_key=safe_filename,
-        file_size=file_size,
-        mime_type=file.content_type
+        file_path=file_path,
+        file_size=file_size
     )
     
     return {
@@ -88,19 +95,14 @@ async def upload_video(
     }
 
 @router.post("/upload-base64")
-async def upload_video_base64(
-    request: Request,
-    user: dict = Depends(require_user)
-):
+async def upload_video_base64(request: Request):
     """Upload video via base64 (for compatibility with existing frontend)"""
     data = await request.json()
     
     title = data.get("title")
-    description = data.get("description")
     file_name = data.get("fileName")
     file_base64 = data.get("fileBase64")
     file_size = data.get("fileSize")
-    mime_type = data.get("mimeType")
     
     if not title or not file_base64:
         raise HTTPException(status_code=400, detail="Missing required fields")
@@ -112,22 +114,29 @@ async def upload_video_base64(
     
     # Generate unique filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_filename = f"{user['id']}_{timestamp}_{file_name}"
+    safe_filename = f"{timestamp}_{file_name}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
     
     # Save file
     with open(file_path, "wb") as f:
         f.write(file_data)
     
+    # Check if video already exists (by hash)
+    file_hash = compute_file_hash(file_path)
+    existing = get_video_by_hash(file_hash)
+    if existing:
+        os.remove(file_path)
+        return {
+            "id": existing["id"],
+            "url": f"/api/videos/file/{os.path.basename(existing['file_path'])}",
+            "duplicate": True
+        }
+    
     # Create database record
     video_id = create_video(
-        user_id=user["id"],
         title=title,
-        description=description,
-        original_url=f"/api/videos/file/{safe_filename}",
-        file_key=safe_filename,
-        file_size=file_size or len(file_data),
-        mime_type=mime_type
+        file_path=file_path,
+        file_size=file_size or len(file_data)
     )
     
     return {
@@ -136,17 +145,15 @@ async def upload_video_base64(
     }
 
 @router.delete("/{video_id}")
-async def delete_video(video_id: int, request: Request, user: dict = Depends(require_user)):
+async def delete_video(video_id: int):
     """Delete a video"""
     video = get_video_by_id(video_id)
-    if not video or video["user_id"] != user["id"]:
+    if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
     # Delete file if exists
-    if video.get("file_key"):
-        file_path = os.path.join(UPLOAD_DIR, video["file_key"])
-        if os.path.exists(file_path):
-            os.remove(file_path)
+    if video.get("file_path") and os.path.exists(video["file_path"]):
+        os.remove(video["file_path"])
     
     db_delete_video(video_id)
     return {"success": True}

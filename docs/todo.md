@@ -196,3 +196,8 @@
 - [x] Create run-local.sh for one-command local setup
 - [x] Update Makefile with local mode commands
 - [x] Test full workflow locally without Node.js
+
+
+## Documentation Improvements
+- [ ] Create clean, modern system architecture diagram
+- [ ] Make diagram professional enough for dissertation

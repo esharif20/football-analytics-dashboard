@@ -1,26 +1,30 @@
 """
 Analysis Router - Video analysis management and processing
+Simplified - no authentication required, with stub caching
 """
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from enum import Enum
 
-from api.routers.auth import require_user
 from api.services.database import (
     get_video_by_id, create_analysis, get_analysis_by_id,
-    get_analyses_by_user, get_analyses_by_video,
-    update_analysis_status, update_analysis_results
+    get_all_analyses, get_analyses_by_video, get_analysis_by_video_and_mode,
+    update_analysis_status, update_analysis_results,
+    get_all_stubs_for_video, save_stub
 )
 from api.services.websocket_manager import manager
 
 router = APIRouter()
 
 class PipelineMode(str, Enum):
-    full = "full"
+    all = "all"
     radar = "radar"
-    tracking = "tracking"
-    broadcast = "broadcast"
+    track = "track"
+    team = "team"
+    players = "players"
+    ball = "ball"
+    pitch = "pitch"
 
 class ProcessingStatus(str, Enum):
     pending = "pending"
@@ -28,22 +32,24 @@ class ProcessingStatus(str, Enum):
     completed = "completed"
     failed = "failed"
 
+# Pipeline modes matching original repo
 PIPELINE_MODES = [
-    {"id": "full", "name": "Full Analysis", "description": "Complete pipeline with all features"},
-    {"id": "radar", "name": "Radar View", "description": "2D pitch visualization only"},
-    {"id": "tracking", "name": "Tracking Only", "description": "Player and ball tracking"},
-    {"id": "broadcast", "name": "Broadcast Camera", "description": "For standard TV footage (Coming Soon)"},
+    {"id": "all", "name": "Full Analysis", "description": "Complete pipeline: detection, tracking, team assignment, analytics"},
+    {"id": "radar", "name": "Radar View", "description": "2D pitch visualization with player positions"},
+    {"id": "track", "name": "Tracking Only", "description": "Player and ball tracking without team assignment"},
+    {"id": "team", "name": "Team Assignment", "description": "Tracking with team color classification"},
+    {"id": "players", "name": "Players Only", "description": "Player detection and tracking only"},
+    {"id": "ball", "name": "Ball Only", "description": "Ball detection and interpolation"},
+    {"id": "pitch", "name": "Pitch Keypoints", "description": "Pitch keypoint detection for homography"},
 ]
 
 PROCESSING_STAGES = [
-    {"id": "uploading", "name": "Uploading", "weight": 5},
     {"id": "loading", "name": "Loading Video", "weight": 5},
-    {"id": "detecting", "name": "Detecting Players", "weight": 25},
-    {"id": "tracking", "name": "Tracking Objects", "weight": 15},
-    {"id": "classifying", "name": "Classifying Teams", "weight": 15},
-    {"id": "mapping", "name": "Mapping to Pitch", "weight": 10},
-    {"id": "computing", "name": "Computing Analytics", "weight": 10},
-    {"id": "rendering", "name": "Rendering Output", "weight": 15},
+    {"id": "detecting", "name": "Detecting Objects", "weight": 30},
+    {"id": "tracking", "name": "Tracking", "weight": 20},
+    {"id": "classifying", "name": "Team Classification", "weight": 15},
+    {"id": "mapping", "name": "Pitch Mapping", "weight": 10},
+    {"id": "rendering", "name": "Rendering Output", "weight": 20},
 ]
 
 class AnalysisCreate(BaseModel):
@@ -56,18 +62,10 @@ class AnalysisStatusUpdate(BaseModel):
     currentStage: Optional[str] = None
     errorMessage: Optional[str] = None
 
-class AnalysisResultsUpdate(BaseModel):
-    annotatedVideoUrl: Optional[str] = None
-    radarVideoUrl: Optional[str] = None
-    trackingDataUrl: Optional[str] = None
-    analyticsDataUrl: Optional[str] = None
-    processingTimeMs: Optional[int] = None
-
 @router.get("")
-async def list_analyses(request: Request, user: dict = Depends(require_user)):
-    """List all analyses for current user"""
-    analyses = get_analyses_by_user(user["id"])
-    return analyses
+async def list_analyses():
+    """List all analyses"""
+    return get_all_analyses()
 
 @router.get("/modes")
 async def get_modes():
@@ -80,54 +78,53 @@ async def get_stages():
     return PROCESSING_STAGES
 
 @router.get("/by-video/{video_id}")
-async def list_by_video(video_id: int, request: Request, user: dict = Depends(require_user)):
+async def list_by_video(video_id: int):
     """List analyses for a specific video"""
     video = get_video_by_id(video_id)
-    if not video or video["user_id"] != user["id"]:
+    if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     return get_analyses_by_video(video_id)
 
 @router.get("/{analysis_id}")
-async def get_analysis(analysis_id: int, request: Request, user: dict = Depends(require_user)):
+async def get_analysis(analysis_id: int):
     """Get analysis by ID"""
     analysis = get_analysis_by_id(analysis_id)
-    if not analysis or analysis["user_id"] != user["id"]:
+    if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return analysis
 
 @router.post("")
-async def create_new_analysis(
-    data: AnalysisCreate,
-    background_tasks: BackgroundTasks,
-    request: Request,
-    user: dict = Depends(require_user)
-):
-    """Create a new analysis"""
+async def create_new_analysis(data: AnalysisCreate, background_tasks: BackgroundTasks):
+    """Create a new analysis - checks for cached results first"""
     video = get_video_by_id(data.videoId)
-    if not video or video["user_id"] != user["id"]:
+    if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
+    # Check if we already have a completed analysis for this video+mode
+    existing = get_analysis_by_video_and_mode(data.videoId, data.mode.value)
+    if existing:
+        return {
+            "id": existing["id"],
+            "cached": True,
+            "message": "Using cached analysis results"
+        }
+    
+    # Create new analysis
     analysis_id = create_analysis(
         video_id=data.videoId,
-        user_id=user["id"],
         mode=data.mode.value
     )
     
     # Start processing in background
     background_tasks.add_task(process_video, analysis_id, video, data.mode.value)
     
-    return {"id": analysis_id}
+    return {"id": analysis_id, "cached": False}
 
 @router.put("/{analysis_id}/status")
-async def update_status(
-    analysis_id: int,
-    data: AnalysisStatusUpdate,
-    request: Request,
-    user: dict = Depends(require_user)
-):
+async def update_status(analysis_id: int, data: AnalysisStatusUpdate):
     """Update analysis status"""
     analysis = get_analysis_by_id(analysis_id)
-    if not analysis or analysis["user_id"] != user["id"]:
+    if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
     
     update_analysis_status(
@@ -148,38 +145,11 @@ async def update_status(
     
     return {"success": True}
 
-@router.put("/{analysis_id}/results")
-async def update_results(
-    analysis_id: int,
-    data: AnalysisResultsUpdate,
-    request: Request,
-    user: dict = Depends(require_user)
-):
-    """Update analysis results"""
-    analysis = get_analysis_by_id(analysis_id)
-    if not analysis or analysis["user_id"] != user["id"]:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-    
-    update_analysis_results(
-        analysis_id,
-        data.annotatedVideoUrl,
-        data.radarVideoUrl,
-        data.trackingDataUrl,
-        data.analyticsDataUrl,
-        data.processingTimeMs
-    )
-    
-    return {"success": True}
-
 @router.post("/{analysis_id}/terminate")
-async def terminate_analysis(
-    analysis_id: int,
-    request: Request,
-    user: dict = Depends(require_user)
-):
+async def terminate_analysis(analysis_id: int):
     """Terminate a running analysis"""
     analysis = get_analysis_by_id(analysis_id)
-    if not analysis or analysis["user_id"] != user["id"]:
+    if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
     
     if analysis["status"] not in ["processing", "pending"]:
@@ -198,15 +168,14 @@ async def terminate_analysis(
     return {"success": True}
 
 @router.get("/{analysis_id}/eta")
-async def get_eta(analysis_id: int, request: Request, user: dict = Depends(require_user)):
+async def get_eta(analysis_id: int):
     """Get ETA for processing"""
     analysis = get_analysis_by_id(analysis_id)
-    if not analysis or analysis["user_id"] != user["id"]:
+    if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
     
     from datetime import datetime
     
-    # Calculate ETA based on progress and elapsed time
     created_at = datetime.fromisoformat(analysis["created_at"]) if analysis["created_at"] else datetime.now()
     elapsed = (datetime.now() - created_at).total_seconds() * 1000
     progress = analysis["progress"] or 1
@@ -214,7 +183,7 @@ async def get_eta(analysis_id: int, request: Request, user: dict = Depends(requi
     estimated_total = (elapsed / progress) * 100
     remaining = max(0, estimated_total - elapsed)
     
-    current_stage = analysis.get("current_stage") or "uploading"
+    current_stage = analysis.get("current_stage") or "loading"
     stage_index = next((i for i, s in enumerate(PROCESSING_STAGES) if s["id"] == current_stage), 0)
     
     return {
@@ -231,6 +200,9 @@ async def process_video(analysis_id: int, video: dict, mode: str):
     import asyncio
     import os
     import sys
+    import time
+    
+    start_time = time.time()
     
     try:
         # Update status to processing
@@ -238,35 +210,88 @@ async def process_video(analysis_id: int, video: dict, mode: str):
         await manager.broadcast_analysis_progress(analysis_id, "processing", 0, "loading")
         
         # Get video file path
-        upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "uploads")
-        video_path = os.path.join(upload_dir, video.get("file_key", ""))
-        
-        if not os.path.exists(video_path):
+        video_path = video.get("file_path", "")
+        if not video_path or not os.path.exists(video_path):
             raise Exception(f"Video file not found: {video_path}")
         
-        # Import pipeline modules
+        # Check for cached stubs
+        video_hash = video.get("file_hash", "")
+        cached_stubs = get_all_stubs_for_video(video_hash, mode) if video_hash else {}
+        
+        if cached_stubs:
+            # Use cached results
+            update_analysis_status(analysis_id, "processing", 50, "loading_cache")
+            await manager.broadcast_analysis_progress(analysis_id, "processing", 50, "loading_cache")
+            await asyncio.sleep(0.5)
+        
+        # Import and run pipeline
         pipeline_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "pipeline")
         sys.path.insert(0, pipeline_path)
         
-        stages = [
-            ("detecting", 25),
-            ("tracking", 40),
-            ("classifying", 55),
-            ("mapping", 70),
-            ("computing", 85),
-            ("rendering", 100),
-        ]
-        
-        for stage, progress in stages:
-            update_analysis_status(analysis_id, "processing", progress, stage)
-            await manager.broadcast_analysis_progress(analysis_id, "processing", progress, stage)
-            await asyncio.sleep(0.5)  # Simulate processing time
-        
-        # For now, mark as completed (actual pipeline integration would go here)
-        update_analysis_status(analysis_id, "completed", 100, "completed")
-        await manager.broadcast_analysis_complete(analysis_id, {
-            "message": "Analysis completed successfully"
-        })
+        try:
+            from src.main import run_pipeline
+            
+            # Create output directory
+            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "outputs", str(analysis_id))
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Progress callback
+            async def progress_callback(stage: str, progress: int):
+                update_analysis_status(analysis_id, "processing", progress, stage)
+                await manager.broadcast_analysis_progress(analysis_id, "processing", progress, stage)
+            
+            # Run pipeline
+            result = run_pipeline(
+                video_path=video_path,
+                mode=mode,
+                output_dir=output_dir,
+                use_stubs=bool(cached_stubs),
+                progress_callback=progress_callback
+            )
+            
+            # Save results
+            processing_time = int((time.time() - start_time) * 1000)
+            update_analysis_results(
+                analysis_id,
+                annotated_video_path=result.get("annotated_video"),
+                radar_video_path=result.get("radar_video"),
+                tracking_data_path=result.get("tracking_data"),
+                analytics_data_path=result.get("analytics_data"),
+                processing_time_ms=processing_time
+            )
+            
+            # Save stubs for future caching
+            if video_hash:
+                for stub_type, stub_path in result.get("stubs", {}).items():
+                    save_stub(video_hash, mode, stub_type, stub_path)
+            
+            update_analysis_status(analysis_id, "completed", 100, "completed")
+            await manager.broadcast_analysis_complete(analysis_id, {
+                "message": "Analysis completed successfully",
+                "processingTimeMs": processing_time
+            })
+            
+        except ImportError:
+            # Pipeline not available - simulate processing for demo
+            stages = [
+                ("detecting", 25),
+                ("tracking", 50),
+                ("classifying", 70),
+                ("mapping", 85),
+                ("rendering", 100),
+            ]
+            
+            for stage, progress in stages:
+                update_analysis_status(analysis_id, "processing", progress, stage)
+                await manager.broadcast_analysis_progress(analysis_id, "processing", progress, stage)
+                await asyncio.sleep(1)  # Simulate processing time
+            
+            processing_time = int((time.time() - start_time) * 1000)
+            update_analysis_status(analysis_id, "completed", 100, "completed")
+            await manager.broadcast_analysis_complete(analysis_id, {
+                "message": "Analysis completed (demo mode - pipeline not installed)",
+                "processingTimeMs": processing_time
+            })
         
     except Exception as e:
         update_analysis_status(analysis_id, "failed", 0, None, str(e))

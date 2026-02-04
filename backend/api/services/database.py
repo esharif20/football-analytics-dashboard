@@ -1,8 +1,10 @@
 """
-SQLite Database Service for Local Development
+SQLite Database Service - Simplified for Local Development
+No user authentication, just videos and analyses
 """
 import sqlite3
 import os
+import hashlib
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
@@ -16,143 +18,54 @@ def init_db():
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
-    # Users table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            name TEXT,
-            password_hash TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    # Videos table
+    # Videos table - simplified
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS videos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
             title TEXT NOT NULL,
-            description TEXT,
-            original_url TEXT,
-            file_key TEXT,
+            file_path TEXT NOT NULL,
+            file_hash TEXT,
             file_size INTEGER,
-            mime_type TEXT,
             duration_ms INTEGER,
             fps REAL,
             width INTEGER,
             height INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     
-    # Analyses table
+    # Analyses table - simplified
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS analyses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             video_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
             mode TEXT NOT NULL,
             status TEXT DEFAULT 'pending',
             progress INTEGER DEFAULT 0,
             current_stage TEXT,
             error_message TEXT,
-            annotated_video_url TEXT,
-            radar_video_url TEXT,
-            tracking_data_url TEXT,
-            analytics_data_url TEXT,
+            annotated_video_path TEXT,
+            radar_video_path TEXT,
+            tracking_data_path TEXT,
+            analytics_data_path TEXT,
             processing_time_ms INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             completed_at TIMESTAMP,
-            FOREIGN KEY (video_id) REFERENCES videos(id),
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            FOREIGN KEY (video_id) REFERENCES videos(id)
         )
     """)
     
-    # Events table
+    # Stubs table - for caching intermediate results
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS events (
+        CREATE TABLE IF NOT EXISTS stubs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            analysis_id INTEGER NOT NULL,
-            type TEXT NOT NULL,
-            frame_number INTEGER NOT NULL,
-            timestamp REAL NOT NULL,
-            player_id INTEGER,
-            team_id INTEGER,
-            target_player_id INTEGER,
-            start_x REAL,
-            start_y REAL,
-            end_x REAL,
-            end_y REAL,
-            success INTEGER,
-            confidence REAL,
-            metadata TEXT,
+            video_hash TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            stub_type TEXT NOT NULL,
+            stub_path TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
+            UNIQUE(video_hash, mode, stub_type)
         )
-    """)
-    
-    # Tracks table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tracks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            analysis_id INTEGER NOT NULL,
-            frame_number INTEGER NOT NULL,
-            timestamp REAL NOT NULL,
-            player_positions TEXT,
-            ball_position TEXT,
-            team_formations TEXT,
-            voronoi_data TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
-        )
-    """)
-    
-    # Statistics table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS statistics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            analysis_id INTEGER NOT NULL UNIQUE,
-            possession_team1 REAL,
-            possession_team2 REAL,
-            passes_team1 INTEGER,
-            passes_team2 INTEGER,
-            pass_accuracy_team1 REAL,
-            pass_accuracy_team2 REAL,
-            shots_team1 INTEGER,
-            shots_team2 INTEGER,
-            distance_covered_team1 REAL,
-            distance_covered_team2 REAL,
-            avg_speed_team1 REAL,
-            avg_speed_team2 REAL,
-            heatmap_data_team1 TEXT,
-            heatmap_data_team2 TEXT,
-            pass_network_team1 TEXT,
-            pass_network_team2 TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
-        )
-    """)
-    
-    # Commentary table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS commentary (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            analysis_id INTEGER NOT NULL,
-            type TEXT NOT NULL,
-            content TEXT,
-            grounding_data TEXT,
-            frame_start INTEGER,
-            frame_end INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
-        )
-    """)
-    
-    # Create default user for local development
-    cursor.execute("""
-        INSERT OR IGNORE INTO users (id, email, name) VALUES (1, 'local@localhost', 'Local User')
     """)
     
     conn.commit()
@@ -176,15 +89,24 @@ def dict_from_row(row) -> Optional[Dict[str, Any]]:
         return None
     return dict(row)
 
+def compute_file_hash(file_path: str) -> str:
+    """Compute SHA256 hash of a file"""
+    sha256 = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8192), b''):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
 # Video operations
-def create_video(user_id: int, title: str, description: str = None, original_url: str = None,
-                 file_key: str = None, file_size: int = None, mime_type: str = None) -> int:
+def create_video(title: str, file_path: str, file_size: int = None) -> int:
+    """Create a new video record"""
+    file_hash = compute_file_hash(file_path) if os.path.exists(file_path) else None
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO videos (user_id, title, description, original_url, file_key, file_size, mime_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, title, description, original_url, file_key, file_size, mime_type))
+            INSERT INTO videos (title, file_path, file_hash, file_size)
+            VALUES (?, ?, ?, ?)
+        """, (title, file_path, file_hash, file_size))
         return cursor.lastrowid
 
 def get_video_by_id(video_id: int) -> Optional[Dict]:
@@ -193,25 +115,47 @@ def get_video_by_id(video_id: int) -> Optional[Dict]:
         cursor.execute("SELECT * FROM videos WHERE id = ?", (video_id,))
         return dict_from_row(cursor.fetchone())
 
-def get_videos_by_user(user_id: int) -> List[Dict]:
+def get_video_by_hash(file_hash: str) -> Optional[Dict]:
+    """Find video by file hash - for detecting duplicate uploads"""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM videos WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
+        cursor.execute("SELECT * FROM videos WHERE file_hash = ?", (file_hash,))
+        return dict_from_row(cursor.fetchone())
+
+def get_all_videos() -> List[Dict]:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM videos ORDER BY created_at DESC")
         return [dict_from_row(row) for row in cursor.fetchall()]
 
 def delete_video(video_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
+        # Delete associated analyses first
+        cursor.execute("DELETE FROM analyses WHERE video_id = ?", (video_id,))
         cursor.execute("DELETE FROM videos WHERE id = ?", (video_id,))
 
-# Analysis operations
-def create_analysis(video_id: int, user_id: int, mode: str) -> int:
+def update_video_metadata(video_id: int, duration_ms: int = None, fps: float = None, 
+                          width: int = None, height: int = None):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO analyses (video_id, user_id, mode, status, progress)
-            VALUES (?, ?, ?, 'pending', 0)
-        """, (video_id, user_id, mode))
+            UPDATE videos 
+            SET duration_ms = COALESCE(?, duration_ms),
+                fps = COALESCE(?, fps),
+                width = COALESCE(?, width),
+                height = COALESCE(?, height)
+            WHERE id = ?
+        """, (duration_ms, fps, width, height, video_id))
+
+# Analysis operations
+def create_analysis(video_id: int, mode: str) -> int:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO analyses (video_id, mode, status, progress)
+            VALUES (?, ?, 'pending', 0)
+        """, (video_id, mode))
         return cursor.lastrowid
 
 def get_analysis_by_id(analysis_id: int) -> Optional[Dict]:
@@ -220,10 +164,10 @@ def get_analysis_by_id(analysis_id: int) -> Optional[Dict]:
         cursor.execute("SELECT * FROM analyses WHERE id = ?", (analysis_id,))
         return dict_from_row(cursor.fetchone())
 
-def get_analyses_by_user(user_id: int) -> List[Dict]:
+def get_all_analyses() -> List[Dict]:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM analyses WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
+        cursor.execute("SELECT * FROM analyses ORDER BY created_at DESC")
         return [dict_from_row(row) for row in cursor.fetchall()]
 
 def get_analyses_by_video(video_id: int) -> List[Dict]:
@@ -231,6 +175,17 @@ def get_analyses_by_video(video_id: int) -> List[Dict]:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM analyses WHERE video_id = ? ORDER BY created_at DESC", (video_id,))
         return [dict_from_row(row) for row in cursor.fetchall()]
+
+def get_analysis_by_video_and_mode(video_id: int, mode: str) -> Optional[Dict]:
+    """Find existing analysis for a video+mode combination"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM analyses 
+            WHERE video_id = ? AND mode = ? AND status = 'completed'
+            ORDER BY created_at DESC LIMIT 1
+        """, (video_id, mode))
+        return dict_from_row(cursor.fetchone())
 
 def update_analysis_status(analysis_id: int, status: str, progress: int, 
                            current_stage: str = None, error_message: str = None):
@@ -243,121 +198,73 @@ def update_analysis_status(analysis_id: int, status: str, progress: int,
             WHERE id = ?
         """, (status, progress, current_stage, error_message, status, analysis_id))
 
-def update_analysis_results(analysis_id: int, annotated_video_url: str = None,
-                            radar_video_url: str = None, tracking_data_url: str = None,
-                            analytics_data_url: str = None, processing_time_ms: int = None):
+def update_analysis_results(analysis_id: int, annotated_video_path: str = None,
+                            radar_video_path: str = None, tracking_data_path: str = None,
+                            analytics_data_path: str = None, processing_time_ms: int = None):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE analyses 
-            SET annotated_video_url = COALESCE(?, annotated_video_url),
-                radar_video_url = COALESCE(?, radar_video_url),
-                tracking_data_url = COALESCE(?, tracking_data_url),
-                analytics_data_url = COALESCE(?, analytics_data_url),
+            SET annotated_video_path = COALESCE(?, annotated_video_path),
+                radar_video_path = COALESCE(?, radar_video_path),
+                tracking_data_path = COALESCE(?, tracking_data_path),
+                analytics_data_path = COALESCE(?, analytics_data_path),
                 processing_time_ms = COALESCE(?, processing_time_ms)
             WHERE id = ?
-        """, (annotated_video_url, radar_video_url, tracking_data_url, 
-              analytics_data_url, processing_time_ms, analysis_id))
+        """, (annotated_video_path, radar_video_path, tracking_data_path, 
+              analytics_data_path, processing_time_ms, analysis_id))
 
-# Events operations
-def create_events(events: List[Dict]):
+def delete_analysis(analysis_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
-        for event in events:
-            cursor.execute("""
-                INSERT INTO events (analysis_id, type, frame_number, timestamp, player_id,
-                    team_id, target_player_id, start_x, start_y, end_x, end_y, success, confidence, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (event['analysis_id'], event['type'], event['frame_number'], event['timestamp'],
-                  event.get('player_id'), event.get('team_id'), event.get('target_player_id'),
-                  event.get('start_x'), event.get('start_y'), event.get('end_x'), event.get('end_y'),
-                  event.get('success'), event.get('confidence'), 
-                  str(event.get('metadata')) if event.get('metadata') else None))
+        cursor.execute("DELETE FROM analyses WHERE id = ?", (analysis_id,))
 
-def get_events_by_analysis(analysis_id: int) -> List[Dict]:
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM events WHERE analysis_id = ? ORDER BY frame_number", (analysis_id,))
-        return [dict_from_row(row) for row in cursor.fetchall()]
-
-def get_events_by_type(analysis_id: int, event_type: str) -> List[Dict]:
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM events WHERE analysis_id = ? AND type = ? ORDER BY frame_number", 
-                       (analysis_id, event_type))
-        return [dict_from_row(row) for row in cursor.fetchall()]
-
-# Tracks operations
-def create_tracks(tracks: List[Dict]):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        for track in tracks:
-            cursor.execute("""
-                INSERT INTO tracks (analysis_id, frame_number, timestamp, player_positions,
-                    ball_position, team_formations, voronoi_data)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (track['analysis_id'], track['frame_number'], track['timestamp'],
-                  str(track.get('player_positions')), str(track.get('ball_position')),
-                  str(track.get('team_formations')), str(track.get('voronoi_data'))))
-
-def get_tracks_by_analysis(analysis_id: int) -> List[Dict]:
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM tracks WHERE analysis_id = ? ORDER BY frame_number", (analysis_id,))
-        return [dict_from_row(row) for row in cursor.fetchall()]
-
-def get_track_at_frame(analysis_id: int, frame_number: int) -> Optional[Dict]:
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM tracks WHERE analysis_id = ? AND frame_number = ?", 
-                       (analysis_id, frame_number))
-        return dict_from_row(cursor.fetchone())
-
-# Statistics operations
-def create_statistics(stats: Dict) -> int:
+# Stub operations (for caching)
+def save_stub(video_hash: str, mode: str, stub_type: str, stub_path: str):
+    """Save a stub file reference for caching"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO statistics (analysis_id, possession_team1, possession_team2,
-                passes_team1, passes_team2, pass_accuracy_team1, pass_accuracy_team2,
-                shots_team1, shots_team2, distance_covered_team1, distance_covered_team2,
-                avg_speed_team1, avg_speed_team2, heatmap_data_team1, heatmap_data_team2,
-                pass_network_team1, pass_network_team2)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (stats['analysis_id'], stats.get('possession_team1'), stats.get('possession_team2'),
-              stats.get('passes_team1'), stats.get('passes_team2'),
-              stats.get('pass_accuracy_team1'), stats.get('pass_accuracy_team2'),
-              stats.get('shots_team1'), stats.get('shots_team2'),
-              stats.get('distance_covered_team1'), stats.get('distance_covered_team2'),
-              stats.get('avg_speed_team1'), stats.get('avg_speed_team2'),
-              str(stats.get('heatmap_data_team1')), str(stats.get('heatmap_data_team2')),
-              str(stats.get('pass_network_team1')), str(stats.get('pass_network_team2'))))
-        return cursor.lastrowid
+            INSERT OR REPLACE INTO stubs (video_hash, mode, stub_type, stub_path)
+            VALUES (?, ?, ?, ?)
+        """, (video_hash, mode, stub_type, stub_path))
 
-def get_statistics_by_analysis(analysis_id: int) -> Optional[Dict]:
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM statistics WHERE analysis_id = ?", (analysis_id,))
-        return dict_from_row(cursor.fetchone())
-
-# User operations
-def get_user_by_id(user_id: int) -> Optional[Dict]:
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        return dict_from_row(cursor.fetchone())
-
-def get_user_by_email(email: str) -> Optional[Dict]:
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
-        return dict_from_row(cursor.fetchone())
-
-def create_user(email: str, name: str = None, password_hash: str = None) -> int:
+def get_stub(video_hash: str, mode: str, stub_type: str) -> Optional[str]:
+    """Get cached stub path if exists"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO users (email, name, password_hash)
-            VALUES (?, ?, ?)
-        """, (email, name, password_hash))
-        return cursor.lastrowid
+            SELECT stub_path FROM stubs 
+            WHERE video_hash = ? AND mode = ? AND stub_type = ?
+        """, (video_hash, mode, stub_type))
+        row = cursor.fetchone()
+        if row and os.path.exists(row[0]):
+            return row[0]
+        return None
+
+def get_all_stubs_for_video(video_hash: str, mode: str) -> Dict[str, str]:
+    """Get all cached stubs for a video+mode"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT stub_type, stub_path FROM stubs 
+            WHERE video_hash = ? AND mode = ?
+        """, (video_hash, mode))
+        stubs = {}
+        for row in cursor.fetchall():
+            if os.path.exists(row[1]):
+                stubs[row[0]] = row[1]
+        return stubs
+
+def clear_stubs(video_hash: str = None, mode: str = None):
+    """Clear stubs - optionally filtered by video_hash and/or mode"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if video_hash and mode:
+            cursor.execute("DELETE FROM stubs WHERE video_hash = ? AND mode = ?", (video_hash, mode))
+        elif video_hash:
+            cursor.execute("DELETE FROM stubs WHERE video_hash = ?", (video_hash,))
+        elif mode:
+            cursor.execute("DELETE FROM stubs WHERE mode = ?", (mode,))
+        else:
+            cursor.execute("DELETE FROM stubs")

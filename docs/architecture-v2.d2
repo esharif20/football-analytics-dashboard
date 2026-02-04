@@ -1,0 +1,257 @@
+direction: down
+
+title: |md
+  # Football Analysis System
+| {
+  near: top-center
+  shape: text
+  style.font-size: 32
+}
+
+# Main flow - vertical
+user: User {
+  shape: person
+  style: {
+    fill: "#10b981"
+    stroke: "#059669"
+    stroke-width: 2
+  }
+}
+
+frontend: {
+  label: "Frontend"
+  style: {
+    fill: "#064e3b"
+    stroke: "#10b981"
+    stroke-width: 3
+    border-radius: 12
+    font-color: "#fff"
+    font-size: 18
+    bold: true
+  }
+  
+  grid-columns: 4
+  
+  react: React + Vite {
+    style.fill: "#065f46"
+    style.stroke: "#10b981"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  upload: Video Upload {
+    style.fill: "#065f46"
+    style.stroke: "#10b981"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  dashboard: Dashboard {
+    style.fill: "#065f46"
+    style.stroke: "#10b981"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  visualizations: Visualizations {
+    style.fill: "#065f46"
+    style.stroke: "#10b981"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+}
+
+backend: {
+  label: "Backend (FastAPI)"
+  style: {
+    fill: "#1e3a5f"
+    stroke: "#3b82f6"
+    stroke-width: 3
+    border-radius: 12
+    font-color: "#fff"
+    font-size: 18
+    bold: true
+  }
+  
+  grid-columns: 3
+  
+  api: REST API {
+    style.fill: "#1e40af"
+    style.stroke: "#3b82f6"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  websocket: WebSocket {
+    style.fill: "#1e40af"
+    style.stroke: "#3b82f6"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  auth: Auth {
+    style.fill: "#1e40af"
+    style.stroke: "#3b82f6"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+}
+
+pipeline: {
+  label: "CV Pipeline (Python)"
+  style: {
+    fill: "#2e1065"
+    stroke: "#8b5cf6"
+    stroke-width: 3
+    border-radius: 12
+    font-color: "#fff"
+    font-size: 18
+    bold: true
+  }
+  
+  detection: {
+    label: "1. Detection"
+    style.fill: "#4c1d95"
+    style.stroke: "#8b5cf6"
+    style.font-color: "#fff"
+    style.border-radius: 8
+    
+    yolo: YOLOv8
+    players: Players & Ball
+    pitch: Pitch Keypoints
+  }
+  
+  tracking: {
+    label: "2. Tracking"
+    style.fill: "#4c1d95"
+    style.stroke: "#8b5cf6"
+    style.font-color: "#fff"
+    style.border-radius: 8
+    
+    bytetrack: ByteTrack
+    interpolation: Ball Interpolation
+  }
+  
+  analysis: {
+    label: "3. Analysis"
+    style.fill: "#4c1d95"
+    style.stroke: "#8b5cf6"
+    style.font-color: "#fff"
+    style.border-radius: 8
+    
+    teams: Team Classification
+    homography: Homography
+    events: Event Detection
+  }
+  
+  output: {
+    label: "4. Output"
+    style.fill: "#4c1d95"
+    style.stroke: "#8b5cf6"
+    style.font-color: "#fff"
+    style.border-radius: 8
+    
+    json: Analytics JSON
+    video: Annotated Video
+    radar: 2D Radar
+  }
+  
+  detection -> tracking
+  tracking -> analysis
+  analysis -> output
+}
+
+storage: {
+  label: "Storage"
+  style: {
+    fill: "#1f2937"
+    stroke: "#6b7280"
+    stroke-width: 3
+    border-radius: 12
+    font-color: "#fff"
+    font-size: 18
+    bold: true
+  }
+  
+  grid-columns: 2
+  
+  sqlite: SQLite DB {
+    style.fill: "#374151"
+    style.stroke: "#6b7280"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  files: File Storage {
+    style.fill: "#374151"
+    style.stroke: "#6b7280"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+}
+
+models: {
+  label: "ML Models"
+  style: {
+    fill: "#78350f"
+    stroke: "#f59e0b"
+    stroke-width: 3
+    border-radius: 12
+    font-color: "#fff"
+    font-size: 18
+    bold: true
+  }
+  
+  grid-columns: 2
+  
+  player: player_detection.pt {
+    style.fill: "#92400e"
+    style.stroke: "#f59e0b"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  ball: ball_detection.pt {
+    style.fill: "#92400e"
+    style.stroke: "#f59e0b"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  pitch: pitch_keypoints.pt {
+    style.fill: "#92400e"
+    style.stroke: "#f59e0b"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+  siglip: SigLIP {
+    style.fill: "#92400e"
+    style.stroke: "#f59e0b"
+    style.font-color: "#fff"
+    style.border-radius: 8
+  }
+}
+
+# Main vertical flow
+user -> frontend: Interacts {
+  style.stroke: "#10b981"
+  style.stroke-width: 2
+}
+
+frontend -> backend: HTTP/WebSocket {
+  style.stroke: "#3b82f6"
+  style.stroke-width: 2
+}
+
+backend -> pipeline: Process Video {
+  style.stroke: "#8b5cf6"
+  style.stroke-width: 2
+}
+
+backend -> storage: Store Data {
+  style.stroke: "#6b7280"
+  style.stroke-width: 2
+}
+
+pipeline -> storage: Save Results {
+  style.stroke: "#6b7280"
+  style.stroke-width: 2
+}
+
+models -> pipeline: Load {
+  style.stroke: "#f59e0b"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+}

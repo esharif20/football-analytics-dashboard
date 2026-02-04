@@ -1,0 +1,227 @@
+direction: right
+
+title: Football Analysis System Architecture {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 28
+    bold: true
+    font-color: "#10b981"
+  }
+}
+
+# Styling
+classes: {
+  frontend: {
+    style: {
+      fill: "#064e3b"
+      stroke: "#10b981"
+      stroke-width: 2
+      border-radius: 8
+      font-color: "#fff"
+    }
+  }
+  backend: {
+    style: {
+      fill: "#1e3a5f"
+      stroke: "#3b82f6"
+      stroke-width: 2
+      border-radius: 8
+      font-color: "#fff"
+    }
+  }
+  pipeline: {
+    style: {
+      fill: "#4c1d95"
+      stroke: "#8b5cf6"
+      stroke-width: 2
+      border-radius: 8
+      font-color: "#fff"
+    }
+  }
+  model: {
+    style: {
+      fill: "#92400e"
+      stroke: "#f59e0b"
+      stroke-width: 2
+      border-radius: 8
+      font-color: "#fff"
+    }
+  }
+  storage: {
+    style: {
+      fill: "#374151"
+      stroke: "#6b7280"
+      stroke-width: 2
+      border-radius: 8
+      font-color: "#fff"
+    }
+  }
+}
+
+# User
+user: {
+  shape: person
+  label: User
+  style: {
+    fill: "#10b981"
+    stroke: "#059669"
+  }
+}
+
+# Frontend Layer
+frontend: Frontend {
+  style: {
+    fill: "#0d1117"
+    stroke: "#10b981"
+    stroke-width: 3
+    border-radius: 12
+  }
+  
+  react: React + Vite {class: frontend}
+  upload: Video Upload {class: frontend}
+  dashboard: Dashboard {class: frontend}
+  viz: Visualizations {class: frontend}
+  ws_client: WebSocket Client {class: frontend}
+  
+  react -> upload
+  react -> dashboard
+  react -> viz
+  react -> ws_client
+}
+
+# Backend Layer
+backend: Backend (FastAPI) {
+  style: {
+    fill: "#0d1117"
+    stroke: "#3b82f6"
+    stroke-width: 3
+    border-radius: 12
+  }
+  
+  api: REST API {class: backend}
+  ws_server: WebSocket Server {class: backend}
+  auth: Authentication {class: backend}
+  
+  api -> auth
+  api -> ws_server
+}
+
+# Storage
+storage: Storage {
+  style: {
+    fill: "#0d1117"
+    stroke: "#6b7280"
+    stroke-width: 3
+    border-radius: 12
+  }
+  
+  sqlite: SQLite Database {class: storage}
+  files: File System {class: storage}
+}
+
+# CV Pipeline
+pipeline: CV Pipeline (Python) {
+  style: {
+    fill: "#0d1117"
+    stroke: "#8b5cf6"
+    stroke-width: 3
+    border-radius: 12
+  }
+  
+  detection: Detection {
+    style: {
+      fill: "#1f1f3d"
+      stroke: "#8b5cf6"
+      border-radius: 8
+    }
+    yolo: YOLOv8 {class: pipeline}
+    players: Players & Ball {class: pipeline}
+    pitch: Pitch Keypoints {class: pipeline}
+    
+    yolo -> players
+    yolo -> pitch
+  }
+  
+  tracking: Tracking {
+    style: {
+      fill: "#1f1f3d"
+      stroke: "#8b5cf6"
+      border-radius: 8
+    }
+    bytetrack: ByteTrack {class: pipeline}
+    interpolation: Ball Interpolation {class: pipeline}
+    
+    bytetrack -> interpolation
+  }
+  
+  analysis: Analysis {
+    style: {
+      fill: "#1f1f3d"
+      stroke: "#8b5cf6"
+      border-radius: 8
+    }
+    teams: Team Classification {class: pipeline}
+    homography: Homography {class: pipeline}
+    events: Event Detection {class: pipeline}
+    
+    teams -> events
+    homography -> events
+  }
+  
+  output: Output {
+    style: {
+      fill: "#1f1f3d"
+      stroke: "#8b5cf6"
+      border-radius: 8
+    }
+    json: Analytics JSON {class: pipeline}
+    video: Annotated Video {class: pipeline}
+    radar: 2D Radar View {class: pipeline}
+  }
+  
+  detection -> tracking
+  tracking -> analysis
+  analysis -> output
+}
+
+# ML Models
+models: ML Models {
+  style: {
+    fill: "#0d1117"
+    stroke: "#f59e0b"
+    stroke-width: 3
+    border-radius: 12
+  }
+  
+  player_pt: player_detection.pt {class: model}
+  ball_pt: ball_detection.pt {class: model}
+  pitch_pt: pitch_keypoints.pt {class: model}
+  siglip: SigLIP Embeddings {class: model}
+}
+
+# Connections
+user -> frontend.react: Interacts
+
+frontend.upload -> backend.api: Upload Video
+frontend.dashboard -> backend.api: Fetch Data
+frontend.ws_client -> backend.ws_server: Real-time Updates {
+  style: {
+    stroke-dash: 5
+    stroke: "#10b981"
+  }
+}
+
+backend.api -> storage.sqlite: Store/Query
+backend.api -> storage.files: Save Files
+backend.api -> pipeline.detection: Process Video
+
+models -> pipeline.detection: Load Models {
+  style: {
+    stroke-dash: 5
+    stroke: "#f59e0b"
+  }
+}
+
+pipeline.output -> storage.sqlite: Save Results
+pipeline.output -> storage.files: Save Videos
