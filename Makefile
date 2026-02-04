@@ -49,7 +49,7 @@ setup-dashboard:
 
 setup-pipeline:
 	@echo "🐍 Setting up Python environment..."
-	cd pipeline && \
+	cd backend/pipeline && \
 	python3 -m venv venv && \
 	. venv/bin/activate && \
 	pip install --upgrade pip && \
@@ -71,7 +71,7 @@ run:
 	@trap 'kill 0' EXIT; \
 	pnpm dev & \
 	sleep 2 && \
-	cd pipeline && . venv/bin/activate && python -m api.server
+	cd backend/pipeline && . venv/bin/activate && python -m api.server
 
 dashboard:
 	@echo "🌐 Starting web dashboard on http://localhost:3000"
@@ -80,11 +80,11 @@ dashboard:
 api:
 	@echo "🔌 Starting FastAPI pipeline server on http://localhost:8000"
 	@echo "   API Docs: http://localhost:8000/docs"
-	cd pipeline && . venv/bin/activate && python -m api.server
+	cd backend/pipeline && . venv/bin/activate && python -m api.server
 
 worker:
 	@echo "⚙️  Starting pipeline worker..."
-	cd pipeline && . venv/bin/activate && python worker.py
+	cd backend/pipeline && . venv/bin/activate && python worker.py
 
 # =============================================================================
 # Test Commands
@@ -99,9 +99,9 @@ test-dashboard:
 
 test-pipeline:
 	@echo "🧪 Running pipeline tests..."
-	cd pipeline && . venv/bin/activate && python -m pytest tests/ -v 2>/dev/null || echo "No pytest tests found (OK)"
+	cd backend/pipeline && . venv/bin/activate && python -m pytest tests/ -v 2>/dev/null || echo "No pytest tests found (OK)"
 	@echo "🧪 Verifying pipeline CLI..."
-	cd pipeline && . venv/bin/activate && python main.py --help > /dev/null && echo "✅ Pipeline CLI working"
+	cd backend/pipeline && . venv/bin/activate && python main.py --help > /dev/null && echo "✅ Pipeline CLI working"
 
 # =============================================================================
 # Development Commands
@@ -120,10 +120,10 @@ clean:
 	@echo "🧹 Cleaning build artifacts..."
 	rm -rf node_modules/.cache
 	rm -rf dist
-	rm -rf pipeline/__pycache__
-	rm -rf pipeline/src/**/__pycache__
-	rm -rf pipeline/.pytest_cache
-	rm -rf pipeline/venv 2>/dev/null || true
+	rm -rf backend/pipeline/__pycache__
+	rm -rf backend/pipeline/src/**/__pycache__
+	rm -rf backend/pipeline/.pytest_cache
+	rm -rf backend/pipeline/venv 2>/dev/null || true
 	@echo "✅ Clean complete!"
 
 # =============================================================================
@@ -132,11 +132,11 @@ clean:
 
 docker-build:
 	@echo "🐳 Building Docker images..."
-	docker-compose build
+	cd docker && docker-compose build
 
 docker-run:
 	@echo "🐳 Starting with Docker Compose..."
-	docker-compose up -d
+	cd docker && docker-compose up -d
 	@echo "✅ Services started!"
 	@echo "   Dashboard: http://localhost:3000"
 	@echo "   Pipeline API: http://localhost:8000"
@@ -144,7 +144,7 @@ docker-run:
 
 docker-stop:
 	@echo "🛑 Stopping Docker containers..."
-	docker-compose down
+	cd docker && docker-compose down
 
 # =============================================================================
 # Pipeline Commands
@@ -158,7 +158,7 @@ ifndef VIDEO
 	@exit 1
 endif
 	@echo "🎬 Processing video: $(VIDEO)"
-	cd pipeline && . venv/bin/activate && \
+	cd backend/pipeline && . venv/bin/activate && \
 	python main.py \
 		--source-video-path "$(VIDEO)" \
 		--target-video-path "$(VIDEO:.mp4=_annotated.mp4)" \
@@ -175,7 +175,7 @@ ifndef MODE
 	@exit 1
 endif
 	@echo "🎬 Processing video: $(VIDEO) with mode: $(MODE)"
-	cd pipeline && . venv/bin/activate && \
+	cd backend/pipeline && . venv/bin/activate && \
 	python main.py \
 		--source-video-path "$(VIDEO)" \
 		--target-video-path "$(VIDEO:.mp4=_$(MODE).mp4)" \
@@ -194,16 +194,16 @@ check:
 	@echo "Python: $$(python3 --version 2>/dev/null || echo 'NOT INSTALLED')"
 	@echo ""
 	@echo "GPU Support:"
-	@cd pipeline 2>/dev/null && . venv/bin/activate 2>/dev/null && \
+	@cd backend/pipeline 2>/dev/null && . venv/bin/activate 2>/dev/null && \
 		python -c "import torch; print(f'  MPS (Apple): {torch.backends.mps.is_available()}')" 2>/dev/null || echo "  MPS (Apple): Not checked (run setup first)"
-	@cd pipeline 2>/dev/null && . venv/bin/activate 2>/dev/null && \
+	@cd backend/pipeline 2>/dev/null && . venv/bin/activate 2>/dev/null && \
 		python -c "import torch; print(f'  CUDA (NVIDIA): {torch.cuda.is_available()}')" 2>/dev/null || echo "  CUDA (NVIDIA): Not checked (run setup first)"
 
 # Update dependencies
 update:
 	@echo "📦 Updating dependencies..."
 	pnpm update
-	cd pipeline && . venv/bin/activate && pip install --upgrade -r requirements.txt
+	cd backend/pipeline && . venv/bin/activate && pip install --upgrade -r requirements.txt
 	@echo "✅ Dependencies updated!"
 
 # Database commands

@@ -157,3 +157,14 @@
 - [x] Add player_detection.pt model to pipeline/models/
 - [x] Update all imports and configurations
 - [x] Simplify folder structure for better readability
+
+
+## Clean Root Structure
+- [x] Restructure to minimal root with backend/ and frontend/ only
+- [x] Move pipeline/ inside backend/
+- [x] Move server/ inside backend/
+- [x] Move docs (API_KEYS.md, GPU_SETUP.md, SETUP_GUIDE.md) to docs/
+- [x] Remove redundant setup scripts (keep only Makefile)
+- [x] Move Docker files to docker/ subdirectory
+- [x] Update all imports and path references
+- [x] Keep root clean: README, Makefile, package.json only

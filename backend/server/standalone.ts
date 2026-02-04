@@ -374,7 +374,7 @@ const PORT = process.env.PORT || 3000;
 async function startServer() {
   if (process.env.NODE_ENV === "production") {
     // Serve built static files
-    const clientDist = path.join(__dirname, "../frontend/dist");
+    const clientDist = path.join(__dirname, "../../frontend/dist");
     app.use(express.static(clientDist));
     app.get("*", (req, res) => {
       res.sendFile(path.join(clientDist, "index.html"));
@@ -385,7 +385,7 @@ async function startServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
-      root: path.join(__dirname, "../frontend"),
+      root: path.join(__dirname, "../../frontend"),
     });
     app.use(vite.middlewares);
   }
