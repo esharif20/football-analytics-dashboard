@@ -173,8 +173,16 @@ export default function Upload() {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const response = JSON.parse(xhr.responseText);
-              resolve(response.result?.data || response);
-            } catch {
+              // tRPC wraps response in result.data.json
+              const data = response.result?.data?.json || response.result?.data || response;
+              console.log("Upload response:", data);
+              if (!data.id) {
+                reject(new Error("No video ID in response"));
+                return;
+              }
+              resolve(data);
+            } catch (e) {
+              console.error("Parse error:", e);
               reject(new Error("Invalid response"));
             }
           } else {
@@ -633,10 +641,17 @@ export default function Upload() {
             </Button>
           </div>
 
-          {/* Upload Progress */}
+          {/* Upload Progress Modal */}
           {uploading && (
-            <Card className="border-primary/50 bg-primary/5">
-              <CardContent className="pt-6">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <Card className="w-full max-w-md mx-4 border-primary/50 bg-card shadow-2xl">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <UploadIcon className="w-5 h-5 text-primary" />
+                    Uploading Video
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
                 <div className="space-y-4">
                   {/* Stage indicator */}
                   <div className="flex items-center justify-between text-sm">
@@ -719,6 +734,7 @@ export default function Upload() {
                 </div>
               </CardContent>
             </Card>
+          </div>
           )}
         </form>
       </main>
