@@ -31,9 +31,32 @@ OUTPUT_DIR = Path(__file__).parent / "output_videos"
 STUBS_DIR = Path(__file__).parent / "stubs"
 CACHE_DIR = Path(__file__).parent / "cache"
 
+# Model URLs (hosted on CDN)
+MODEL_URLS = {
+    "player_detection.pt": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/XAzhckYwibJeQRhg.pt",
+    "ball_detection.pt": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/NiUwnYcULyjvIBhr.pt",
+    "pitch_detection.pt": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/pSlXgeDoBtmXQHTJ.pt",
+}
+
 # Ensure directories exist
-for d in [INPUT_DIR, OUTPUT_DIR, STUBS_DIR, CACHE_DIR]:
+for d in [INPUT_DIR, OUTPUT_DIR, STUBS_DIR, CACHE_DIR, MODELS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
+
+
+def download_models():
+    """Download models from CDN if not already present."""
+    for model_name, url in MODEL_URLS.items():
+        model_path = MODELS_DIR / model_name
+        if model_path.exists():
+            log(f"Model already exists: {model_name}")
+            continue
+        
+        log(f"Downloading model: {model_name}...")
+        try:
+            urllib.request.urlretrieve(url, model_path)
+            log(f"Downloaded: {model_name} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
+        except Exception as e:
+            log(f"Failed to download {model_name}: {e}", "ERROR")
 
 
 def log(msg: str, level: str = "INFO"):
@@ -312,6 +335,9 @@ def main():
     log(f"Models dir: {MODELS_DIR}")
     log(f"Cache dir: {CACHE_DIR}")
     log("")
+    
+    # Download models if not present
+    download_models()
     
     # Check for models
     models = list(MODELS_DIR.glob("*.pt"))

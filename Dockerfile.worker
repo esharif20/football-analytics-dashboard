@@ -1,0 +1,39 @@
+# Football Analytics Worker
+# Runs the CV pipeline to process videos
+
+FROM python:3.11-slim
+
+# Install system dependencies for OpenCV and video processing
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy pipeline requirements and install
+COPY backend/pipeline/requirements.txt ./backend/pipeline/
+RUN pip install --no-cache-dir -r backend/pipeline/requirements.txt
+
+# Copy pipeline code
+COPY backend/pipeline ./backend/pipeline
+
+# Create directories
+RUN mkdir -p backend/pipeline/models \
+    backend/pipeline/input_videos \
+    backend/pipeline/output_videos \
+    backend/pipeline/stubs \
+    backend/pipeline/cache \
+    backend/data
+
+# Set working directory
+WORKDIR /app/backend/pipeline
+
+# Run worker
+CMD ["python", "worker.py"]

@@ -12,3 +12,20 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    volumes:
+      # Share data directory with app
+      - ./data:/app/backend/data
+      # Persist models so they don't re-download
+      - ./models:/app/backend/pipeline/models
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DASHBOARD_URL=http://app:8000
+      - POLL_INTERVAL=5
+    depends_on:
+      - app
+    restart: unless-stopped
