@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
     "standalone": "NODE_ENV=development tsx watch server/standalone.ts",
-    "build": "esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=../dist",
+    "build": "esbuild server/_core/index.prod.ts --platform=node --packages=external --bundle --format=esm --outfile=../dist/index.js",
     "build:standalone": "esbuild server/standalone.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "cd ../dist && NODE_ENV=production node index.js",
     "test": "vitest run",
