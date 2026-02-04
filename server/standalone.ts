@@ -219,6 +219,101 @@ app.get("/api/trpc/tracks.get", async (req, res) => {
   }
 });
 
+// Worker API endpoints (for Python worker service)
+app.get("/api/worker/pending", async (req, res) => {
+  try {
+    // Get all pending analyses with video info
+    const analyses = await db.getPendingAnalyses();
+    res.json({ analyses });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.post("/api/worker/analysis/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, currentStage, progress, error } = req.body;
+    await db.updateAnalysisStatus(
+      parseInt(id),
+      status,
+      progress || 0,
+      currentStage,
+      error
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.post("/api/worker/analysis/:id/complete", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { annotatedVideo, radarVideo, analytics, tracks } = req.body;
+    
+    // Update analysis with results
+    await db.updateAnalysisResults(parseInt(id), {
+      annotatedVideoUrl: annotatedVideo || undefined,
+      radarVideoUrl: radarVideo || undefined,
+      analyticsDataUrl: analytics ? JSON.stringify(analytics) : undefined,
+      trackingDataUrl: tracks ? JSON.stringify(tracks) : undefined,
+    });
+    
+    // Mark as completed
+    await db.updateAnalysisStatus(parseInt(id), "completed", 100, "done", undefined);
+    
+    // If analytics data provided, create statistics
+    if (analytics) {
+      await db.createStatistics({
+        analysisId: parseInt(id),
+        possessionTeam1: analytics.possession?.team1 || 50,
+        possessionTeam2: analytics.possession?.team2 || 50,
+        passesTeam1: analytics.passes?.team1 || 0,
+        passesTeam2: analytics.passes?.team2 || 0,
+        passAccuracyTeam1: analytics.passAccuracy?.team1 || 0,
+        passAccuracyTeam2: analytics.passAccuracy?.team2 || 0,
+        shotsTeam1: analytics.shots?.team1 || 0,
+        shotsTeam2: analytics.shots?.team2 || 0,
+        distanceCoveredTeam1: analytics.distance?.team1 || 0,
+        distanceCoveredTeam2: analytics.distance?.team2 || 0,
+        avgSpeedTeam1: analytics.avgSpeed?.team1 || 0,
+        avgSpeedTeam2: analytics.avgSpeed?.team2 || 0,
+        heatmapDataTeam1: null,
+        heatmapDataTeam2: null,
+        passNetworkTeam1: null,
+        passNetworkTeam2: null,
+      });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// Video hash cache endpoints
+app.get("/api/worker/cache/:hash", async (req, res) => {
+  try {
+    const { hash } = req.params;
+    const cached = await db.getCachedResult(hash);
+    res.json({ cached });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.post("/api/worker/cache/:hash", async (req, res) => {
+  try {
+    const { hash } = req.params;
+    const { results, mode, modelConfig } = req.body;
+    await db.saveCachedResult(hash, mode, modelConfig, results);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // Commentary endpoints
 app.get("/api/trpc/commentary.get", async (req, res) => {
   try {

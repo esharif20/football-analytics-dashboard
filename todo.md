@@ -114,10 +114,19 @@
 
 
 ## Fully Standalone Mode (No Manus)
-- [ ] Remove all Manus OAuth dependencies
-- [ ] Switch to SQLite (zero-config database)
-- [ ] Create local-only auth bypass
-- [ ] Use local filesystem for all storage
-- [ ] Fix pitch backend default to ultralytics (no Roboflow needed)
-- [ ] Create simple one-command Mac setup
-- [ ] Test fully offline operation
+- [x] Remove all Manus OAuth dependencies
+- [x] Switch to SQLite (zero-config database)
+- [x] Create local-only auth bypass
+- [x] Use local filesystem for all storage
+- [x] Fix pitch backend default to ultralytics (no Roboflow needed)
+- [x] Create simple one-command Mac setup
+- [x] Test fully offline operation
+
+
+## Worker Service & Caching (No External Dependencies)
+- [x] Worker service that polls dashboard API for new uploads
+- [x] Automatically runs Python pipeline on new videos
+- [x] Posts results back to dashboard API
+- [x] Pre-processed demo data for Test6.mp4
+- [x] Video hash caching with SHA256 + model config
+- [x] Skip re-processing for identical videos

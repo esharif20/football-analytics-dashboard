@@ -496,3 +496,113 @@ export async function createCommentary(commentary: Omit<Commentary, 'id' | 'crea
 export async function getDb() {
   return sqlite;
 }
+
+
+// Worker API functions
+
+// Get pending analyses for worker
+export async function getPendingAnalyses(): Promise<Array<Analysis & { videoUrl: string }>> {
+  const rows = sqlite.prepare(`
+    SELECT a.*, v.originalUrl as videoUrl 
+    FROM analyses a 
+    JOIN videos v ON a.videoId = v.id 
+    WHERE a.status = 'pending' 
+    ORDER BY a.createdAt ASC
+  `).all() as any[];
+  
+  return rows.map(row => ({
+    ...row,
+    videoUrl: row.videoUrl,
+    startedAt: row.startedAt ? new Date(row.startedAt * 1000) : null,
+    completedAt: row.completedAt ? new Date(row.completedAt * 1000) : null,
+    createdAt: new Date(row.createdAt * 1000),
+    updatedAt: new Date(row.updatedAt * 1000),
+  }));
+}
+
+// Statistics creation
+export async function createStatistics(stats: Omit<Statistics, 'id' | 'createdAt' | 'updatedAt'>): Promise<number> {
+  const result = sqlite.prepare(`
+    INSERT INTO statistics (
+      analysisId, possessionTeam1, possessionTeam2, passesTeam1, passesTeam2,
+      passAccuracyTeam1, passAccuracyTeam2, shotsTeam1, shotsTeam2,
+      distanceCoveredTeam1, distanceCoveredTeam2, avgSpeedTeam1, avgSpeedTeam2,
+      heatmapDataTeam1, heatmapDataTeam2, passNetworkTeam1, passNetworkTeam2
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    stats.analysisId,
+    stats.possessionTeam1 ?? null,
+    stats.possessionTeam2 ?? null,
+    stats.passesTeam1 ?? null,
+    stats.passesTeam2 ?? null,
+    stats.passAccuracyTeam1 ?? null,
+    stats.passAccuracyTeam2 ?? null,
+    stats.shotsTeam1 ?? null,
+    stats.shotsTeam2 ?? null,
+    stats.distanceCoveredTeam1 ?? null,
+    stats.distanceCoveredTeam2 ?? null,
+    stats.avgSpeedTeam1 ?? null,
+    stats.avgSpeedTeam2 ?? null,
+    stats.heatmapDataTeam1 ? JSON.stringify(stats.heatmapDataTeam1) : null,
+    stats.heatmapDataTeam2 ? JSON.stringify(stats.heatmapDataTeam2) : null,
+    stats.passNetworkTeam1 ? JSON.stringify(stats.passNetworkTeam1) : null,
+    stats.passNetworkTeam2 ? JSON.stringify(stats.passNetworkTeam2) : null
+  );
+  return result.lastInsertRowid as number;
+}
+
+// Video hash cache table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS video_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    videoHash TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    modelConfig TEXT,
+    results TEXT NOT NULL,
+    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    UNIQUE(videoHash, mode, modelConfig)
+  );
+`);
+
+export interface CachedResult {
+  id: number;
+  videoHash: string;
+  mode: string;
+  modelConfig: any;
+  results: any;
+  createdAt: Date;
+}
+
+// Get cached result by video hash
+export async function getCachedResult(videoHash: string): Promise<CachedResult | null> {
+  const row = sqlite.prepare(`
+    SELECT * FROM video_cache WHERE videoHash = ? ORDER BY createdAt DESC LIMIT 1
+  `).get(videoHash) as any;
+  
+  if (!row) return null;
+  
+  return {
+    ...row,
+    modelConfig: row.modelConfig ? JSON.parse(row.modelConfig) : null,
+    results: JSON.parse(row.results),
+    createdAt: new Date(row.createdAt * 1000),
+  };
+}
+
+// Save result to cache
+export async function saveCachedResult(
+  videoHash: string,
+  mode: string,
+  modelConfig: any,
+  results: any
+): Promise<void> {
+  sqlite.prepare(`
+    INSERT OR REPLACE INTO video_cache (videoHash, mode, modelConfig, results)
+    VALUES (?, ?, ?, ?)
+  `).run(
+    videoHash,
+    mode,
+    modelConfig ? JSON.stringify(modelConfig) : null,
+    JSON.stringify(results)
+  );
+}
