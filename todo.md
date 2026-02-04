@@ -111,3 +111,13 @@
 - [x] Create one-command setup script for Mac (setup-mac.sh)
 - [x] Add video analysis caching system (utils/cache.py)
 - [ ] Create worker service to connect pipeline to dashboard (future)
+
+
+## Fully Standalone Mode (No Manus)
+- [ ] Remove all Manus OAuth dependencies
+- [ ] Switch to SQLite (zero-config database)
+- [ ] Create local-only auth bypass
+- [ ] Use local filesystem for all storage
+- [ ] Fix pitch backend default to ultralytics (no Roboflow needed)
+- [ ] Create simple one-command Mac setup
+- [ ] Test fully offline operation
