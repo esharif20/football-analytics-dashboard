@@ -1,0 +1,14 @@
+# Football Analytics Dashboard
+# Run with: docker compose up
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist uploaded videos and analysis outputs
+      - ./data:/app/backend/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

@@ -1,0 +1,31 @@
+# Dependencies (will be installed in container)
+node_modules
+frontend/node_modules
+backend/node_modules
+**/venv
+**/__pycache__
+
+# Build outputs (will be built in container)
+frontend/dist
+
+# Data (mounted as volume)
+data
+backend/data
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Docs
+docs
+*.md
+!README.md
+
+# Tests
+**/*.test.ts
+**/*.test.js

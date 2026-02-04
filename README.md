@@ -4,23 +4,35 @@ A full-stack application for analyzing football match footage using computer vis
 
 ---
 
-## Quick Start
+## Quick Start (Docker)
+
+**Easiest way - just need Docker installed:**
 
 ```bash
 # Clone the repository
 git clone https://github.com/esharif20/football-analytics-dashboard.git
 cd football-analytics-dashboard
 
-# Setup (one time)
-make setup
-
-# Run
-make run
+# Run (builds and starts everything)
+docker compose up
 ```
 
-Open **http://localhost:8000** in your browser.
+Open **http://localhost:8000** in your browser. That's it.
 
 **No authentication required** - just upload a video and start analyzing.
+
+---
+
+## Alternative: Manual Setup
+
+If you don't have Docker, you can run locally:
+
+```bash
+make setup   # Install dependencies (one time)
+make run     # Start the app
+```
+
+Requires: Python 3.9+, Node.js 18+, pnpm
 
 ---
 
