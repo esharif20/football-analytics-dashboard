@@ -36,3 +36,24 @@
 - [x] Enhanced landing page with modern visuals
 - [x] Animated hero section with football imagery
 - [x] Feature showcase with visual cards
+
+## Pipeline Integration
+- [x] Create Python processing service (FastAPI worker)
+- [x] Port YOLOv8 player/ball/goalkeeper detection
+- [x] Port ByteTrack object tracking with ID persistence
+- [x] Port SigLIP + UMAP + KMeans team classification
+- [x] Port pitch keypoint detection (custom model + Roboflow fallback)
+- [x] Port homography transformation for pitch coordinates
+- [x] Port ball interpolation for missing frames
+- [x] Implement event detection (passes, shots, challenges)
+- [x] Connect pipeline output to database (via callback URL)
+- [x] Real-time progress updates via callback/polling
+- [x] Generate annotated video output
+- [x] Generate radar video output
+- [x] Store tracking JSON in database
+
+## Deployment
+- [x] Setup script for Mac/Linux/RunPod/Colab
+- [x] Docker configuration for RunPod
+- [x] Google Colab notebook with GPU support
+- [x] Pipeline API documentation (README.md)
