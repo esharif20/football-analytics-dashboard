@@ -179,3 +179,7 @@
 - [x] Move .prettierrc, .prettierignore to appropriate location
 - [x] Update Makefile to work from new locations
 - [x] Root should only have: README.md, Makefile, .gitignore, package.json (orchestrator)
+
+
+## Documentation
+- [x] Add detailed system design diagram to README.md

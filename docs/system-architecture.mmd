@@ -1,0 +1,104 @@
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#22c55e', 'primaryTextColor': '#fff', 'primaryBorderColor': '#16a34a', 'lineColor': '#64748b', 'secondaryColor': '#1e293b', 'tertiaryColor': '#0f172a'}}}%%
+flowchart TB
+    subgraph Client["Frontend (React + Vite)"]
+        UI[Web Dashboard]
+        Upload[Video Upload]
+        Viz[Visualizations]
+        WS[WebSocket Client]
+    end
+
+    subgraph API["Backend (Node.js + tRPC)"]
+        Router[tRPC Router]
+        Auth[OAuth Handler]
+        DB[(MySQL/SQLite)]
+        S3[S3 Storage]
+        WSS[WebSocket Server]
+    end
+
+    subgraph Pipeline["CV Pipeline (Python + FastAPI)"]
+        FastAPI[FastAPI Server]
+        Worker[Background Worker]
+        
+        subgraph Detection["Detection Layer"]
+            YOLO[YOLOv8 Player Detection]
+            Ball[Ball Detection + SAHI]
+            Pitch[Pitch Keypoint Detection]
+        end
+        
+        subgraph Tracking["Tracking Layer"]
+            ByteTrack[ByteTrack Persistence]
+            Interpolation[Ball Interpolation]
+            Homography[Homography Transform]
+        end
+        
+        subgraph Analysis["Analysis Layer"]
+            Team[Team Classification<br/>SigLIP + UMAP + KMeans]
+            Analytics[Match Analytics]
+            Events[Event Detection]
+        end
+        
+        subgraph Output["Output Layer"]
+            Annotated[Annotated Video]
+            Radar[2D Radar View]
+            JSON[Analytics JSON]
+        end
+    end
+
+    subgraph Models["ML Models"]
+        PlayerModel[player_detection.pt]
+        BallModel[ball_detection.pt]
+        PitchModel[pitch_keypoints.pt]
+        SigLIP[SigLIP Embeddings]
+    end
+
+    %% Client to API
+    UI --> Router
+    Upload --> S3
+    WS <--> WSS
+
+    %% API to Pipeline
+    Router --> FastAPI
+    S3 --> Worker
+    WSS --> Worker
+
+    %% Pipeline Internal Flow
+    FastAPI --> Worker
+    Worker --> YOLO
+    Worker --> Ball
+    Worker --> Pitch
+    
+    YOLO --> ByteTrack
+    Ball --> Interpolation
+    Pitch --> Homography
+    
+    ByteTrack --> Team
+    Homography --> Analytics
+    Team --> Events
+    
+    Analytics --> Annotated
+    Analytics --> Radar
+    Events --> JSON
+
+    %% Models
+    PlayerModel -.-> YOLO
+    BallModel -.-> Ball
+    PitchModel -.-> Pitch
+    SigLIP -.-> Team
+
+    %% Output back to API
+    Annotated --> S3
+    Radar --> S3
+    JSON --> DB
+
+    %% Styling
+    classDef frontend fill:#22c55e,stroke:#16a34a,color:#fff
+    classDef backend fill:#3b82f6,stroke:#2563eb,color:#fff
+    classDef pipeline fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    classDef model fill:#f59e0b,stroke:#d97706,color:#fff
+    classDef storage fill:#64748b,stroke:#475569,color:#fff
+
+    class UI,Upload,Viz,WS frontend
+    class Router,Auth,WSS backend
+    class FastAPI,Worker,YOLO,Ball,Pitch,ByteTrack,Interpolation,Homography,Team,Analytics,Events,Annotated,Radar,JSON pipeline
+    class PlayerModel,BallModel,PitchModel,SigLIP model
+    class DB,S3 storage

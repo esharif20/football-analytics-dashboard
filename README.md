@@ -2,130 +2,74 @@
 
 A full-stack application for analyzing football match footage using computer vision and AI. Upload tactical wide-shot videos and get real-time player tracking, team classification, heatmaps, pass networks, and AI-generated tactical commentary.
 
-## Quick Start (Mac)
-
-### Prerequisites
-
-- **Node.js 18+** - `brew install node`
-- **pnpm** - `npm install -g pnpm`
-- **Python 3.10+** - `brew install python@3.11`
-- **MySQL** (optional for local dev) - `brew install mysql`
-
-### 1. Clone and Install
-
-```bash
-git clone <your-repo-url>
-cd football-dashboard
-pnpm install
-```
-
-### 2. Set Up Environment
-
-**Option A: Local Development Mode (Recommended for Testing)**
-
-Create a `.env` file in the project root:
-
-```bash
-# .env
-LOCAL_DEV_MODE=true
-DATABASE_URL="mysql://root:password@localhost:3306/football"
-JWT_SECRET="any-random-string-for-local-dev"
-```
-
-This mode:
-- Bypasses Manus OAuth (auto-logged in as "Local Developer")
-- Uses local filesystem for file storage (`./uploads/`)
-- Works without any external API keys
-
-**Option B: Full Manus Mode (Production)**
-
-```bash
-# .env
-DATABASE_URL="mysql://user:pass@host:3306/football"
-JWT_SECRET="your-session-secret"
-VITE_APP_ID="manus_app_id"
-OAUTH_SERVER_URL="https://api.manus.im"
-VITE_OAUTH_PORTAL_URL="https://manus.im/login"
-BUILT_IN_FORGE_API_URL="https://..."
-BUILT_IN_FORGE_API_KEY="your-forge-key"
-```
-
-### 3. Set Up Database
-
-```bash
-# Start MySQL (if using local)
-brew services start mysql
-
-# Create database
-mysql -u root -e "CREATE DATABASE football;"
-
-# Push schema
-pnpm db:push
-```
-
-### 4. Run the Dashboard
-
-```bash
-pnpm dev
-```
-
-Open http://localhost:3000 in your browser.
-
 ---
 
-## CV Pipeline Setup (For Video Processing)
+## System Architecture
 
-The Python pipeline processes videos and generates tracking data.
+![System Architecture](https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/QiweQNeftGgWJTaS.png)
 
-### 1. Set Up Python Environment
+### Architecture Overview
 
-```bash
-cd backend
-chmod +x setup.sh
-./setup.sh
-source venv/bin/activate
+The system consists of three main layers that work together to process football footage:
+
+**Frontend (React + Vite)** handles the user interface, video uploads, and real-time visualizations. It communicates with the backend via tRPC for type-safe API calls and WebSocket for live progress updates during video processing.
+
+**Backend (Node.js + tRPC)** serves as the API gateway, managing authentication, database operations, and file storage. It orchestrates communication between the frontend and the CV pipeline, storing analysis results and serving them to the dashboard.
+
+**CV Pipeline (Python + FastAPI)** performs the heavy lifting of computer vision tasks. It runs as a separate service with a background worker that processes videos through multiple stages: detection, tracking, team classification, and analytics generation.
+
+### Data Flow
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Upload    │────▶│   S3/Local  │────▶│   Worker    │
+│   Video     │     │   Storage   │     │   Queue     │
+└─────────────┘     └─────────────┘     └─────────────┘
+                                               │
+                    ┌──────────────────────────┼──────────────────────────┐
+                    ▼                          ▼                          ▼
+             ┌─────────────┐           ┌─────────────┐           ┌─────────────┐
+             │   Player    │           │    Ball     │           │   Pitch     │
+             │  Detection  │           │  Detection  │           │  Keypoints  │
+             │  (YOLOv8)   │           │   (SAHI)    │           │  (Custom)   │
+             └──────┬──────┘           └──────┬──────┘           └──────┬──────┘
+                    │                         │                         │
+                    ▼                         ▼                         ▼
+             ┌─────────────┐           ┌─────────────┐           ┌─────────────┐
+             │  ByteTrack  │           │   Ball      │           │ Homography  │
+             │ Persistence │           │Interpolation│           │  Transform  │
+             └──────┬──────┘           └──────┬──────┘           └──────┬──────┘
+                    │                         │                         │
+                    └─────────────────────────┼─────────────────────────┘
+                                              ▼
+                                    ┌─────────────────┐
+                                    │ Team Assignment │
+                                    │ SigLIP + UMAP   │
+                                    │    + KMeans     │
+                                    └────────┬────────┘
+                                             │
+                    ┌────────────────────────┼────────────────────────┐
+                    ▼                        ▼                        ▼
+             ┌─────────────┐          ┌─────────────┐          ┌─────────────┐
+             │  Annotated  │          │   Radar     │          │  Analytics  │
+             │   Video     │          │    View     │          │    JSON     │
+             └─────────────┘          └─────────────┘          └─────────────┘
 ```
 
-### 2. Download Models
+### Component Details
 
-Download your custom-trained models and place them in `backend/models/`:
-
-```
-backend/models/
-├── player_detection.pt
-├── ball_detection.pt
-└── pitch_detection.pt
-```
-
-Or use the setup script which downloads them automatically.
-
-### 3. Run the Pipeline
-
-```bash
-# Full analysis
-python main.py \
-  --source-video-path input_videos/your_video.mp4 \
-  --target-video-path output_videos/result.mp4 \
-  --mode all
-
-# Just radar view (faster)
-python main.py \
-  --source-video-path input_videos/your_video.mp4 \
-  --target-video-path output_videos/result.mp4 \
-  --mode radar
-```
-
-### Pipeline Modes
-
-| Mode | Description | Speed |
-|------|-------------|-------|
-| `all` | Full analysis with annotated + radar video | Slowest |
-| `radar` | Radar view only | Fast |
-| `team` | Team classification | Medium |
-| `track` | Object tracking only | Fast |
-| `players` | Player detection only | Fastest |
-| `ball` | Ball detection + interpolation | Fast |
-| `pitch` | Pitch keypoint detection | Fast |
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Frontend** | React 19, Vite, TailwindCSS, shadcn/ui | Interactive dashboard with real-time updates |
+| **API Server** | Node.js, Express, tRPC | Type-safe API, authentication, file management |
+| **Database** | MySQL/SQLite, Drizzle ORM | Store videos, analyses, user data |
+| **Storage** | S3/Local filesystem | Video files, output artifacts |
+| **Pipeline API** | FastAPI, Python 3.11 | REST endpoints for pipeline control |
+| **Worker** | Background process | Async video processing |
+| **Detection** | YOLOv8, Ultralytics | Player, ball, referee detection |
+| **Tracking** | ByteTrack, Supervision | Multi-object tracking with ID persistence |
+| **Team Classification** | SigLIP, UMAP, KMeans | Jersey color-based team assignment |
+| **Pitch Mapping** | Custom keypoint model | Homography for 2D pitch projection |
 
 ---
 
@@ -133,140 +77,216 @@ python main.py \
 
 ```
 football-dashboard/
+├── frontend/                    # React Dashboard
+│   ├── src/
+│   │   ├── pages/               # Home, Upload, Dashboard, Analysis
+│   │   ├── components/          # UI components (shadcn/ui)
+│   │   ├── hooks/               # Custom React hooks (useWebSocket)
+│   │   └── lib/                 # Utilities, tRPC client
+│   ├── public/                  # Static assets
+│   └── package.json
 │
-├── client/                  # React Frontend (Vite)
-│   └── src/
-│       ├── pages/           # Home, Upload, Dashboard, Analysis
-│       ├── components/      # UI components (shadcn/ui)
-│       └── lib/             # Utilities, tRPC client
+├── backend/
+│   ├── server/                  # Node.js API
+│   │   ├── routers.ts           # tRPC endpoints
+│   │   ├── db.ts                # Database queries
+│   │   ├── storage.ts           # File storage helpers
+│   │   └── _core/               # Auth, context, middleware
+│   │
+│   ├── pipeline/                # Python CV Pipeline
+│   │   ├── api/                 # FastAPI server
+│   │   │   └── server.py        # REST API endpoints
+│   │   ├── src/
+│   │   │   ├── trackers/        # Detection & tracking
+│   │   │   ├── team_assigner/   # Team classification
+│   │   │   ├── pitch/           # Homography & pitch mapping
+│   │   │   └── analytics/       # Statistics computation
+│   │   ├── models/              # ML model files (.pt)
+│   │   ├── main.py              # CLI entry point
+│   │   └── requirements.txt
+│   │
+│   ├── drizzle/                 # Database schema
+│   └── shared/                  # Shared TypeScript types
 │
-├── server/                  # Express + tRPC API
-│   ├── routers.ts           # API endpoints
-│   ├── db.ts                # Database queries
-│   ├── storage.ts           # File storage (local/cloud)
-│   └── _core/               # Auth, context, middleware
-│       └── localMode.ts     # Local dev mode config
+├── docs/                        # Documentation
+│   ├── SETUP_GUIDE.md
+│   ├── GPU_SETUP.md
+│   └── API_KEYS.md
 │
-├── backend/                 # Python CV Pipeline
-│   ├── main.py              # CLI entry point
-│   ├── config.py            # Pipeline configuration
-│   ├── setup.sh             # One-command setup
-│   │
-│   ├── pipeline/            # Pipeline modes
-│   │   ├── all.py           # Full analysis
-│   │   ├── radar.py         # Radar view
-│   │   ├── team.py          # Team classification
-│   │   └── ...
-│   │
-│   ├── trackers/            # Detection & tracking
-│   │   ├── tracker.py       # Main tracker (YOLO + ByteTrack)
-│   │   └── ball_tracker.py  # Ball-specific tracking
-│   │
-│   ├── team_assigner/       # Team classification
-│   │   └── team_assigner.py # SigLIP + UMAP + KMeans
-│   │
-│   ├── pitch/               # Pitch detection
-│   │   ├── view_transformer.py  # Homography
-│   │   └── homography_smoother.py
-│   │
-│   ├── analytics/           # Statistics computation
-│   │   ├── possession.py
-│   │   └── kinematics.py
-│   │
-│   └── utils/               # Shared utilities
-│       ├── cache.py         # Stub caching
-│       └── device.py        # GPU/MPS detection
+├── docker/                      # Docker configuration
+│   ├── Dockerfile
+│   ├── Dockerfile.worker
+│   └── docker-compose.yml
 │
-├── drizzle/                 # Database schema
-│   └── schema.ts
-│
-└── shared/                  # Shared TypeScript types
-    └── types.ts
+├── Makefile                     # Simple commands
+├── README.md
+└── package.json                 # Root orchestrator
 ```
 
 ---
 
-## Mac Compatibility
+## Quick Start
+
+### Prerequisites
+
+- **Node.js 18+** - `brew install node`
+- **pnpm** - `npm install -g pnpm`
+- **Python 3.10+** - `brew install python@3.11`
+
+### One-Command Setup
+
+```bash
+make setup    # Install all dependencies
+make run      # Start the application
+```
+
+### Manual Setup
+
+```bash
+# 1. Install frontend dependencies
+cd frontend && pnpm install
+
+# 2. Install backend dependencies
+cd ../backend && pnpm install
+
+# 3. Set up Python pipeline
+cd pipeline
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 4. Add your models
+cp /path/to/player_detection.pt models/
+
+# 5. Start the app
+cd ../..
+make run
+```
+
+Open http://localhost:3000 in your browser.
+
+---
+
+## Pipeline Modes
+
+| Mode | Description | Output | Speed |
+|------|-------------|--------|-------|
+| `all` | Complete analysis pipeline | Annotated video, radar, analytics | Slowest |
+| `radar` | 2D pitch visualization only | Radar video, tracking data | Fast |
+| `team` | Team classification | Annotated video with team colors | Medium |
+| `track` | Object tracking only | Tracking data JSON | Fast |
+| `players` | Player detection only | Annotated video | Fastest |
+| `ball` | Ball detection + interpolation | Ball trajectory data | Fast |
+| `pitch` | Pitch keypoint detection | Homography matrix | Fast |
+
+### Running the Pipeline
+
+```bash
+# Via Makefile
+make process VIDEO=/path/to/match.mp4
+
+# Via Python directly
+cd backend/pipeline
+source venv/bin/activate
+python main.py --source-video-path /path/to/video.mp4 --mode all
+```
+
+---
+
+## GPU Acceleration
 
 ### Apple Silicon (M1/M2/M3/M4)
 
-The pipeline automatically uses **MPS (Metal Performance Shaders)** for GPU acceleration:
+The pipeline automatically uses **MPS (Metal Performance Shaders)**:
 
 ```python
-# Automatic detection in backend/utils/device.py
+# Automatic detection
 if torch.backends.mps.is_available():
     device = "mps"  # Uses Apple GPU
 ```
 
-### Intel Mac
+### NVIDIA GPU (Linux/Windows)
 
-Falls back to CPU processing (slower but works).
+```bash
+# Install CUDA-enabled PyTorch
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+```
 
-### Troubleshooting
+### Cloud GPU (RunPod/Colab)
 
-**"MPS not available"**
-- Ensure macOS 12.3+ and PyTorch 1.12+
-- Run: `pip install torch torchvision --upgrade`
-
-**Models not downloading**
-- Download manually from Google Drive links in `backend/setup.sh`
-- Place in `backend/models/`
-
-**Slow processing**
-- Use `--mode radar` for faster results
-- Reduce video resolution before processing
+See `docs/GPU_SETUP.md` for detailed cloud setup instructions.
 
 ---
 
-## API Keys (Optional)
+## API Reference
 
-| Key | Purpose | Required? |
-|-----|---------|-----------|
-| Roboflow | Pitch detection fallback | No - custom model works |
-| Gemini | AI tactical commentary | No - basic stats still work |
+### tRPC Endpoints
 
-The pipeline works fully offline with your custom models.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `video.upload` | mutation | Upload video file |
+| `video.list` | query | List user's videos |
+| `analysis.start` | mutation | Start pipeline processing |
+| `analysis.status` | query | Get processing status |
+| `analysis.results` | query | Get analysis results |
+
+### FastAPI Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/process` | POST | Start video processing |
+| `/status/{job_id}` | GET | Get job status |
+| `/health` | GET | Health check |
 
 ---
 
-## Development Workflow
+## WebSocket Events
+
+Real-time progress updates via WebSocket:
+
+```typescript
+// Subscribe to analysis updates
+ws.send(JSON.stringify({
+  type: 'subscribe',
+  analysisId: 123
+}));
+
+// Receive progress updates
+{
+  type: 'progress',
+  analysisId: 123,
+  progress: 45,
+  stage: 'tracking',
+  eta: 120 // seconds remaining
+}
+```
+
+---
+
+## Development
 
 ### Dashboard Development
 
 ```bash
-# Start dev server with hot reload
-pnpm dev
-
-# Run tests
-pnpm test
-
-# Type check
-pnpm check
+cd frontend
+pnpm dev      # Start dev server with hot reload
+pnpm test     # Run tests
+pnpm check    # Type check
 ```
 
 ### Pipeline Development
 
 ```bash
-cd backend
+cd backend/pipeline
 source venv/bin/activate
-
-# Run with debug output
 python main.py --video test.mp4 --mode all --verbose
-
-# Test specific module
-python -c "from trackers import Tracker; print('OK')"
 ```
 
----
+### Running Tests
 
-## Connecting Pipeline to Dashboard
-
-Currently, the pipeline runs independently. To see results in the dashboard:
-
-1. **Manual**: Run pipeline, then import JSON results via dashboard API
-2. **Automated**: Set up a worker service (see `GPU_SETUP.md`)
-
-The dashboard polls for analysis status and displays results when available.
+```bash
+make test     # Run all tests
+```
 
 ---
 
