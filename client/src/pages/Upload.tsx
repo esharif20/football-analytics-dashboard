@@ -27,6 +27,9 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { PIPELINE_MODES, PipelineMode } from "@shared/types";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Cpu, Cloud, Sparkles } from "lucide-react";
 
 const MODE_ICONS: Record<PipelineMode, React.ReactNode> = {
   all: <Layers className="w-5 h-5" />,
@@ -49,6 +52,7 @@ export default function Upload() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [useCustomModels, setUseCustomModels] = useState(true);
 
   const uploadMutation = trpc.video.upload.useMutation();
   const createAnalysisMutation = trpc.analysis.create.useMutation();
@@ -298,6 +302,100 @@ export default function Upload() {
                   placeholder="Add notes about the match, teams, or specific moments to analyze..."
                   rows={3}
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Model Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5" />
+                Detection Models
+              </CardTitle>
+              <CardDescription>
+                Choose between custom-trained models or cloud API for ball and pitch detection
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Custom Models Option */}
+                <button
+                  type="button"
+                  onClick={() => setUseCustomModels(true)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    useCustomModels 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/30"
+                  }`}
+                >
+                  {useCustomModels && (
+                    <Badge className="absolute top-2 right-2 bg-primary">Selected</Badge>
+                  )}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      useCustomModels ? "bg-primary text-primary-foreground" : "bg-secondary"
+                    }`}>
+                      <Cpu className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-semibold">Custom Models</span>
+                      <Badge variant="outline" className="ml-2 text-xs">Recommended</Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Use your custom-trained YOLOv8 models for faster local inference
+                  </p>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span>ball_detection.pt</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span>pitch_detection.pt</span>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Roboflow API Option */}
+                <button
+                  type="button"
+                  onClick={() => setUseCustomModels(false)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    !useCustomModels 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/30"
+                  }`}
+                >
+                  {!useCustomModels && (
+                    <Badge className="absolute top-2 right-2 bg-primary">Selected</Badge>
+                  )}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      !useCustomModels ? "bg-primary text-primary-foreground" : "bg-secondary"
+                    }`}>
+                      <Cloud className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-semibold">Roboflow API</span>
+                      <Badge variant="secondary" className="ml-2 text-xs">Fallback</Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Cloud-based detection, no local GPU required
+                  </p>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-muted-foreground" />
+                      <span>Pre-trained pitch keypoints</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-muted-foreground" />
+                      <span>API rate limits apply</span>
+                    </div>
+                  </div>
+                </button>
               </div>
             </CardContent>
           </Card>

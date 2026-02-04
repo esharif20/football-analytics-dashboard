@@ -29,3 +29,10 @@
 - [x] Responsive layout for dashboard
 - [x] Loading states and progress indicators
 - [x] Error handling and user feedback
+
+## New Features
+- [x] Model selection option (custom models vs Roboflow API)
+- [x] Upload custom model files (ball_detection.pt, pitch_detection.pt)
+- [x] Enhanced landing page with modern visuals
+- [x] Animated hero section with football imagery
+- [x] Feature showcase with visual cards
