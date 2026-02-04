@@ -8,7 +8,7 @@
     "standalone": "NODE_ENV=development tsx watch server/standalone.ts",
     "build": "esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=../dist",
     "build:standalone": "esbuild server/standalone.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node ../dist/index.js",
+    "start": "cd ../dist && NODE_ENV=production node index.js",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },

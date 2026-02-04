@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "cd backend && pnpm dev",
-    "build": "cd frontend && pnpm install && pnpm build && cd ../backend && pnpm install && pnpm build",
+    "build": "cd frontend && pnpm install && pnpm build && cd ../backend && pnpm install && pnpm build && pnpm install --prod && cp -r node_modules ../dist/node_modules",
     "test": "cd backend && pnpm test",
     "db:push": "cd backend && pnpm db:push"
   },
