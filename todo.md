@@ -147,3 +147,13 @@
 - [x] Create Docker setup for easier deployment (Dockerfile, docker-compose.yml)
 - [x] Document Mac M1/M2/M3 MPS GPU acceleration
 - [x] Document RunPod/Colab Pro setup for faster processing
+
+
+## Major Codebase Restructure
+- [x] Restructure to cleaner architecture (pipeline/, frontend/, server/)
+- [x] Move CV pipeline outside backend to dedicated pipeline/ folder
+- [x] Create dedicated frontend/ folder for React dashboard
+- [x] Add FastAPI for pipeline API (proper framework)
+- [x] Add player_detection.pt model to pipeline/models/
+- [x] Update all imports and configurations
+- [x] Simplify folder structure for better readability

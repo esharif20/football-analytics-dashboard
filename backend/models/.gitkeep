@@ -1,6 +1,0 @@
-# Place your custom-trained models here:
-# - player_detection.pt
-# - ball_detection.pt
-# - pitch_detection.pt
-#
-# Download from Google Drive or copy from your training output.

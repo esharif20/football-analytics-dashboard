@@ -1,6 +1,35 @@
 # Football Analysis Dashboard - Complete Setup Guide
 
-This guide walks you through setting up the Football Analysis Dashboard on your local machine. The application consists of two main components: a web dashboard (React + Node.js) and a computer vision pipeline (Python + PyTorch).
+This guide walks you through setting up the Football Analysis Dashboard on your local machine. The application consists of three main components:
+
+1. **Frontend** - React dashboard for uploading videos and viewing results
+2. **Server** - Node.js/tRPC API for data management
+3. **Pipeline** - Python/FastAPI computer vision pipeline
+
+## Project Structure
+
+```
+football-dashboard/
+├── frontend/           # React dashboard (Vite + Tailwind)
+│   ├── src/
+│   │   ├── pages/      # Page components
+│   │   ├── components/ # Reusable UI components
+│   │   └── hooks/      # Custom React hooks
+│   └── public/         # Static assets
+├── server/             # Node.js tRPC API
+│   ├── routers.ts      # API endpoints
+│   └── db.ts           # Database helpers
+├── pipeline/           # Python CV pipeline (FastAPI)
+│   ├── api/            # FastAPI server
+│   ├── src/            # Pipeline modules
+│   │   ├── trackers/   # Object detection & tracking
+│   │   ├── team_assigner/ # Team classification
+│   │   ├── pitch/      # Pitch detection & homography
+│   │   └── analytics/  # Match analytics
+│   └── models/         # ML model weights (.pt files)
+├── drizzle/            # Database schema
+└── shared/             # Shared types
+```
 
 ## Table of Contents
 
@@ -42,14 +71,17 @@ If you want to get up and running quickly, use the one-command setup:
 git clone <your-repo-url> football-dashboard
 cd football-dashboard
 
-# Run the automated setup
-./setup-standalone.sh
+# Full setup (dashboard + pipeline)
+make setup
 
-# Start everything with Make
+# Start everything
 make run
 ```
 
-The setup script handles all dependencies automatically. If you encounter issues or prefer manual control, follow the detailed installation below.
+This starts:
+- Dashboard at `http://localhost:3000`
+- Pipeline API at `http://localhost:8000`
+- API docs at `http://localhost:8000/docs`
 
 ---
 
@@ -102,15 +134,15 @@ pnpm install
 pnpm db:push
 ```
 
-This creates a local SQLite database file that stores all your analyses, videos, and results. No external database server is required.
+This creates a local SQLite database file that stores all your analyses, videos, and results.
 
 ### Step 3: Set Up the Python Pipeline
 
 The computer vision pipeline requires a separate Python environment:
 
 ```bash
-# Navigate to the backend directory
-cd backend
+# Navigate to the pipeline directory
+cd pipeline
 
 # Create a virtual environment
 python3.11 -m venv venv
@@ -126,9 +158,20 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-The installation includes PyTorch, Ultralytics YOLOv8, OpenCV, and other computer vision libraries. On Apple Silicon Macs, PyTorch automatically installs with MPS (Metal Performance Shaders) support.
+The installation includes PyTorch, Ultralytics YOLOv8, OpenCV, FastAPI, and other libraries.
 
-### Step 4: Verify the Installation
+### Step 4: Add Model Weights
+
+Place your trained model files in the `pipeline/models/` directory:
+
+```
+pipeline/models/
+├── player_detection.pt    # Player detection model
+├── ball_detection.pt      # Ball detection model (optional)
+└── pitch_detection.pt     # Pitch keypoint model (optional)
+```
+
+### Step 5: Verify the Installation
 
 Test that everything is installed correctly:
 
@@ -137,19 +180,15 @@ Test that everything is installed correctly:
 cd ..
 pnpm test
 
-# Test the Python pipeline (from backend directory)
-cd backend
+# Test the Python pipeline
+cd pipeline
 source venv/bin/activate
 python main.py --help
 ```
 
-You should see the pipeline help message showing available options like `--mode`, `--source-video-path`, etc.
-
 ---
 
 ## Running the Application
-
-The application requires three components running simultaneously. You can either use the Makefile commands or start each manually.
 
 ### Option A: Using Make (Recommended)
 
@@ -158,11 +197,12 @@ The application requires three components running simultaneously. You can either
 make run
 
 # Or start components individually:
-make dashboard    # Start web dashboard only
+make dashboard    # Start web dashboard only (port 3000)
+make api          # Start FastAPI pipeline server (port 8000)
 make worker       # Start pipeline worker only
 ```
 
-### Option B: Manual Start (Three Terminals)
+### Option B: Manual Start (Two Terminals)
 
 **Terminal 1 - Web Dashboard:**
 
@@ -173,22 +213,22 @@ pnpm dev
 
 The dashboard starts at `http://localhost:3000`
 
-**Terminal 2 - Pipeline Worker:**
+**Terminal 2 - Pipeline API:**
 
 ```bash
-cd football-dashboard/backend
+cd football-dashboard/pipeline
 source venv/bin/activate
-python worker.py
+python -m api.server
 ```
 
-The worker polls the dashboard for new video uploads and processes them automatically.
+The FastAPI server starts at `http://localhost:8000` with interactive docs at `/docs`
 
-**Terminal 3 (Optional) - Manual Pipeline:**
+### Option C: Direct Pipeline Processing
 
 If you want to process a video directly without the dashboard:
 
 ```bash
-cd football-dashboard/backend
+cd football-dashboard/pipeline
 source venv/bin/activate
 python main.py \
   --source-video-path /path/to/your/video.mp4 \
@@ -202,10 +242,10 @@ python main.py \
 
 ### Apple Silicon (M1/M2/M3) Macs
 
-The pipeline automatically uses **MPS (Metal Performance Shaders)** for GPU acceleration on Apple Silicon. No additional configuration is needed. You can verify MPS is available:
+The pipeline automatically uses **MPS (Metal Performance Shaders)** for GPU acceleration on Apple Silicon. No additional configuration is needed. Verify MPS is available:
 
 ```bash
-cd backend
+cd pipeline
 source venv/bin/activate
 python -c "import torch; print(f'MPS available: {torch.backends.mps.is_available()}')"
 ```
@@ -217,7 +257,7 @@ Expected output: `MPS available: True`
 For NVIDIA GPUs, ensure you have CUDA installed, then install the CUDA version of PyTorch:
 
 ```bash
-cd backend
+cd pipeline
 source venv/bin/activate
 pip uninstall torch torchvision
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
@@ -254,10 +294,10 @@ RunPod offers affordable GPU instances with PyTorch pre-installed.
 
 Colab Pro provides access to faster GPUs and longer runtimes.
 
-1. Open the included `colab_setup.ipynb` notebook
-2. Connect to a GPU runtime (Runtime → Change runtime type → GPU)
-3. Run all cells to install dependencies
-4. Upload your video and run the pipeline
+1. Upload the project to Google Drive
+2. Open a new Colab notebook
+3. Mount Drive and install dependencies
+4. Run the pipeline
 
 **Tip:** Use Google Drive to store videos and results for persistence between sessions.
 
@@ -309,7 +349,7 @@ Ensure the dashboard is running (`pnpm dev`) before starting the worker.
 
 If you encounter issues not covered here:
 
-1. Check the `backend/.manus-logs/` directory for detailed error logs
+1. Check the `.manus-logs/` directory for detailed error logs
 2. Run `make test` to verify the installation
 3. Open an issue on the repository with your error message and system details
 

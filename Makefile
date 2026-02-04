@@ -1,26 +1,27 @@
 # Football Analysis Dashboard - Makefile
 # Simple commands for setup, development, and deployment
 
-.PHONY: help setup setup-dashboard setup-backend run dashboard worker test clean logs docker-build docker-run
+.PHONY: help setup setup-dashboard setup-pipeline run dashboard worker api test clean logs docker-build docker-run
 
 # Default target - show help
 help:
 	@echo "Football Analysis Dashboard - Available Commands"
 	@echo ""
 	@echo "Setup Commands:"
-	@echo "  make setup          - Full setup (dashboard + backend)"
+	@echo "  make setup          - Full setup (dashboard + pipeline)"
 	@echo "  make setup-dashboard - Install Node.js dependencies only"
-	@echo "  make setup-backend  - Install Python dependencies only"
+	@echo "  make setup-pipeline - Install Python pipeline dependencies"
 	@echo ""
 	@echo "Run Commands:"
-	@echo "  make run            - Start dashboard and worker together"
+	@echo "  make run            - Start dashboard and pipeline API together"
 	@echo "  make dashboard      - Start web dashboard only (port 3000)"
+	@echo "  make api            - Start FastAPI pipeline server (port 8000)"
 	@echo "  make worker         - Start pipeline worker only"
 	@echo ""
 	@echo "Development Commands:"
 	@echo "  make test           - Run all tests"
 	@echo "  make test-dashboard - Run dashboard tests only"
-	@echo "  make test-backend   - Run backend tests only"
+	@echo "  make test-pipeline  - Run pipeline tests only"
 	@echo "  make logs           - View recent logs"
 	@echo "  make clean          - Remove build artifacts and caches"
 	@echo ""
@@ -36,7 +37,7 @@ help:
 # Setup Commands
 # =============================================================================
 
-setup: setup-dashboard setup-backend
+setup: setup-dashboard setup-pipeline
 	@echo "✅ Setup complete! Run 'make run' to start the application."
 
 setup-dashboard:
@@ -46,14 +47,14 @@ setup-dashboard:
 	pnpm db:push
 	@echo "✅ Dashboard setup complete!"
 
-setup-backend:
+setup-pipeline:
 	@echo "🐍 Setting up Python environment..."
-	cd backend && \
+	cd pipeline && \
 	python3 -m venv venv && \
 	. venv/bin/activate && \
 	pip install --upgrade pip && \
 	pip install -r requirements.txt
-	@echo "✅ Backend setup complete!"
+	@echo "✅ Pipeline setup complete!"
 
 # =============================================================================
 # Run Commands
@@ -62,38 +63,45 @@ setup-backend:
 run:
 	@echo "🚀 Starting Football Analysis Dashboard..."
 	@echo "   Dashboard: http://localhost:3000"
+	@echo "   Pipeline API: http://localhost:8000"
+	@echo "   API Docs: http://localhost:8000/docs"
 	@echo "   Press Ctrl+C to stop"
 	@echo ""
-	@# Start dashboard in background, worker in foreground
+	@# Start dashboard and API together
 	@trap 'kill 0' EXIT; \
 	pnpm dev & \
-	sleep 3 && \
-	cd backend && . venv/bin/activate && python worker.py
+	sleep 2 && \
+	cd pipeline && . venv/bin/activate && python -m api.server
 
 dashboard:
 	@echo "🌐 Starting web dashboard on http://localhost:3000"
 	pnpm dev
 
+api:
+	@echo "🔌 Starting FastAPI pipeline server on http://localhost:8000"
+	@echo "   API Docs: http://localhost:8000/docs"
+	cd pipeline && . venv/bin/activate && python -m api.server
+
 worker:
 	@echo "⚙️  Starting pipeline worker..."
-	cd backend && . venv/bin/activate && python worker.py
+	cd pipeline && . venv/bin/activate && python worker.py
 
 # =============================================================================
 # Test Commands
 # =============================================================================
 
-test: test-dashboard test-backend
+test: test-dashboard test-pipeline
 	@echo "✅ All tests passed!"
 
 test-dashboard:
 	@echo "🧪 Running dashboard tests..."
 	pnpm test
 
-test-backend:
-	@echo "🧪 Running backend tests..."
-	cd backend && . venv/bin/activate && python -m pytest tests/ -v 2>/dev/null || echo "No pytest tests found (OK)"
+test-pipeline:
+	@echo "🧪 Running pipeline tests..."
+	cd pipeline && . venv/bin/activate && python -m pytest tests/ -v 2>/dev/null || echo "No pytest tests found (OK)"
 	@echo "🧪 Verifying pipeline CLI..."
-	cd backend && . venv/bin/activate && python main.py --help > /dev/null && echo "✅ Pipeline CLI working"
+	cd pipeline && . venv/bin/activate && python main.py --help > /dev/null && echo "✅ Pipeline CLI working"
 
 # =============================================================================
 # Development Commands
@@ -112,10 +120,10 @@ clean:
 	@echo "🧹 Cleaning build artifacts..."
 	rm -rf node_modules/.cache
 	rm -rf dist
-	rm -rf backend/__pycache__
-	rm -rf backend/src/**/__pycache__
-	rm -rf backend/.pytest_cache
-	rm -rf backend/venv 2>/dev/null || true
+	rm -rf pipeline/__pycache__
+	rm -rf pipeline/src/**/__pycache__
+	rm -rf pipeline/.pytest_cache
+	rm -rf pipeline/venv 2>/dev/null || true
 	@echo "✅ Clean complete!"
 
 # =============================================================================
@@ -131,6 +139,7 @@ docker-run:
 	docker-compose up -d
 	@echo "✅ Services started!"
 	@echo "   Dashboard: http://localhost:3000"
+	@echo "   Pipeline API: http://localhost:8000"
 	@echo "   Run 'make docker-stop' to stop"
 
 docker-stop:
@@ -149,7 +158,7 @@ ifndef VIDEO
 	@exit 1
 endif
 	@echo "🎬 Processing video: $(VIDEO)"
-	cd backend && . venv/bin/activate && \
+	cd pipeline && . venv/bin/activate && \
 	python main.py \
 		--source-video-path "$(VIDEO)" \
 		--target-video-path "$(VIDEO:.mp4=_annotated.mp4)" \
@@ -166,7 +175,7 @@ ifndef MODE
 	@exit 1
 endif
 	@echo "🎬 Processing video: $(VIDEO) with mode: $(MODE)"
-	cd backend && . venv/bin/activate && \
+	cd pipeline && . venv/bin/activate && \
 	python main.py \
 		--source-video-path "$(VIDEO)" \
 		--target-video-path "$(VIDEO:.mp4=_$(MODE).mp4)" \
@@ -185,16 +194,16 @@ check:
 	@echo "Python: $$(python3 --version 2>/dev/null || echo 'NOT INSTALLED')"
 	@echo ""
 	@echo "GPU Support:"
-	@cd backend 2>/dev/null && . venv/bin/activate 2>/dev/null && \
+	@cd pipeline 2>/dev/null && . venv/bin/activate 2>/dev/null && \
 		python -c "import torch; print(f'  MPS (Apple): {torch.backends.mps.is_available()}')" 2>/dev/null || echo "  MPS (Apple): Not checked (run setup first)"
-	@cd backend 2>/dev/null && . venv/bin/activate 2>/dev/null && \
+	@cd pipeline 2>/dev/null && . venv/bin/activate 2>/dev/null && \
 		python -c "import torch; print(f'  CUDA (NVIDIA): {torch.cuda.is_available()}')" 2>/dev/null || echo "  CUDA (NVIDIA): Not checked (run setup first)"
 
 # Update dependencies
 update:
 	@echo "📦 Updating dependencies..."
 	pnpm update
-	cd backend && . venv/bin/activate && pip install --upgrade -r requirements.txt
+	cd pipeline && . venv/bin/activate && pip install --upgrade -r requirements.txt
 	@echo "✅ Dependencies updated!"
 
 # Database commands
