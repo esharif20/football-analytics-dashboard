@@ -65,3 +65,12 @@
 - [x] Match original CLI interface (python main.py --video --mode)
 - [x] Add "Coming Soon" option for broadcast/normal camera angle pipeline
 - [x] Camera type selection in Upload UI (Tactical vs Broadcast)
+
+## Project Restructure
+- [x] Remove monolithic processor.py - split into proper modules
+- [x] Create proper Python packages with __init__.py exports
+- [x] Match original repo's module structure exactly
+- [x] Clear backend/frontend separation in project root (backend/ vs client/)
+- [x] Clean up and neaten code following original repo patterns
+- [x] Add proper imports and package structure
+- [x] Root README explaining full project structure
