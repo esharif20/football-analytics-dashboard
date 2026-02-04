@@ -1,29 +1,59 @@
 # Football Analysis Dashboard - Makefile
 # Simple commands for setup, development, and deployment
 
-.PHONY: help setup run test clean
+.PHONY: help setup run local test clean
 
 # Default target - show help
 help:
-	@echo "Football Analysis Dashboard"
+	@echo "╔════════════════════════════════════════════════════════════╗"
+	@echo "║         Football Analysis Dashboard - Commands             ║"
+	@echo "╚════════════════════════════════════════════════════════════╝"
 	@echo ""
-	@echo "Setup:"
-	@echo "  make setup     - Install all dependencies"
+	@echo "LOCAL DEVELOPMENT (Recommended - Pure FastAPI, no Node.js):"
+	@echo "  make local     - Run with FastAPI backend (http://localhost:8000)"
+	@echo "  make setup-local - Install Python + frontend dependencies"
 	@echo ""
-	@echo "Run:"
-	@echo "  make run       - Start full app (backend + frontend)"
-	@echo "  make backend   - Start backend only (port 3000)"
-	@echo "  make frontend  - Start frontend only (port 5173)"
-	@echo "  make api       - Start FastAPI pipeline (port 8000)"
+	@echo "MANUS DEVELOPMENT (Node.js + tRPC):"
+	@echo "  make setup     - Install all dependencies (Node.js + Python)"
+	@echo "  make run       - Start full app with Node.js backend"
 	@echo ""
-	@echo "Test:"
-	@echo "  make test      - Run all tests"
-	@echo ""
-	@echo "Pipeline:"
+	@echo "PIPELINE:"
 	@echo "  make process VIDEO=/path/to/video.mp4"
+	@echo ""
+	@echo "OTHER:"
+	@echo "  make test      - Run all tests"
+	@echo "  make check     - Check system requirements"
+	@echo "  make clean     - Remove all dependencies"
 
 # =============================================================================
-# Setup
+# LOCAL DEVELOPMENT (Pure FastAPI - Recommended for your laptop)
+# =============================================================================
+
+local:
+	@./run-local.sh
+
+setup-local:
+	@echo "📦 Setting up for local development (FastAPI)..."
+	@echo ""
+	@echo "1️⃣  Creating Python virtual environment..."
+	cd backend/api && python3 -m venv venv
+	@echo ""
+	@echo "2️⃣  Installing Python dependencies..."
+	cd backend/api && . venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
+	@echo ""
+	@echo "3️⃣  Installing CV pipeline dependencies..."
+	cd backend/pipeline && python3 -m venv venv && . venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt 2>/dev/null || true
+	@echo ""
+	@echo "4️⃣  Installing frontend dependencies..."
+	cd frontend && pnpm install
+	@echo ""
+	@echo "5️⃣  Building frontend..."
+	cd frontend && pnpm build
+	@echo ""
+	@echo "✅ Setup complete! Run 'make local' to start."
+
+# =============================================================================
+# MANUS DEVELOPMENT (Node.js + tRPC)
 # =============================================================================
 
 setup:
@@ -37,10 +67,6 @@ setup:
 		pip install --upgrade pip && \
 		pip install -r requirements.txt
 	@echo "✅ Setup complete! Run 'make run' to start."
-
-# =============================================================================
-# Run
-# =============================================================================
 
 run:
 	@echo "🚀 Starting Football Analysis Dashboard..."
@@ -59,7 +85,7 @@ frontend:
 
 api:
 	@echo "🔌 Starting FastAPI on http://localhost:8000"
-	cd backend/pipeline && . venv/bin/activate && python -m api.server
+	cd backend/api && . venv/bin/activate && PYTHONPATH=.. uvicorn main:app --reload --port 8000
 
 # =============================================================================
 # Test
@@ -88,10 +114,17 @@ endif
 
 clean:
 	rm -rf frontend/node_modules backend/node_modules
-	rm -rf backend/pipeline/venv
-	rm -rf dist
+	rm -rf backend/pipeline/venv backend/api/venv
+	rm -rf dist backend/data
 
 check:
-	@echo "Node.js: $$(node --version 2>/dev/null || echo 'NOT INSTALLED')"
-	@echo "Python: $$(python3 --version 2>/dev/null || echo 'NOT INSTALLED')"
-	@echo "pnpm: $$(pnpm --version 2>/dev/null || echo 'NOT INSTALLED')"
+	@echo "╔════════════════════════════════════════════════════════════╗"
+	@echo "║                  System Requirements Check                  ║"
+	@echo "╚════════════════════════════════════════════════════════════╝"
+	@echo ""
+	@echo "Node.js:  $$(node --version 2>/dev/null || echo '❌ NOT INSTALLED')"
+	@echo "Python:   $$(python3 --version 2>/dev/null || echo '❌ NOT INSTALLED')"
+	@echo "pnpm:     $$(pnpm --version 2>/dev/null || echo '❌ NOT INSTALLED (run: npm i -g pnpm)')"
+	@echo ""
+	@echo "GPU Support:"
+	@python3 -c "import torch; print('PyTorch:', torch.__version__); print('CUDA:', torch.cuda.is_available()); print('MPS:', torch.backends.mps.is_available())" 2>/dev/null || echo "PyTorch: ❌ NOT INSTALLED"

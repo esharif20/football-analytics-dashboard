@@ -4,25 +4,66 @@ A full-stack application for analyzing football match footage using computer vis
 
 ---
 
+## Quick Start (Local Development)
+
+**For running on your laptop with pure FastAPI (no Node.js required):**
+
+```bash
+# Clone the repository
+git clone https://github.com/esharif20/football-analytics-dashboard.git
+cd football-analytics-dashboard
+
+# One-command setup and run
+make setup-local
+make local
+```
+
+Open http://localhost:8000 in your browser.
+
+**That's it!** The local mode uses FastAPI + SQLite, so you only need Python and Node.js (for building the frontend).
+
+---
+
 ## System Architecture
 
 ![System Architecture](https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/QiweQNeftGgWJTaS.png)
 
 ### Architecture Overview
 
-The system consists of three main layers that work together to process football footage:
+The system uses a **FastAPI backend** for local development:
 
-**Frontend (React + Vite)** handles the user interface, video uploads, and real-time visualizations. It communicates with the backend via tRPC for type-safe API calls and WebSocket for live progress updates during video processing.
-
-**Backend (Node.js + tRPC)** serves as the API gateway, managing authentication, database operations, and file storage. It orchestrates communication between the frontend and the CV pipeline, storing analysis results and serving them to the dashboard.
-
-**CV Pipeline (Python + FastAPI)** performs the heavy lifting of computer vision tasks. It runs as a separate service with a background worker that processes videos through multiple stages: detection, tracking, team classification, and analytics generation.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Your Browser                              │
+│                    http://localhost:8000                         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    FastAPI Backend (Python)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   REST API   │  │  WebSocket   │  │ Static Files │          │
+│  │  /api/*      │  │  Real-time   │  │  (React UI)  │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                              │                                   │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    CV Pipeline                            │  │
+│  │  Detection → Tracking → Team Assignment → Analytics       │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     SQLite Database                              │
+│              backend/data/football.db                            │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ### Data Flow
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Upload    │────▶│   S3/Local  │────▶│   Worker    │
+│   Upload    │────▶│   Local     │────▶│   Worker    │
 │   Video     │     │   Storage   │     │   Queue     │
 └─────────────┘     └─────────────┘     └─────────────┘
                                                │
@@ -56,21 +97,6 @@ The system consists of three main layers that work together to process football 
              └─────────────┘          └─────────────┘          └─────────────┘
 ```
 
-### Component Details
-
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Frontend** | React 19, Vite, TailwindCSS, shadcn/ui | Interactive dashboard with real-time updates |
-| **API Server** | Node.js, Express, tRPC | Type-safe API, authentication, file management |
-| **Database** | MySQL/SQLite, Drizzle ORM | Store videos, analyses, user data |
-| **Storage** | S3/Local filesystem | Video files, output artifacts |
-| **Pipeline API** | FastAPI, Python 3.11 | REST endpoints for pipeline control |
-| **Worker** | Background process | Async video processing |
-| **Detection** | YOLOv8, Ultralytics | Player, ball, referee detection |
-| **Tracking** | ByteTrack, Supervision | Multi-object tracking with ID persistence |
-| **Team Classification** | SigLIP, UMAP, KMeans | Jersey color-based team assignment |
-| **Pitch Mapping** | Custom keypoint model | Homography for 2D pitch projection |
-
 ---
 
 ## Project Structure
@@ -82,20 +108,26 @@ football-dashboard/
 │   │   ├── pages/               # Home, Upload, Dashboard, Analysis
 │   │   ├── components/          # UI components (shadcn/ui)
 │   │   ├── hooks/               # Custom React hooks (useWebSocket)
-│   │   └── lib/                 # Utilities, tRPC client
+│   │   └── lib/                 # Utilities, API client
 │   ├── public/                  # Static assets
 │   └── package.json
 │
 ├── backend/
-│   ├── server/                  # Node.js API
-│   │   ├── routers.ts           # tRPC endpoints
-│   │   ├── db.ts                # Database queries
-│   │   ├── storage.ts           # File storage helpers
-│   │   └── _core/               # Auth, context, middleware
+│   ├── api/                     # FastAPI Backend (Local Mode)
+│   │   ├── main.py              # FastAPI entry point
+│   │   ├── routers/             # API endpoints
+│   │   │   ├── auth.py          # Authentication
+│   │   │   ├── videos.py        # Video management
+│   │   │   ├── analysis.py      # Analysis processing
+│   │   │   ├── events.py        # Match events
+│   │   │   ├── tracks.py        # Tracking data
+│   │   │   └── statistics.py    # Match statistics
+│   │   ├── services/            # Business logic
+│   │   │   ├── database.py      # SQLite database
+│   │   │   └── websocket_manager.py
+│   │   └── requirements.txt
 │   │
 │   ├── pipeline/                # Python CV Pipeline
-│   │   ├── api/                 # FastAPI server
-│   │   │   └── server.py        # REST API endpoints
 │   │   ├── src/
 │   │   │   ├── trackers/        # Detection & tracking
 │   │   │   ├── team_assigner/   # Team classification
@@ -105,65 +137,71 @@ football-dashboard/
 │   │   ├── main.py              # CLI entry point
 │   │   └── requirements.txt
 │   │
+│   ├── server/                  # Node.js API (Manus Mode)
 │   ├── drizzle/                 # Database schema
-│   └── shared/                  # Shared TypeScript types
+│   └── shared/                  # Shared types
 │
 ├── docs/                        # Documentation
-│   ├── SETUP_GUIDE.md
-│   ├── GPU_SETUP.md
-│   └── API_KEYS.md
-│
 ├── docker/                      # Docker configuration
-│   ├── Dockerfile
-│   ├── Dockerfile.worker
-│   └── docker-compose.yml
-│
 ├── Makefile                     # Simple commands
-├── README.md
-└── package.json                 # Root orchestrator
+├── run-local.sh                 # Local development script
+└── README.md
 ```
 
 ---
 
-## Quick Start
+## Installation
 
 ### Prerequisites
 
-- **Node.js 18+** - `brew install node`
-- **pnpm** - `npm install -g pnpm`
 - **Python 3.10+** - `brew install python@3.11`
+- **Node.js 18+** - `brew install node` (for building frontend)
+- **pnpm** - `npm install -g pnpm`
 
-### One-Command Setup
-
-```bash
-make setup    # Install all dependencies
-make run      # Start the application
-```
-
-### Manual Setup
+### Local Development Setup
 
 ```bash
-# 1. Install frontend dependencies
-cd frontend && pnpm install
+# 1. Clone the repository
+git clone https://github.com/esharif20/football-analytics-dashboard.git
+cd football-analytics-dashboard
 
-# 2. Install backend dependencies
-cd ../backend && pnpm install
+# 2. Setup (installs Python + Node dependencies, builds frontend)
+make setup-local
 
-# 3. Set up Python pipeline
-cd pipeline
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# 3. Add your model (optional - for full pipeline)
+cp /path/to/player_detection.pt backend/pipeline/models/
 
-# 4. Add your models
-cp /path/to/player_detection.pt models/
-
-# 5. Start the app
-cd ../..
-make run
+# 4. Run the application
+make local
 ```
 
-Open http://localhost:3000 in your browser.
+Open http://localhost:8000 in your browser.
+
+### What `make local` Does
+
+1. Creates Python virtual environment
+2. Installs FastAPI and dependencies
+3. Builds the React frontend
+4. Initializes SQLite database
+5. Starts FastAPI server serving both API and frontend
+
+---
+
+## Available Commands
+
+```bash
+# LOCAL DEVELOPMENT (Recommended)
+make local          # Run with FastAPI backend
+make setup-local    # Install dependencies for local mode
+
+# PIPELINE
+make process VIDEO=/path/to/video.mp4    # Process a video
+
+# UTILITIES
+make check          # Check system requirements
+make clean          # Remove all dependencies
+make test           # Run tests
+```
 
 ---
 
@@ -212,31 +250,39 @@ if torch.backends.mps.is_available():
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```
 
-### Cloud GPU (RunPod/Colab)
+### Check GPU Support
 
-See `docs/GPU_SETUP.md` for detailed cloud setup instructions.
+```bash
+make check
+```
 
 ---
 
-## API Reference
+## API Reference (FastAPI)
 
-### tRPC Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `video.upload` | mutation | Upload video file |
-| `video.list` | query | List user's videos |
-| `analysis.start` | mutation | Start pipeline processing |
-| `analysis.status` | query | Get processing status |
-| `analysis.results` | query | Get analysis results |
-
-### FastAPI Endpoints
+### REST Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/process` | POST | Start video processing |
-| `/status/{job_id}` | GET | Get job status |
-| `/health` | GET | Health check |
+| `/api/auth/me` | GET | Get current user |
+| `/api/auth/login` | POST | Login |
+| `/api/auth/logout` | POST | Logout |
+| `/api/videos` | GET | List videos |
+| `/api/videos` | POST | Upload video |
+| `/api/videos/{id}` | GET | Get video |
+| `/api/videos/{id}` | DELETE | Delete video |
+| `/api/analysis` | GET | List analyses |
+| `/api/analysis` | POST | Start analysis |
+| `/api/analysis/{id}` | GET | Get analysis |
+| `/api/analysis/{id}/status` | PUT | Update status |
+| `/api/analysis/modes` | GET | Get pipeline modes |
+| `/api/events/{analysis_id}` | GET | Get events |
+| `/api/tracks/{analysis_id}` | GET | Get tracks |
+| `/api/statistics/{analysis_id}` | GET | Get statistics |
+
+### Interactive API Docs
+
+Open http://localhost:8000/docs for Swagger UI documentation.
 
 ---
 
@@ -244,34 +290,27 @@ See `docs/GPU_SETUP.md` for detailed cloud setup instructions.
 
 Real-time progress updates via WebSocket:
 
-```typescript
-// Subscribe to analysis updates
-ws.send(JSON.stringify({
-  type: 'subscribe',
-  analysisId: 123
-}));
+```javascript
+// Connect to WebSocket
+const ws = new WebSocket('ws://localhost:8000/ws/123');
 
 // Receive progress updates
-{
-  type: 'progress',
-  analysisId: 123,
-  progress: 45,
-  stage: 'tracking',
-  eta: 120 // seconds remaining
-}
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  // { type: 'progress', analysisId: 123, progress: 45, currentStage: 'tracking' }
+};
 ```
 
 ---
 
 ## Development
 
-### Dashboard Development
+### Frontend Development
 
 ```bash
 cd frontend
 pnpm dev      # Start dev server with hot reload
-pnpm test     # Run tests
-pnpm check    # Type check
+pnpm build    # Build for production
 ```
 
 ### Pipeline Development
@@ -282,10 +321,34 @@ source venv/bin/activate
 python main.py --video test.mp4 --mode all --verbose
 ```
 
-### Running Tests
+---
+
+## Troubleshooting
+
+### "Module not found" errors
 
 ```bash
-make test     # Run all tests
+# Reinstall dependencies
+make clean
+make setup-local
+```
+
+### GPU not detected
+
+```bash
+# Check GPU support
+make check
+
+# For Apple Silicon, ensure PyTorch is installed correctly
+pip install torch torchvision
+```
+
+### Port already in use
+
+```bash
+# Kill existing process
+lsof -i :8000
+kill -9 <PID>
 ```
 
 ---

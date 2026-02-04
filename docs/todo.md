@@ -183,3 +183,16 @@
 
 ## Documentation
 - [x] Add detailed system design diagram to README.md
+
+
+## Pure FastAPI Local Mode
+- [x] Create FastAPI backend replicating all Node.js tRPC endpoints
+- [x] Add SQLite database with same schema
+- [x] Add user authentication (local mode - no OAuth needed)
+- [x] Add file upload/storage endpoints
+- [x] Add video analysis endpoints
+- [x] Add WebSocket for real-time progress updates
+- [x] Configure React frontend to detect and use FastAPI backend
+- [x] Create run-local.sh for one-command local setup
+- [x] Update Makefile with local mode commands
+- [x] Test full workflow locally without Node.js
