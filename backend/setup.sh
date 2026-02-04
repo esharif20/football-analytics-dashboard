@@ -1,40 +1,142 @@
 #!/bin/bash
+# Football Analysis Pipeline - Setup Script
+# Compatible with Mac (Apple Silicon & Intel), Linux, and GPU servers (RunPod/Colab)
+
 set -euo pipefail
 
-# Get the directory where the script is located
+echo "=========================================="
+echo "Football Analysis Pipeline Setup"
+echo "=========================================="
+
+# Get script directory
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$DIR"
 
-if ! command -v gdown >/dev/null 2>&1; then
-    echo "gdown not found. Install it with: pip install gdown"
-    exit 1
-fi
+# Detect OS and architecture
+OS="$(uname -s)"
+ARCH="$(uname -m)"
 
-# Ensure models directory exists
-if [[ ! -e $DIR/models ]]; then
-    mkdir "$DIR/models"
+echo "Detected: $OS ($ARCH)"
+
+# =============================================================================
+# Step 1: Create Python virtual environment
+# =============================================================================
+echo ""
+echo "[1/4] Setting up Python environment..."
+
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+    echo "Created virtual environment"
 else
-    echo "'models' directory already exists."
+    echo "Virtual environment already exists"
 fi
 
-# Ensure input_videos directory exists
-if [[ ! -e $DIR/input_videos ]]; then
-    mkdir "$DIR/input_videos"
+# Activate virtual environment
+source venv/bin/activate
+
+# Upgrade pip
+pip install --upgrade pip
+
+# =============================================================================
+# Step 2: Install PyTorch (platform-specific)
+# =============================================================================
+echo ""
+echo "[2/4] Installing PyTorch..."
+
+if [ "$OS" = "Darwin" ]; then
+    # macOS - use MPS (Metal Performance Shaders) for Apple Silicon
+    if [ "$ARCH" = "arm64" ]; then
+        echo "Installing PyTorch with MPS support (Apple Silicon)..."
+        pip install torch torchvision torchaudio
+    else
+        echo "Installing PyTorch for Intel Mac..."
+        pip install torch torchvision torchaudio
+    fi
+elif [ "$OS" = "Linux" ]; then
+    # Linux - check for CUDA
+    if command -v nvidia-smi &> /dev/null; then
+        echo "Installing PyTorch with CUDA support..."
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+    else
+        echo "Installing PyTorch (CPU only)..."
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+    fi
 else
-    echo "'input_videos' directory already exists."
+    echo "Installing PyTorch (default)..."
+    pip install torch torchvision torchaudio
 fi
 
-# Download the models to models/ directory
-echo "Downloading models..."
-gdown -O "$DIR/models/ball_detection.pt" "https://drive.google.com/uc?id=1isw4wx-MK9h9LMr36VvIWlJD6ppUvw7V"
-gdown -O "$DIR/models/player_detection.pt" "https://drive.google.com/uc?id=17PXFNlx-jI7VjVo_vQnB1sONjRyvoB-q"
-gdown -O "$DIR/models/pitch_detection.pt" "https://drive.google.com/uc?id=1Ma5Kt86tgpdjCTKfum79YMgNnSjcoOyf"
+# =============================================================================
+# Step 3: Install other dependencies
+# =============================================================================
+echo ""
+echo "[3/4] Installing dependencies..."
 
-# Download the sample videos to input_videos/ directory
-echo "Downloading sample videos..."
-gdown -O "$DIR/input_videos/0bfacc_0.mp4" "https://drive.google.com/uc?id=12TqauVZ9tLAv8kWxTTBFWtgt2hNQ4_ZF"
-gdown -O "$DIR/input_videos/2e57b9_0.mp4" "https://drive.google.com/uc?id=19PGw55V8aA6GZu5-Aac5_9mCy3fNxmEf"
-gdown -O "$DIR/input_videos/08fd33_0.mp4" "https://drive.google.com/uc?id=1OG8K6wqUw9t7lp9ms1M48DxRhwTYciK-"
-gdown -O "$DIR/input_videos/573e61_0.mp4" "https://drive.google.com/uc?id=1yYPKuXbHsCxqjA9G-S6aeR2Kcnos8RPU"
-gdown -O "$DIR/input_videos/121364_0.mp4" "https://drive.google.com/uc?id=1vVwjW1dE1drIdd4ZSILfbCGPD4weoNiu"
+pip install ultralytics>=8.0.0
+pip install supervision>=0.18.0
+pip install opencv-python>=4.8.0
+pip install numpy>=1.24.0
+pip install transformers>=4.30.0
+pip install umap-learn>=0.5.0
+pip install scikit-learn>=1.3.0
+pip install tqdm>=4.65.0
+pip install Pillow>=10.0.0
+pip install python-dotenv>=1.0.0
+pip install httpx>=0.24.0
+pip install gdown
 
-echo "Setup complete!"
+# =============================================================================
+# Step 4: Download models
+# =============================================================================
+echo ""
+echo "[4/4] Downloading models..."
+
+# Create directories
+mkdir -p models input_videos output_videos stubs
+
+# Download models from Google Drive
+if [ ! -f "models/player_detection.pt" ]; then
+    echo "Downloading player detection model..."
+    gdown -O "models/player_detection.pt" "https://drive.google.com/uc?id=17PXFNlx-jI7VjVo_vQnB1sONjRyvoB-q"
+else
+    echo "Player detection model already exists"
+fi
+
+if [ ! -f "models/ball_detection.pt" ]; then
+    echo "Downloading ball detection model..."
+    gdown -O "models/ball_detection.pt" "https://drive.google.com/uc?id=1isw4wx-MK9h9LMr36VvIWlJD6ppUvw7V"
+else
+    echo "Ball detection model already exists"
+fi
+
+if [ ! -f "models/pitch_detection.pt" ]; then
+    echo "Downloading pitch detection model..."
+    gdown -O "models/pitch_detection.pt" "https://drive.google.com/uc?id=1Ma5Kt86tgpdjCTKfum79YMgNnSjcoOyf"
+else
+    echo "Pitch detection model already exists"
+fi
+
+# =============================================================================
+# Done!
+# =============================================================================
+echo ""
+echo "=========================================="
+echo "Setup Complete!"
+echo "=========================================="
+echo ""
+echo "To activate the environment:"
+echo "  source venv/bin/activate"
+echo ""
+echo "To run the pipeline:"
+echo "  python main.py --video input_videos/your_video.mp4 --mode all"
+echo ""
+echo "Device detected:"
+python3 -c "
+import torch
+if torch.backends.mps.is_available():
+    print('  Apple Silicon (MPS) - GPU acceleration available')
+elif torch.cuda.is_available():
+    print(f'  CUDA GPU: {torch.cuda.get_device_name(0)}')
+else:
+    print('  CPU only')
+"

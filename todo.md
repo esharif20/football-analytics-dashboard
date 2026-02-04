@@ -74,3 +74,11 @@
 - [x] Clean up and neaten code following original repo patterns
 - [x] Add proper imports and package structure
 - [x] Root README explaining full project structure
+
+
+## Cleanup & Verification
+- [x] Clean up repo structure for clarity
+- [x] Verify pipeline works end-to-end (CLI --help works)
+- [x] Ensure Mac compatibility (MPS support in device.py)
+- [x] Document required API keys clearly (API_KEYS.md)
+- [x] Create clear setup instructions (README.md, setup.sh)
