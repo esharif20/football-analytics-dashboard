@@ -139,3 +139,11 @@
 - [x] Update frontend Analysis page to use WebSocket
 - [x] Replace polling with WebSocket subscription
 - [x] Handle reconnection and error states
+
+
+## Local Setup & Deployment Improvements
+- [x] Create detailed step-by-step setup guide (SETUP_GUIDE.md)
+- [x] Add Makefile with simple commands (make setup, make run, make test)
+- [x] Create Docker setup for easier deployment (Dockerfile, docker-compose.yml)
+- [x] Document Mac M1/M2/M3 MPS GPU acceleration
+- [x] Document RunPod/Colab Pro setup for faster processing
