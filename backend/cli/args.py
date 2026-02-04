@@ -113,6 +113,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--analytics", action="store_true",
                         help="Enable analytics summary output (off by default)")
 
+    # Model source selection
+    parser.add_argument(
+        "--player-model",
+        dest="player_model_source",
+        type=str,
+        choices=("custom", "yolov8"),
+        default=None,
+        help="Player detection model source: 'custom' (trained) or 'yolov8' (pretrained)",
+    )
+    parser.add_argument(
+        "--ball-model-source",
+        dest="ball_model_source",
+        type=str,
+        choices=("custom", "yolov8"),
+        default=None,
+        help="Ball detection model source: 'custom' (trained) or 'yolov8' (pretrained)",
+    )
+    parser.add_argument(
+        "--pitch-model",
+        dest="pitch_model_source",
+        type=str,
+        choices=("custom", "roboflow"),
+        default=None,
+        help="Pitch detection model source: 'custom' (trained) or 'roboflow' (API)",
+    )
+
     # Pitch debug mode
     parser.add_argument("--debug-pitch", action="store_true",
                         help="Debug mode: show keypoint indices for diagnosing ordering issues")

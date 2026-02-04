@@ -91,3 +91,12 @@
 - [x] ETA display during video processing
 - [x] Termination option during processing
 - [x] Clean up repo following SWE best practices
+
+
+## Player Detection Model Integration
+- [x] Copy player_detection.pt to backend/models/
+- [x] Update config.py with player model path option
+- [x] Update base.py to use custom player model when selected
+- [x] Add CLI arguments for model source selection
+- [x] Add player model selection in Upload UI
+- [x] Document player model option in README

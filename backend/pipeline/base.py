@@ -14,6 +14,10 @@ from config import (
     MAX_DET,
     BALL_CLASS_ID,
     PAD_BALL,
+    PLAYER_MODEL_SOURCE,
+    BALL_MODEL_SOURCE,
+    YOLOV8_PLAYER_MODEL,
+    YOLOV8_BALL_MODEL,
 )
 from utils.video_utils import read_video
 from utils.cache import stub_path
@@ -46,6 +50,8 @@ def build_tracker(
     fast_ball: bool,
     ball_config: BallConfig,
     use_ball_model_weights: bool,
+    player_model_source: str | None = None,
+    ball_model_source: str | None = None,
 ) -> Tracker:
     """Build tracker with configuration.
 
@@ -60,9 +66,26 @@ def build_tracker(
     Returns:
         Configured Tracker instance
     """
+    # Determine player model path based on source
+    p_source = player_model_source or PLAYER_MODEL_SOURCE
+    if p_source == "custom" and PLAYER_DETECTION_MODEL_PATH.exists():
+        player_model_path = str(PLAYER_DETECTION_MODEL_PATH)
+        print(f"Player model: custom ({player_model_path})")
+    else:
+        player_model_path = YOLOV8_PLAYER_MODEL
+        print(f"Player model: YOLOv8 pretrained ({player_model_path})")
+
+    # Determine ball model path based on source
+    b_source = ball_model_source or BALL_MODEL_SOURCE
     ball_model_path = None
-    if use_ball_model and use_ball_model_weights and BALL_DETECTION_MODEL_PATH.exists():
-        ball_model_path = str(BALL_DETECTION_MODEL_PATH)
+    if use_ball_model and use_ball_model_weights:
+        if b_source == "custom" and BALL_DETECTION_MODEL_PATH.exists():
+            ball_model_path = str(BALL_DETECTION_MODEL_PATH)
+            print(f"Ball model: custom ({ball_model_path})")
+        elif b_source == "yolov8":
+            # Use pretrained YOLOv8 for ball detection (less accurate)
+            ball_model_path = None  # Falls back to multi-class detection
+            print("Ball model: fallback to multi-class model")
 
     config = TrackerConfig(
         det_batch_size=det_batch_size,
@@ -76,7 +99,7 @@ def build_tracker(
         ball_config=ball_config,  # Pass BallConfig directly
         ball_use_slicer=not fast_ball,  # Slicer enable/disable still external
     )
-    tracker = Tracker(model_path=str(PLAYER_DETECTION_MODEL_PATH), config=config, device=device)
+    tracker = Tracker(model_path=player_model_path, config=config, device=device)
 
     if use_ball_model:
         if ball_model_path is None:

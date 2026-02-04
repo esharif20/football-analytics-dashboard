@@ -15,6 +15,17 @@ PLAYER_DETECTION_MODEL_PATH = MODELS_DIR / "player_detection.pt"
 BALL_DETECTION_MODEL_PATH = MODELS_DIR / "ball_detection.pt"
 PITCH_DETECTION_MODEL_PATH = MODELS_DIR / "pitch_detection.pt"
 
+# Model selection options
+# "custom" = use custom-trained models in models/ directory
+# "yolov8" = use pretrained YOLOv8 from Ultralytics (fallback)
+PLAYER_MODEL_SOURCE = "custom"  # "custom" or "yolov8"
+BALL_MODEL_SOURCE = "custom"    # "custom" or "yolov8"
+PITCH_MODEL_SOURCE = "custom"   # "custom", "roboflow", or "yolov8"
+
+# Pretrained model names (used when MODEL_SOURCE is "yolov8")
+YOLOV8_PLAYER_MODEL = "yolov8x.pt"  # General object detection
+YOLOV8_BALL_MODEL = "yolov8x.pt"    # General object detection
+
 # Data directories
 OUTPUT_DIR = ROOT / "output_videos"
 STUB_DIR = ROOT / "stubs"

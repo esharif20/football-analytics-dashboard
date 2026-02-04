@@ -444,6 +444,10 @@ export default function Upload() {
                   <div className="space-y-1 text-xs text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span>player_detection.pt</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
                       <span>ball_detection.pt</span>
                     </div>
                     <div className="flex items-center gap-2">
