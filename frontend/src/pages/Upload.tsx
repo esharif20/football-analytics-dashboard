@@ -93,6 +93,10 @@ export default function Upload() {
     }
   }, [title]);
 
+  const [uploadStage, setUploadStage] = useState<"reading" | "uploading" | "processing" | "done">("reading");
+  const [uploadSpeed, setUploadSpeed] = useState<number>(0);
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -108,9 +112,12 @@ export default function Upload() {
 
     setUploading(true);
     setUploadProgress(0);
+    setUploadStage("reading");
+    setUploadSpeed(0);
+    setTimeRemaining(0);
 
     try {
-      // Convert file to base64
+      // Convert file to base64 with progress
       const reader = new FileReader();
       const fileBase64 = await new Promise<string>((resolve, reject) => {
         reader.onload = () => {
@@ -120,33 +127,95 @@ export default function Upload() {
         reader.onerror = reject;
         reader.onprogress = (e) => {
           if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 50));
+            const progress = Math.round((e.loaded / e.total) * 30);
+            setUploadProgress(progress);
           }
         };
         reader.readAsDataURL(file);
       });
 
-      setUploadProgress(60);
+      setUploadProgress(30);
+      setUploadStage("uploading");
 
-      // Upload video
-      const { id: videoId } = await uploadMutation.mutateAsync({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-        fileBase64,
+      // Upload with real-time progress using XMLHttpRequest
+      const startTime = Date.now();
+      let lastLoaded = 0;
+      let lastTime = startTime;
+
+      const uploadResult = await new Promise<{ id: number }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) {
+            const uploadPercent = (e.loaded / e.total) * 50; // 30-80% range
+            setUploadProgress(30 + Math.round(uploadPercent));
+            
+            // Calculate upload speed
+            const now = Date.now();
+            const timeDiff = (now - lastTime) / 1000; // seconds
+            if (timeDiff > 0.5) { // Update every 500ms
+              const bytesDiff = e.loaded - lastLoaded;
+              const speed = bytesDiff / timeDiff; // bytes per second
+              setUploadSpeed(speed);
+              
+              // Estimate time remaining
+              const remaining = e.total - e.loaded;
+              const eta = remaining / speed;
+              setTimeRemaining(Math.round(eta));
+              
+              lastLoaded = e.loaded;
+              lastTime = now;
+            }
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response.result?.data || response);
+            } catch {
+              reject(new Error("Invalid response"));
+            }
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener("error", () => reject(new Error("Network error")));
+        xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+
+        // Use the tRPC endpoint directly
+        xhr.open("POST", "/api/trpc/video.upload");
+        xhr.setRequestHeader("Content-Type", "application/json");
+        
+        const payload = JSON.stringify({
+          json: {
+            title: title.trim(),
+            description: description.trim() || undefined,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            fileBase64,
+          }
+        });
+        
+        xhr.send(payload);
       });
 
-      setUploadProgress(80);
+      setUploadProgress(85);
+      setUploadStage("processing");
+      setUploadSpeed(0);
+      setTimeRemaining(0);
 
       // Create analysis job
       const { id: analysisId } = await createAnalysisMutation.mutateAsync({
-        videoId,
+        videoId: uploadResult.id,
         mode: selectedMode,
       });
 
       setUploadProgress(100);
+      setUploadStage("done");
       toast.success("Video uploaded successfully! Starting analysis...");
       
       // Navigate to analysis page
@@ -566,9 +635,90 @@ export default function Upload() {
 
           {/* Upload Progress */}
           {uploading && (
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${uploadProgress}%` }} />
-            </div>
+            <Card className="border-primary/50 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {/* Stage indicator */}
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      <span className="font-medium">
+                        {uploadStage === "reading" && "Reading file..."}
+                        {uploadStage === "uploading" && "Uploading to server..."}
+                        {uploadStage === "processing" && "Creating analysis job..."}
+                        {uploadStage === "done" && "Complete!"}
+                      </span>
+                    </div>
+                    <span className="font-mono text-primary">{uploadProgress}%</span>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <div className="relative h-3 bg-secondary rounded-full overflow-hidden">
+                    <div 
+                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                    <div 
+                      className="absolute inset-y-0 left-0 bg-white/20 rounded-full animate-pulse"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  
+                  {/* Stats row */}
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-4">
+                      {uploadSpeed > 0 && (
+                        <span>
+                          Speed: {uploadSpeed > 1024 * 1024 
+                            ? `${(uploadSpeed / (1024 * 1024)).toFixed(1)} MB/s`
+                            : `${(uploadSpeed / 1024).toFixed(0)} KB/s`
+                          }
+                        </span>
+                      )}
+                      {file && (
+                        <span>
+                          {((file.size * uploadProgress / 100) / (1024 * 1024)).toFixed(1)} / {(file.size / (1024 * 1024)).toFixed(1)} MB
+                        </span>
+                      )}
+                    </div>
+                    {timeRemaining > 0 && uploadStage === "uploading" && (
+                      <span>
+                        {timeRemaining > 60 
+                          ? `~${Math.floor(timeRemaining / 60)}m ${timeRemaining % 60}s remaining`
+                          : `~${timeRemaining}s remaining`
+                        }
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Stage steps */}
+                  <div className="flex items-center justify-between pt-2">
+                    {["reading", "uploading", "processing", "done"].map((stage, i) => (
+                      <div key={stage} className="flex items-center">
+                        <div className={`w-2 h-2 rounded-full ${
+                          ["reading", "uploading", "processing", "done"].indexOf(uploadStage) >= i
+                            ? "bg-primary"
+                            : "bg-muted"
+                        }`} />
+                        {i < 3 && (
+                          <div className={`w-16 h-0.5 ${
+                            ["reading", "uploading", "processing", "done"].indexOf(uploadStage) > i
+                              ? "bg-primary"
+                              : "bg-muted"
+                          }`} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground -mt-2">
+                    <span>Read</span>
+                    <span>Upload</span>
+                    <span>Process</span>
+                    <span>Done</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </form>
       </main>
