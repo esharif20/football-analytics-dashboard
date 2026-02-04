@@ -188,6 +188,90 @@ export const appRouter = router({
     getStages: publicProcedure.query(() => {
       return PROCESSING_STAGES;
     }),
+
+    // Terminate a running analysis
+    terminate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const analysis = await getAnalysisById(input.id);
+        if (!analysis || analysis.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
+        }
+        
+        if (analysis.status !== "processing" && analysis.status !== "pending") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Analysis is not running" });
+        }
+        
+        await updateAnalysisStatus(
+          input.id,
+          "failed",
+          analysis.progress,
+          analysis.currentStage || undefined,
+          "Terminated by user"
+        );
+        
+        return { success: true };
+      }),
+
+    // Get ETA for processing
+    getEta: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const analysis = await getAnalysisById(input.id);
+        if (!analysis || analysis.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
+        }
+        
+        // Calculate ETA based on progress and elapsed time
+        const startTime = analysis.createdAt?.getTime() || Date.now();
+        const elapsed = Date.now() - startTime;
+        const progress = analysis.progress || 1;
+        
+        // Estimate total time based on current progress
+        const estimatedTotal = (elapsed / progress) * 100;
+        const remaining = Math.max(0, estimatedTotal - elapsed);
+        
+        // Stage-based estimates (in seconds)
+        const stageEstimates: Record<string, number> = {
+          uploading: 5,
+          loading: 3,
+          detecting: 60,
+          tracking: 10,
+          classifying: 30,
+          mapping: 20,
+          computing: 15,
+          rendering: 45,
+        };
+        
+        const currentStage = analysis.currentStage || "uploading";
+        const stageIndex = PROCESSING_STAGES.findIndex(s => s.id === currentStage);
+        
+        // Calculate remaining time based on stages
+        let stageBasedRemaining = 0;
+        for (let i = stageIndex; i < PROCESSING_STAGES.length; i++) {
+          const stageId = PROCESSING_STAGES[i].id;
+          const estimate = stageEstimates[stageId] || 10;
+          if (i === stageIndex) {
+            // Partial time for current stage
+            const stageProgress = (progress % (100 / PROCESSING_STAGES.length)) / (100 / PROCESSING_STAGES.length);
+            stageBasedRemaining += estimate * (1 - stageProgress);
+          } else {
+            stageBasedRemaining += estimate;
+          }
+        }
+        
+        // Use weighted average of both estimates
+        const finalEstimate = (remaining / 1000 * 0.4) + (stageBasedRemaining * 0.6);
+        
+        return {
+          elapsedMs: elapsed,
+          remainingMs: Math.round(finalEstimate * 1000),
+          estimatedTotalMs: Math.round((elapsed + finalEstimate * 1000)),
+          currentStage,
+          stageIndex,
+          totalStages: PROCESSING_STAGES.length,
+        };
+      }),
   }),
 
   // Events

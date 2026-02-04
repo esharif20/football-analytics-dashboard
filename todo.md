@@ -82,3 +82,12 @@
 - [x] Ensure Mac compatibility (MPS support in device.py)
 - [x] Document required API keys clearly (API_KEYS.md)
 - [x] Create clear setup instructions (README.md, setup.sh)
+
+
+## New Features (User Request)
+- [x] Add player detection model to backend
+- [x] GPU access guide (pay-as-you-go for BSc dissertation)
+- [x] Stub caching for mode-dependent processing
+- [x] ETA display during video processing
+- [x] Termination option during processing
+- [x] Clean up repo following SWE best practices

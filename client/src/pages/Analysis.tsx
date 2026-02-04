@@ -424,33 +424,114 @@ function StatusBadge({ status, progress }: { status: string; progress: number })
   );
 }
 
-// Processing Status Component
+// Processing Status Component with ETA and Termination
 function ProcessingStatus({ analysis }: { analysis: any }) {
   const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.id === analysis.currentStage);
+  const utils = trpc.useUtils();
+  
+  // Fetch ETA
+  const { data: etaData } = trpc.analysis.getEta.useQuery(
+    { id: analysis.id },
+    { 
+      enabled: analysis.status === "processing" || analysis.status === "pending",
+      refetchInterval: 5000 
+    }
+  );
+  
+  // Terminate mutation
+  const terminateMutation = trpc.analysis.terminate.useMutation({
+    onSuccess: () => {
+      toast.success("Analysis terminated");
+      utils.analysis.get.invalidate({ id: analysis.id });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to terminate");
+    },
+  });
+  
+  const handleTerminate = () => {
+    if (confirm("Are you sure you want to terminate this analysis? This cannot be undone.")) {
+      terminateMutation.mutate({ id: analysis.id });
+    }
+  };
+  
+  // Format time remaining
+  const formatTime = (ms: number) => {
+    if (ms < 1000) return "< 1s";
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  };
   
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          Processing Video
-        </CardTitle>
-        <CardDescription>
-          {analysis.currentStage ? `Current stage: ${PROCESSING_STAGES.find(s => s.id === analysis.currentStage)?.name || analysis.currentStage}` : "Initializing..."}
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              Processing Video
+            </CardTitle>
+            <CardDescription>
+              {analysis.currentStage ? `Current stage: ${PROCESSING_STAGES.find(s => s.id === analysis.currentStage)?.name || analysis.currentStage}` : "Initializing..."}
+            </CardDescription>
+          </div>
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={handleTerminate}
+            disabled={terminateMutation.isPending}
+          >
+            {terminateMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <XCircle className="w-4 h-4 mr-1" />
+                Terminate
+              </>
+            )}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <Progress value={analysis.progress} className="h-2" />
+          {/* Progress bar with percentage */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Progress</span>
+              <span className="font-medium">{analysis.progress}%</span>
+            </div>
+            <Progress value={analysis.progress} className="h-2" />
+          </div>
+          
+          {/* ETA Display */}
+          {etaData && (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Estimated time remaining</span>
+              </div>
+              <span className="font-semibold text-primary">
+                {formatTime(etaData.remainingMs)}
+              </span>
+            </div>
+          )}
+          
+          {/* Stage indicators */}
           <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
             {PROCESSING_STAGES.map((stage, i) => (
               <div
                 key={stage.id}
-                className={`text-center p-2 rounded-lg text-xs ${
+                className={`text-center p-2 rounded-lg text-xs transition-all ${
                   i < currentStageIndex
                     ? "bg-primary/20 text-primary"
                     : i === currentStageIndex
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground animate-pulse"
                     : "bg-secondary text-muted-foreground"
                 }`}
               >
@@ -458,6 +539,13 @@ function ProcessingStatus({ analysis }: { analysis: any }) {
               </div>
             ))}
           </div>
+          
+          {/* Elapsed time */}
+          {etaData && (
+            <div className="text-xs text-muted-foreground text-center">
+              Elapsed: {formatTime(etaData.elapsedMs)} • Stage {etaData.stageIndex + 1} of {etaData.totalStages}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
