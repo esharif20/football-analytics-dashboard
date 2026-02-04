@@ -26,7 +26,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Link } from "wouter";
-import { PIPELINE_MODES, PipelineMode } from "@shared/types";
+import { PIPELINE_MODES, PipelineMode } from "@/shared/types";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Cpu, Cloud, Sparkles, Video, Camera, Lock } from "lucide-react";

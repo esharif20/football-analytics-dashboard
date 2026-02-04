@@ -32,7 +32,7 @@ import {
   Map,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { PIPELINE_MODES, PROCESSING_STAGES, EVENT_TYPES, PipelineMode } from "@shared/types";
+import { PIPELINE_MODES, PROCESSING_STAGES, EVENT_TYPES, PipelineMode } from "@/shared/types";
 import { Streamdown } from "streamdown";
 import { useWebSocket, WSMessage } from "@/hooks/useWebSocket";
 

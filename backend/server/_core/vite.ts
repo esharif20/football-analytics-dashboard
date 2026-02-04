@@ -1,10 +1,49 @@
+import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import viteConfig from "../../../vite.config";
+import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+
+const PROJECT_ROOT = path.resolve(import.meta.dirname, "../../..");
+const FRONTEND_ROOT = path.resolve(PROJECT_ROOT, "frontend");
+
+const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
+
+const viteConfig = {
+  plugins,
+  resolve: {
+    alias: {
+      "@": path.resolve(FRONTEND_ROOT, "src"),
+    },
+  },
+  root: FRONTEND_ROOT,
+  publicDir: path.resolve(FRONTEND_ROOT, "public"),
+  build: {
+    outDir: path.resolve(PROJECT_ROOT, "dist/public"),
+    emptyOutDir: true,
+  },
+  server: {
+    host: true,
+    allowedHosts: [
+      ".manuspre.computer",
+      ".manus.computer",
+      ".manus-asia.computer",
+      ".manuscomputer.ai",
+      ".manusvm.computer",
+      "localhost",
+      "127.0.0.1",
+    ],
+    fs: {
+      strict: true,
+      deny: ["**/.*"],
+    },
+  },
+};
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
@@ -25,12 +64,7 @@ export async function setupVite(app: Express, server: Server) {
     const url = req.originalUrl;
 
     try {
-      const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "../../..",
-        "frontend",
-        "index.html"
-      );
+      const clientTemplate = path.resolve(FRONTEND_ROOT, "index.html");
 
       // always reload the index.html file from disk incase it changes
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
@@ -50,7 +84,7 @@ export async function setupVite(app: Express, server: Server) {
 export function serveStatic(app: Express) {
   const distPath =
     process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../../..", "dist", "public")
+      ? path.resolve(PROJECT_ROOT, "dist", "public")
       : path.resolve(import.meta.dirname, "public");
   if (!fs.existsSync(distPath)) {
     console.error(

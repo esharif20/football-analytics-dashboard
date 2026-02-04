@@ -168,3 +168,14 @@
 - [x] Move Docker files to docker/ subdirectory
 - [x] Update all imports and path references
 - [x] Keep root clean: README, Makefile, package.json only
+
+
+## Final Root Cleanup
+- [x] Move package.json, pnpm-lock.yaml to frontend/
+- [x] Move tsconfig.json to frontend/
+- [x] Move vite.config.ts to frontend/
+- [x] Move vitest.config.ts to backend/
+- [x] Move drizzle.config.ts to backend/
+- [x] Move .prettierrc, .prettierignore to appropriate location
+- [x] Update Makefile to work from new locations
+- [x] Root should only have: README.md, Makefile, .gitignore, package.json (orchestrator)

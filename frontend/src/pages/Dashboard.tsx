@@ -21,7 +21,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { PIPELINE_MODES, PipelineMode } from "@shared/types";
+import { PIPELINE_MODES, PipelineMode } from "@/shared/types";
 
 export default function Dashboard() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
