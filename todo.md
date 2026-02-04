@@ -57,3 +57,11 @@
 - [x] Docker configuration for RunPod
 - [x] Google Colab notebook with GPU support
 - [x] Pipeline API documentation (README.md)
+
+## Pipeline Restructure
+- [x] Restructure pipeline to match original repo's modular architecture
+- [x] Remove FastAPI overhead - keep as simple Python CLI/package
+- [x] Separate modules: trackers/, team_assigner/, pitch/, analytics/, utils/
+- [x] Match original CLI interface (python main.py --video --mode)
+- [x] Add "Coming Soon" option for broadcast/normal camera angle pipeline
+- [x] Camera type selection in Upload UI (Tactical vs Broadcast)

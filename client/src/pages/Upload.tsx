@@ -29,7 +29,7 @@ import { Link } from "wouter";
 import { PIPELINE_MODES, PipelineMode } from "@shared/types";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, Cloud, Sparkles } from "lucide-react";
+import { Cpu, Cloud, Sparkles, Video, Camera, Lock } from "lucide-react";
 
 const MODE_ICONS: Record<PipelineMode, React.ReactNode> = {
   all: <Layers className="w-5 h-5" />,
@@ -53,6 +53,7 @@ export default function Upload() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [useCustomModels, setUseCustomModels] = useState(true);
+  const [cameraType, setCameraType] = useState<"tactical" | "broadcast">("tactical");
 
   const uploadMutation = trpc.video.upload.useMutation();
   const createAnalysisMutation = trpc.analysis.create.useMutation();
@@ -302,6 +303,100 @@ export default function Upload() {
                   placeholder="Add notes about the match, teams, or specific moments to analyze..."
                   rows={3}
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Camera Type Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="w-5 h-5" />
+                Camera Angle
+              </CardTitle>
+              <CardDescription>
+                Select the type of camera footage you're uploading
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Tactical/Wide Angle Option */}
+                <button
+                  type="button"
+                  onClick={() => setCameraType("tactical")}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    cameraType === "tactical" 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/30"
+                  }`}
+                >
+                  {cameraType === "tactical" && (
+                    <Badge className="absolute top-2 right-2 bg-primary">Selected</Badge>
+                  )}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      cameraType === "tactical" ? "bg-primary text-primary-foreground" : "bg-secondary"
+                    }`}>
+                      <Video className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-semibold">Tactical View</span>
+                      <Badge variant="outline" className="ml-2 text-xs">Supported</Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Wide-angle footage showing the full pitch (DFL Bundesliga style)
+                  </p>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span>Full pitch visibility</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span>Optimal for tactical analysis</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span>Accurate homography</span>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Broadcast Angle Option - Coming Soon */}
+                <button
+                  type="button"
+                  disabled
+                  className="relative p-4 rounded-xl border-2 text-left transition-all border-border opacity-60 cursor-not-allowed"
+                >
+                  <Badge className="absolute top-2 right-2 bg-amber-500/80 text-white">Coming Soon</Badge>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-secondary">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-semibold">Broadcast View</span>
+                      <Lock className="w-3 h-3 ml-2 inline text-muted-foreground" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Standard TV broadcast camera angles with dynamic movement
+                  </p>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-3 h-3" />
+                      <span>Requires different models</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-3 h-3" />
+                      <span>Dynamic camera tracking</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-3 h-3" />
+                      <span>Under development</span>
+                    </div>
+                  </div>
+                </button>
               </div>
             </CardContent>
           </Card>
