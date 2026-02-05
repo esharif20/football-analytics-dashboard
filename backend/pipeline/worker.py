@@ -223,9 +223,11 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     ]
     
     # Always use custom models when they exist (fine-tuned models are better)
+    # Note: --player-model and --pitch-model expect 'custom' or 'yolov8'/'roboflow', not file paths
+    # The pipeline uses config.py to find the actual model files
     player_model = MODELS_DIR / "player_detection.pt"
     if player_model.exists():
-        cmd.extend(["--player-model", str(player_model)])
+        cmd.extend(["--player-model", "custom"])
         log(f"Using custom player model: {player_model}")
     
     ball_model = MODELS_DIR / "ball_detection.pt"
@@ -235,7 +237,7 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     
     pitch_model = MODELS_DIR / "pitch_detection.pt"
     if pitch_model.exists():
-        cmd.extend(["--pitch-model", str(pitch_model)])
+        cmd.extend(["--pitch-model", "custom"])
         log(f"Using custom pitch model: {pitch_model}")
     
     log(f"Running pipeline: {' '.join(cmd)}")
