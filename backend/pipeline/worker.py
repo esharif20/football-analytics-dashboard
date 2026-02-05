@@ -181,6 +181,18 @@ def update_analysis_status(analysis_id: str, status: str, stage: str = "", progr
     api_request(f"/worker/analysis/{analysis_id}/status", "POST", data)
 
 
+# Map dashboard mode names to pipeline Mode enum values
+MODE_MAPPING = {
+    "all": "ALL",
+    "radar": "RADAR",
+    "team": "TEAM_CLASSIFICATION",
+    "track": "PLAYER_TRACKING",
+    "players": "PLAYER_DETECTION",
+    "ball": "BALL_DETECTION",
+    "pitch": "PITCH_DETECTION",
+}
+
+
 def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Dict[str, str]) -> Dict:
     """Run the CV pipeline on a video."""
     global _processing_start_time
@@ -191,13 +203,17 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     # Record start time for ETA calculation
     _processing_start_time = time.time()
     
+    # Map dashboard mode to pipeline mode
+    pipeline_mode = MODE_MAPPING.get(mode, mode.upper())
+    log(f"Mode mapping: {mode} -> {pipeline_mode}")
+    
     # Build command - main.py is in src directory
     main_py = Path(__file__).parent / "src" / "main.py"
     cmd = [
         sys.executable, str(main_py),
         "--source-video-path", str(video_path),
         "--target-video-path", str(output_video),
-        "--mode", mode,
+        "--mode", pipeline_mode,
     ]
     
     # Add model paths if custom models selected
