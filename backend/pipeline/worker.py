@@ -207,14 +207,19 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     pipeline_mode = MODE_MAPPING.get(mode, mode.upper())
     log(f"Mode mapping: {mode} -> {pipeline_mode}")
     
-    # Build command - run as module from src directory
-    src_dir = Path(__file__).parent / "src"
+    # Build command - use run_pipeline.py wrapper for correct imports
+    pipeline_dir = Path(__file__).parent
+    run_script = pipeline_dir / "run_pipeline.py"
+    
+    # Detect GPU
+    device = "cuda" if os.path.exists("/dev/nvidia0") or os.path.exists("/dev/nvidia-uvm") else "cpu"
+    
     cmd = [
-        sys.executable, "-m", "main",
+        sys.executable, str(run_script),
         "--source-video-path", str(video_path),
         "--target-video-path", str(output_video),
         "--mode", pipeline_mode,
-        "--device", "cuda" if os.path.exists("/dev/nvidia0") else "cpu",
+        "--device", device,
     ]
     
     # Add model paths if custom models selected
@@ -229,16 +234,13 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     
     log(f"Running pipeline: {' '.join(cmd)}")
     
-    # src_dir already defined above
-    
-    # Set up environment with PYTHONPATH so imports work
+    # Set up environment
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(src_dir)
     
     try:
         process = subprocess.Popen(
             cmd,
-            cwd=str(src_dir),
+            cwd=str(pipeline_dir),
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
