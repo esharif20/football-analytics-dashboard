@@ -8,7 +8,11 @@ player tracking, team classification, and full pipeline.
 
 from cli import parse_args
 from cli.parsing import parse_ball_tiles
-from pipeline import Mode, get_frame_generator
+# Import from current package (src/__init__.py)
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from __init__ import Mode, get_frame_generator
 from trackers.ball_config import BallConfig
 from utils.video_utils import write_video
 from utils.cache import stub_paths_for_mode, clear_stubs

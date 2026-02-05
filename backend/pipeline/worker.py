@@ -214,10 +214,16 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     
     # Run pipeline from src directory where the modules are
     src_dir = Path(__file__).parent / "src"
+    
+    # Set up environment with PYTHONPATH so imports work
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(src_dir)
+    
     try:
         process = subprocess.Popen(
             cmd,
             cwd=str(src_dir),
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
