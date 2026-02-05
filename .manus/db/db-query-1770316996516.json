@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, status, annotatedVideoUrl, progress FROM analyses WHERE id = 150005;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user R7GVSNW8GkgDhrQ.root --database JEwtePdeXs7XerCLuZa7PM --execute SELECT id, status, annotatedVideoUrl, progress FROM analyses WHERE id = 150005;",
+  "rows": [
+    {
+      "id": "150005",
+      "status": "completed",
+      "annotatedVideoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316856113-150005_annotated.mp4",
+      "progress": "100"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tannotatedVideoUrl\tprogress\n150005\tcompleted\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316856113-150005_annotated.mp4\t100\n",
+  "stderr": "",
+  "execution_time_ms": 342
+}

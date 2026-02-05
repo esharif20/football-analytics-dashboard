@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, status, progress, annotatedVideoUrl, radarVideoUrl FROM analyses WHERE id >= 150000 ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user R7GVSNW8GkgDhrQ.root --database JEwtePdeXs7XerCLuZa7PM --execute SELECT id, status, progress, annotatedVideoUrl, radarVideoUrl FROM analyses WHERE id >= 150000 ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "150005",
+      "status": "completed",
+      "progress": "100",
+      "annotatedVideoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316856113-150005_annotated.mp4",
+      "radarVideoUrl": "NULL"
+    },
+    {
+      "id": "150004",
+      "status": "completed",
+      "progress": "100",
+      "annotatedVideoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316547484-150004_annotated.mp4",
+      "radarVideoUrl": "NULL"
+    },
+    {
+      "id": "150003",
+      "status": "completed",
+      "progress": "100",
+      "annotatedVideoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316109161-150003_annotated.mp4",
+      "radarVideoUrl": "NULL"
+    },
+    {
+      "id": "150002",
+      "status": "completed",
+      "progress": "100",
+      "annotatedVideoUrl": "/football-analytics-dashboard/backend/pipeline/output_videos/120001_annotated.mp4",
+      "radarVideoUrl": "NULL"
+    },
+    {
+      "id": "150001",
+      "status": "completed",
+      "progress": "100",
+      "annotatedVideoUrl": "/football-analytics-dashboard/backend/pipeline/output_videos/150001_annotated.mp4",
+      "radarVideoUrl": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tprogress\tannotatedVideoUrl\tradarVideoUrl\n150005\tcompleted\t100\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316856113-150005_annotated.mp4\tNULL\n150004\tcompleted\t100\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316547484-150004_annotated.mp4\tNULL\n150003\tcompleted\t100\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316109161-150003_annotated.mp4\tNULL\n150002\tcompleted\t100\t/football-analytics-dashboard/backend/pipeline/output_videos/120001_annotated.mp4\tNULL\n150001\tcompleted\t100\t/football-analytics-dashboard/backend/pipeline/output_videos/150001_annotated.mp4\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 351
+}

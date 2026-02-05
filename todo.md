@@ -13,3 +13,4 @@
 - [x] Fix custom model loading - pipeline uses YOLOv8 pretrained instead of custom models
 - [x] Fix S3 video upload endpoint returning invalid JSON response
 - [ ] Debug and fix custom model loading - pipeline still using YOLOv8 pretrained
+- [x] Create comprehensive migration guide for running independently from Manus

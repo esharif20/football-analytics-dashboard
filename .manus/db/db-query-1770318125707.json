@@ -1,0 +1,29 @@
+{
+  "query": "SELECT * FROM analyses WHERE id = 150005;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user R7GVSNW8GkgDhrQ.root --database JEwtePdeXs7XerCLuZa7PM --execute SELECT * FROM analyses WHERE id = 150005;",
+  "rows": [
+    {
+      "id": "150005",
+      "videoId": "150005",
+      "userId": "1",
+      "mode": "players",
+      "status": "completed",
+      "progress": "100",
+      "currentStage": "done",
+      "errorMessage": "NULL",
+      "annotatedVideoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316856113-150005_annotated.mp4",
+      "radarVideoUrl": "NULL",
+      "trackingDataUrl": "NULL",
+      "analyticsDataUrl": "NULL",
+      "startedAt": "NULL",
+      "completedAt": "2026-02-05 18:40:57",
+      "processingTimeMs": "NULL",
+      "createdAt": "2026-02-05 18:40:37",
+      "updatedAt": "2026-02-05 18:40:57"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tvideoId\tuserId\tmode\tstatus\tprogress\tcurrentStage\terrorMessage\tannotatedVideoUrl\tradarVideoUrl\ttrackingDataUrl\tanalyticsDataUrl\tstartedAt\tcompletedAt\tprocessingTimeMs\tcreatedAt\tupdatedAt\n150005\t150005\t1\tplayers\tcompleted\t100\tdone\tNULL\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663334363677/JEwtePdeXs7XerCLuZa7PM/processed-videos/1770316856113-150005_annotated.mp4\tNULL\tNULL\tNULL\tNULL\t2026-02-05 18:40:57\tNULL\t2026-02-05 18:40:37\t2026-02-05 18:40:57\n",
+  "stderr": "",
+  "execution_time_ms": 352
+}

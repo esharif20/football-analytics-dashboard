@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, status, progress, CASE WHEN annotatedVideoUrl IS NULL THEN 'NULL' ELSE SUBSTRING(annotatedVideoUrl, 1, 50) END as video_url_preview FROM analyses WHERE id = 150005;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user R7GVSNW8GkgDhrQ.root --database JEwtePdeXs7XerCLuZa7PM --execute SELECT id, status, progress, CASE WHEN annotatedVideoUrl IS NULL THEN 'NULL' ELSE SUBSTRING(annotatedVideoUrl, 1, 50) END as video_url_preview FROM analyses WHERE id = 150005;",
+  "rows": [
+    {
+      "id": "150005",
+      "status": "completed",
+      "progress": "100",
+      "video_url_preview": "https://d2xsxph8kpxj0f.cloudfront.net/310519663334"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tprogress\tvideo_url_preview\n150005\tcompleted\t100\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663334\n",
+  "stderr": "",
+  "execution_time_ms": 359
+}
