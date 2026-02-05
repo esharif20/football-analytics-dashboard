@@ -14,3 +14,6 @@
 - [x] Fix S3 video upload endpoint returning invalid JSON response
 - [ ] Debug and fix custom model loading - pipeline still using YOLOv8 pretrained
 - [x] Create comprehensive migration guide for running independently from Manus
+- [x] Create Docker Compose setup for local Mac development
+- [x] Make AI commentary optional (no OpenAI key required)
+- [x] Create simple setup script for Mac

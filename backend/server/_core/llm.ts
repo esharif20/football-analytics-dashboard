@@ -209,16 +209,27 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+const resolveApiUrl = () => {
+  // If Manus Forge URL is set, use it
+  if (ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0) {
+    return `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`;
+  }
+  // Otherwise use OpenAI directly
+  return "https://api.openai.com/v1/chat/completions";
+};
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+    throw new Error("LLM API key not configured. Set OPENAI_API_KEY or BUILT_IN_FORGE_API_KEY");
   }
 };
+
+/**
+ * Check if LLM is available (has API key configured)
+ */
+export function isLLMAvailable(): boolean {
+  return Boolean(ENV.forgeApiKey && ENV.forgeApiKey.trim().length > 0);
+}
 
 const normalizeResponseFormat = ({
   responseFormat,
@@ -279,8 +290,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
   } = params;
 
+  // Use GPT-4 for OpenAI, or the Manus model if using Forge
+  const isOpenAI = !ENV.forgeApiUrl || ENV.forgeApiUrl.trim().length === 0;
+  const model = isOpenAI ? "gpt-4-turbo-preview" : "gemini-2.5-flash";
+  
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model,
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,10 +311,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  payload.max_tokens = 4096;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,

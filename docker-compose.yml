@@ -1,31 +1,75 @@
-# Football Analytics Dashboard
+# Football Analytics Dashboard - Local Development
 # Run with: docker compose up
+# Dashboard available at: http://localhost:3000
 
 services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      # Persist uploaded videos and analysis outputs
-      - ./data:/app/backend/data
-    environment:
-      - PYTHONUNBUFFERED=1
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: football-db
     restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: football123
+      MYSQL_DATABASE: football_dashboard
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pfootball123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  worker:
+  # Backend + Frontend App
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.worker
-    volumes:
-      # Share data directory with app
-      - ./data:/app/backend/data
-      # Persist models so they don't re-download
-      - ./models:/app/backend/pipeline/models
-    environment:
-      - PYTHONUNBUFFERED=1
-      - DASHBOARD_URL=http://app:8000
-      - POLL_INTERVAL=5
-    depends_on:
-      - app
+      dockerfile: Dockerfile.local
+    container_name: football-app
     restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Database
+      DATABASE_URL: mysql://root:football123@db:3306/football_dashboard
+      
+      # Local development mode - bypasses Manus OAuth
+      LOCAL_DEV_MODE: "true"
+      
+      # JWT Secret for sessions
+      JWT_SECRET: local-dev-secret-change-in-production
+      
+      # Local file storage
+      LOCAL_STORAGE_DIR: /app/uploads
+      
+      # Optional: OpenAI API key for AI commentary (leave empty to disable)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      
+      # Disable Manus services
+      BUILT_IN_FORGE_API_URL: ""
+      BUILT_IN_FORGE_API_KEY: ""
+      OAUTH_SERVER_URL: ""
+      VITE_APP_ID: ""
+      VITE_OAUTH_PORTAL_URL: ""
+      
+      # App metadata
+      VITE_APP_TITLE: Football Analytics
+      NODE_ENV: development
+    volumes:
+      # Mount source code for hot-reloading during development
+      - ./backend:/app/backend:delegated
+      - ./client:/app/client:delegated
+      - ./shared:/app/shared:delegated
+      # Persist uploads
+      - uploads_data:/app/uploads
+      # Exclude node_modules (use container's versions)
+      - /app/node_modules
+      - /app/backend/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  uploads_data:
