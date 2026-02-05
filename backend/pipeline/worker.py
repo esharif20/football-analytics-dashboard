@@ -191,9 +191,10 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     # Record start time for ETA calculation
     _processing_start_time = time.time()
     
-    # Build command
+    # Build command - main.py is in src directory
+    main_py = Path(__file__).parent / "src" / "main.py"
     cmd = [
-        sys.executable, "main.py",
+        sys.executable, str(main_py),
         "--source-video-path", str(video_path),
         "--target-video-path", str(output_video),
         "--mode", mode,
@@ -211,11 +212,12 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     
     log(f"Running pipeline: {' '.join(cmd)}")
     
-    # Run pipeline
+    # Run pipeline from src directory where the modules are
+    src_dir = Path(__file__).parent / "src"
     try:
         process = subprocess.Popen(
             cmd,
-            cwd=str(Path(__file__).parent),
+            cwd=str(src_dir),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
