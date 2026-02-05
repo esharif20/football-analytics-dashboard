@@ -7,7 +7,7 @@ A background process that:
 2. Runs the CV pipeline on new videos
 3. Posts results back to the dashboard
 
-No external dependencies - uses only stdlib + pipeline requirements.
+Dependencies: requests, torch, ultralytics, opencv-python, supervision
 """
 
 import os
@@ -16,11 +16,16 @@ import json
 import time
 import hashlib
 import subprocess
-import urllib.request
-import urllib.error
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
+
+# Use requests library for HTTP (urllib has issues with HTTP/2)
+try:
+    import requests
+except ImportError:
+    print("ERROR: requests library not installed. Run: pip install requests")
+    sys.exit(1)
 
 # Configuration
 DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:3000")
@@ -43,6 +48,12 @@ for d in [INPUT_DIR, OUTPUT_DIR, STUBS_DIR, CACHE_DIR, MODELS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 
+def log(msg: str, level: str = "INFO"):
+    """Simple logging."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] [{level}] {msg}")
+
+
 def download_models():
     """Download models from CDN if not already present."""
     for model_name, url in MODEL_URLS.items():
@@ -53,40 +64,38 @@ def download_models():
         
         log(f"Downloading model: {model_name}...")
         try:
-            urllib.request.urlretrieve(url, model_path)
+            response = requests.get(url, stream=True, timeout=300)
+            response.raise_for_status()
+            with open(model_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
             log(f"Downloaded: {model_name} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
         except Exception as e:
             log(f"Failed to download {model_name}: {e}", "ERROR")
 
 
-def log(msg: str, level: str = "INFO"):
-    """Simple logging without external dependencies."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [{level}] {msg}")
-
-
 def api_request(endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
-    """Make HTTP request to dashboard API."""
+    """Make HTTP request to dashboard API using requests library."""
     url = f"{DASHBOARD_URL}/api{endpoint}"
     
     try:
-        if data:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(data).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method=method
-            )
+        if method == "GET":
+            response = requests.get(url, timeout=30)
+        elif method == "POST":
+            response = requests.post(url, json=data, timeout=30)
         else:
-            req = urllib.request.Request(url, method=method)
+            response = requests.request(method, url, json=data, timeout=30)
         
-        with urllib.request.urlopen(req, timeout=30) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        log(f"HTTP Error {e.code}: {e.reason}", "ERROR")
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        log(f"HTTP Error {e.response.status_code}: {e}", "ERROR")
         return None
-    except urllib.error.URLError as e:
-        log(f"URL Error: {e.reason}", "ERROR")
+    except requests.exceptions.ConnectionError as e:
+        log(f"Connection Error: {e}", "ERROR")
+        return None
+    except requests.exceptions.Timeout as e:
+        log(f"Timeout Error: {e}", "ERROR")
         return None
     except Exception as e:
         log(f"Request error: {e}", "ERROR")
@@ -140,8 +149,12 @@ def download_video(video_url: str, video_id: str) -> Optional[Path]:
     
     try:
         log(f"Downloading video: {video_url}")
-        urllib.request.urlretrieve(video_url, output_path)
-        log(f"Downloaded to: {output_path}")
+        response = requests.get(video_url, stream=True, timeout=300)
+        response.raise_for_status()
+        with open(output_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        log(f"Downloaded to: {output_path} ({output_path.stat().st_size / 1024 / 1024:.1f} MB)")
         return output_path
     except Exception as e:
         log(f"Failed to download video: {e}", "ERROR")
@@ -278,7 +291,7 @@ def process_pending_analysis(analysis: Dict) -> bool:
     log(f"Processing analysis {analysis_id} (mode: {mode})")
     
     # Update status to processing
-    update_analysis_status(analysis_id, "processing", "uploading", 5)
+    update_analysis_status(analysis_id, "processing", "downloading", 5)
     
     # Download video
     video_path = download_video(video_url, video_id)
