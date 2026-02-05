@@ -20,6 +20,20 @@ from config import (
 from pipeline import Mode
 
 
+def parse_mode(value: str) -> Mode:
+    """Convert string to Mode enum."""
+    try:
+        return Mode[value.upper()]
+    except KeyError:
+        # Try matching by value
+        for m in Mode:
+            if m.value == value.upper():
+                return m
+        raise argparse.ArgumentTypeError(
+            f"Invalid mode: {value}. Valid modes: {[m.name for m in Mode]}"
+        )
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -45,8 +59,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", type=str, default="cpu",
                         help="Device for inference (cpu, cuda, mps)")
-    parser.add_argument("--mode", type=Mode, default=Mode.PLAYER_DETECTION,
-                        help="Pipeline mode")
+    parser.add_argument("--mode", type=parse_mode, default=Mode.PLAYER_DETECTION,
+                        help=f"Pipeline mode. Valid: {[m.name for m in Mode]}")
     parser.add_argument(
         "--det-batch", "--det-batch-size",
         dest="det_batch",
