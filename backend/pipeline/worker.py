@@ -222,15 +222,21 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
         "--device", device,
     ]
     
-    # Add model paths if custom models selected
-    if model_config.get("player") == "custom" and (MODELS_DIR / "player_detection.pt").exists():
-        cmd.extend(["--player-model", str(MODELS_DIR / "player_detection.pt")])
+    # Always use custom models when they exist (fine-tuned models are better)
+    player_model = MODELS_DIR / "player_detection.pt"
+    if player_model.exists():
+        cmd.extend(["--player-model", str(player_model)])
+        log(f"Using custom player model: {player_model}")
     
-    if model_config.get("ball") == "custom" and (MODELS_DIR / "ball_detection.pt").exists():
+    ball_model = MODELS_DIR / "ball_detection.pt"
+    if ball_model.exists():
         cmd.extend(["--ball-model-source", "custom"])
+        log(f"Using custom ball model: {ball_model}")
     
-    if model_config.get("pitch") == "custom" and (MODELS_DIR / "pitch_detection.pt").exists():
-        cmd.extend(["--pitch-model", str(MODELS_DIR / "pitch_detection.pt")])
+    pitch_model = MODELS_DIR / "pitch_detection.pt"
+    if pitch_model.exists():
+        cmd.extend(["--pitch-model", str(pitch_model)])
+        log(f"Using custom pitch model: {pitch_model}")
     
     log(f"Running pipeline: {' '.join(cmd)}")
     
