@@ -59,10 +59,11 @@ def get_frame_generator(
     """
     # Lazy imports - only import the module needed for the requested mode
     # This avoids loading umap/numba when running pitch mode with inference
+    # Using absolute imports (modules are in the same directory as this file)
 
     if mode == Mode.PITCH_DETECTION:
-        from .pitch import run as run_pitch
-        return run_pitch(
+        import pitch as pitch_module
+        return pitch_module.run(
             source_video_path=source_video_path,
             device=device,
             debug=debug_pitch,
@@ -70,8 +71,8 @@ def get_frame_generator(
         )
 
     if mode == Mode.PLAYER_DETECTION:
-        from .players import run as run_players
-        return run_players(
+        import players as players_module
+        return players_module.run(
             source_video_path=source_video_path,
             read_from_stub=read_from_stub,
             device=device,
@@ -79,8 +80,8 @@ def get_frame_generator(
         )
 
     if mode == Mode.BALL_DETECTION:
-        from .ball import run as run_ball
-        return run_ball(
+        import ball as ball_module
+        return ball_module.run(
             source_video_path=source_video_path,
             read_from_stub=read_from_stub,
             device=device,
@@ -91,8 +92,8 @@ def get_frame_generator(
         )
 
     if mode == Mode.PLAYER_TRACKING:
-        from .tracking import run as run_tracking
-        return run_tracking(
+        import tracking as tracking_module
+        return tracking_module.run(
             source_video_path=source_video_path,
             read_from_stub=read_from_stub,
             device=device,
@@ -100,8 +101,8 @@ def get_frame_generator(
         )
 
     if mode == Mode.TEAM_CLASSIFICATION:
-        from .team import run as run_team
-        return run_team(
+        import team as team_module
+        return team_module.run(
             source_video_path=source_video_path,
             read_from_stub=read_from_stub,
             device=device,
@@ -112,8 +113,8 @@ def get_frame_generator(
         )
 
     if mode == Mode.ALL:
-        from .all import run as run_all
-        return run_all(
+        import all as all_module
+        return all_module.run(
             source_video_path=source_video_path,
             read_from_stub=read_from_stub,
             device=device,
@@ -129,8 +130,8 @@ def get_frame_generator(
         )
 
     if mode == Mode.RADAR:
-        from .radar import run as run_radar
-        return run_radar(
+        import radar as radar_module
+        return radar_module.run(
             source_video_path=source_video_path,
             read_from_stub=read_from_stub,
             device=device,
