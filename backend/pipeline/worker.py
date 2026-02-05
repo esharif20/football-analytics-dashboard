@@ -207,13 +207,14 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     pipeline_mode = MODE_MAPPING.get(mode, mode.upper())
     log(f"Mode mapping: {mode} -> {pipeline_mode}")
     
-    # Build command - main.py is in src directory
-    main_py = Path(__file__).parent / "src" / "main.py"
+    # Build command - run as module from src directory
+    src_dir = Path(__file__).parent / "src"
     cmd = [
-        sys.executable, str(main_py),
+        sys.executable, "-m", "main",
         "--source-video-path", str(video_path),
         "--target-video-path", str(output_video),
         "--mode", pipeline_mode,
+        "--device", "cuda" if os.path.exists("/dev/nvidia0") else "cpu",
     ]
     
     # Add model paths if custom models selected
@@ -228,8 +229,7 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     
     log(f"Running pipeline: {' '.join(cmd)}")
     
-    # Run pipeline from src directory where the modules are
-    src_dir = Path(__file__).parent / "src"
+    # src_dir already defined above
     
     # Set up environment with PYTHONPATH so imports work
     env = os.environ.copy()
