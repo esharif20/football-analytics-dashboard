@@ -306,6 +306,39 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     return results
 
 
+def upload_video_to_s3(video_path: Path, analysis_id: str) -> Optional[str]:
+    """Upload video to S3 via dashboard API and return the URL."""
+    if not video_path.exists():
+        log(f"Video file not found: {video_path}", "ERROR")
+        return None
+    
+    try:
+        import base64
+        log(f"Uploading video to S3: {video_path.name}")
+        
+        # Read and encode video
+        with open(video_path, "rb") as f:
+            video_data = base64.b64encode(f.read()).decode("utf-8")
+        
+        # Upload via API
+        response = api_request("/worker/upload-video", "POST", {
+            "videoData": video_data,
+            "fileName": video_path.name,
+            "contentType": "video/mp4"
+        })
+        
+        if response and response.get("success"):
+            url = response.get("url")
+            log(f"Video uploaded successfully: {url}")
+            return url
+        else:
+            log(f"Failed to upload video: {response}", "ERROR")
+            return None
+    except Exception as e:
+        log(f"Error uploading video: {e}", "ERROR")
+        return None
+
+
 def process_pending_analysis(analysis: Dict) -> bool:
     """Process a single pending analysis."""
     analysis_id = analysis.get("id")
@@ -342,6 +375,23 @@ def process_pending_analysis(analysis: Dict) -> bool:
     results = run_pipeline(video_path, analysis_id, mode, model_config)
     
     if results.get("success"):
+        # Upload annotated video to S3
+        update_analysis_status(analysis_id, "processing", "uploading", 95)
+        
+        annotated_video_path = results.get("annotatedVideo")
+        if annotated_video_path:
+            annotated_url = upload_video_to_s3(Path(annotated_video_path), analysis_id)
+            if annotated_url:
+                results["annotatedVideo"] = annotated_url
+            else:
+                log("Failed to upload annotated video", "WARN")
+        
+        radar_video_path = results.get("radarVideo")
+        if radar_video_path:
+            radar_url = upload_video_to_s3(Path(radar_video_path), f"{analysis_id}_radar")
+            if radar_url:
+                results["radarVideo"] = radar_url
+        
         # Save to cache
         save_to_cache(cache_key, results)
         
