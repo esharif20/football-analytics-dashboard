@@ -66,6 +66,12 @@ def build_tracker(
     Returns:
         Configured Tracker instance
     """
+    # Debug: print model path info
+    print(f"DEBUG: PLAYER_DETECTION_MODEL_PATH = {PLAYER_DETECTION_MODEL_PATH}")
+    print(f"DEBUG: PLAYER_DETECTION_MODEL_PATH.exists() = {PLAYER_DETECTION_MODEL_PATH.exists()}")
+    print(f"DEBUG: player_model_source arg = {player_model_source}")
+    print(f"DEBUG: PLAYER_MODEL_SOURCE config = {PLAYER_MODEL_SOURCE}")
+    
     # Determine player model path based on source
     p_source = player_model_source or PLAYER_MODEL_SOURCE
     if p_source == "custom" and PLAYER_DETECTION_MODEL_PATH.exists():
@@ -74,6 +80,7 @@ def build_tracker(
     else:
         player_model_path = YOLOV8_PLAYER_MODEL
         print(f"Player model: YOLOv8 pretrained ({player_model_path})")
+        print(f"DEBUG: Reason - p_source={p_source}, exists={PLAYER_DETECTION_MODEL_PATH.exists()}")
 
     # Determine ball model path based on source
     b_source = ball_model_source or BALL_MODEL_SOURCE
