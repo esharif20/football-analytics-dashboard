@@ -228,6 +228,56 @@ python main.py --source-video-path /path/to/video.mp4 --mode all
 
 ---
 
+## Cloud GPU Worker (Recommended for Production)
+
+Run the worker on a cloud GPU to process videos from your deployed site:
+
+### Quick Setup (RunPod, Lambda Labs, Vast.ai)
+
+**1. Rent a GPU instance** (~$0.20-0.50/hr for RTX 3090/4090)
+
+**2. SSH into your instance and run:**
+
+```bash
+# One-line setup
+curl -sSL https://raw.githubusercontent.com/esharif20/football-analytics-dashboard/main/scripts/setup-cloud-gpu.sh | bash
+
+# Start the worker
+cd football-analytics-dashboard/backend/pipeline
+source venv/bin/activate
+DASHBOARD_URL=https://aifootball.manus.space python worker.py
+```
+
+**3. That's it!** The worker will:
+- Download ML models automatically (~400MB)
+- Poll your deployed site for pending analyses
+- Process videos using GPU
+- Upload results back to the dashboard
+
+### Run in Background
+
+```bash
+# Start worker in background
+nohup python worker.py > worker.log 2>&1 &
+
+# Check logs
+tail -f worker.log
+
+# Stop worker
+pkill -f worker.py
+```
+
+### Recommended GPU Providers
+
+| Provider | Price | Best For |
+|----------|-------|----------|
+| [RunPod](https://runpod.io) | $0.20-0.50/hr | Cheapest, easy setup |
+| [Lambda Labs](https://lambdalabs.com) | $0.50-1.00/hr | Reliable, good support |
+| [Vast.ai](https://vast.ai) | $0.15-0.40/hr | Cheapest, variable quality |
+| [Google Colab Pro](https://colab.google) | $10/month | Easy, limited hours |
+
+---
+
 ## GPU Acceleration
 
 ### Apple Silicon (M1/M2/M3/M4)
