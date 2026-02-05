@@ -10,3 +10,5 @@
 - [ ] Fix pipeline not running on deployed version (stuck at Pending/0%)
 - [x] Add cloud GPU worker setup script and instructions
 - [x] Fix 403 Forbidden error on worker API endpoints
+- [x] Fix custom model loading - pipeline uses YOLOv8 pretrained instead of custom models
+- [x] Fix S3 video upload endpoint returning invalid JSON response

@@ -7,7 +7,8 @@ from pathlib import Path
 # =============================================================================
 
 ROOT = Path(__file__).resolve().parent
-MODELS_DIR = ROOT / "models"
+# Models are downloaded by worker.py to pipeline/models/, not src/models/
+MODELS_DIR = ROOT.parent / "models"
 ENV_FILE = ROOT / ".env"
 
 # Model paths (all consolidated in models/ directory)

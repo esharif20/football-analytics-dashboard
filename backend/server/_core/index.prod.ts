@@ -63,6 +63,31 @@ async function startServer() {
     }
   });
   
+  // Worker video upload endpoint - accepts base64 encoded video
+  app.post("/api/worker/upload-video", async (req, res) => {
+    try {
+      const { storagePut } = await import("../storage");
+      const { videoData, fileName, contentType } = req.body;
+      
+      if (!videoData || !fileName) {
+        return res.status(400).json({ error: "Missing videoData or fileName" });
+      }
+      
+      // Decode base64 video data
+      const buffer = Buffer.from(videoData, "base64");
+      
+      // Upload to storage
+      const key = `processed-videos/${Date.now()}-${fileName}`;
+      const { url } = await storagePut(key, buffer, contentType || "video/mp4");
+      
+      console.log(`[Worker] Uploaded video: ${fileName} -> ${url}`);
+      res.json({ success: true, url });
+    } catch (error) {
+      console.error("Worker upload error:", error);
+      res.status(500).json({ error: "Failed to upload video" });
+    }
+  });
+  
   app.post("/api/worker/analysis/:id/complete", async (req, res) => {
     try {
       const { updateAnalysisResults, updateAnalysisStatus } = await import("../db");
