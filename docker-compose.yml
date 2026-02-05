@@ -59,13 +59,13 @@ services:
     volumes:
       # Mount source code for hot-reloading during development
       - ./backend:/app/backend:delegated
-      - ./client:/app/client:delegated
-      - ./shared:/app/shared:delegated
+      - ./frontend:/app/frontend:delegated
       # Persist uploads
       - uploads_data:/app/uploads
       # Exclude node_modules (use container's versions)
       - /app/node_modules
       - /app/backend/node_modules
+      - /app/frontend/node_modules
     depends_on:
       db:
         condition: service_healthy

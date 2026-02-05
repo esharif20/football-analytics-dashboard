@@ -8,12 +8,14 @@ RUN npm install -g pnpm
 WORKDIR /app
 
 # Copy package files first for better caching
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY backend/package.json ./backend/
-COPY client/package.json ./client/
+COPY package.json pnpm-lock.yaml ./
+COPY backend/package.json backend/pnpm-lock.yaml ./backend/
+COPY frontend/package.json frontend/pnpm-lock.yaml ./frontend/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN cd /app && pnpm install || true
+RUN cd /app/backend && pnpm install
+RUN cd /app/frontend && pnpm install
 
 # Copy source code
 COPY . .
@@ -25,4 +27,4 @@ RUN mkdir -p /app/uploads
 EXPOSE 3000
 
 # Start development server
-CMD ["sh", "-c", "cd /app/backend && pnpm db:push && cd /app && pnpm dev"]
+CMD ["sh", "-c", "cd /app/backend && pnpm db:push && pnpm dev"]
