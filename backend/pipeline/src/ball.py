@@ -9,8 +9,8 @@ from config import (
     CONF_THRESHOLD,
 )
 from utils.metrics import compute_ball_metrics, print_ball_metrics
-from . import Mode
-from .base import load_frames, build_tracker, get_stub_path
+from __init__ import Mode
+from base import load_frames, build_tracker, get_stub_path
 
 if TYPE_CHECKING:
     from trackers.ball_config import BallConfig

@@ -12,8 +12,8 @@ from config import (
 )
 from trackers.track_stabiliser import stabilise_tracks
 from team_assigner import TeamAssigner, TeamAssignerConfig
-from . import Mode
-from .base import load_frames, build_tracker, get_stub_path
+from __init__ import Mode
+from base import load_frames, build_tracker, get_stub_path
 
 if TYPE_CHECKING:
     from trackers.ball_config import BallConfig

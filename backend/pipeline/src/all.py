@@ -38,8 +38,15 @@ from pitch import (
 )
 from pitch.annotators import render_radar_overlay
 from analytics import AnalyticsEngine, print_analytics_summary, export_analytics_json
-from . import Mode
-from .base import load_frames, build_tracker, get_stub_path
+# Import Mode from __init__ (same directory)
+import sys
+import os
+_src_dir = os.path.dirname(os.path.abspath(__file__))
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
+from __init__ import Mode
+from base import load_frames, build_tracker, get_stub_path
 
 if TYPE_CHECKING:
     from trackers.ball_config import BallConfig

@@ -6,8 +6,8 @@ import numpy as np
 
 from trackers.ball_config import BallConfig
 from trackers.track_stabiliser import stabilise_tracks
-from . import Mode
-from .base import load_frames, build_tracker, get_stub_path
+from __init__ import Mode
+from base import load_frames, build_tracker, get_stub_path
 
 
 def run(

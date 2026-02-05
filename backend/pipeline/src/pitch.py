@@ -18,7 +18,7 @@ from config import (
 )
 from pitch import SoccerPitchConfiguration, ViewTransformer
 from utils.pitch_detector import PitchDetector
-from .base import load_frames
+from base import load_frames
 
 # Keypoint confidence threshold - matches notebook's 0.5 to filter noisy detections
 KEYPOINT_CONF_THRESHOLD = 0.5
