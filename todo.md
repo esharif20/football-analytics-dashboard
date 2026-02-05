@@ -9,3 +9,4 @@
 - [x] Configure worker to auto-run on deployment
 - [ ] Fix pipeline not running on deployed version (stuck at Pending/0%)
 - [x] Add cloud GPU worker setup script and instructions
+- [x] Fix 403 Forbidden error on worker API endpoints
