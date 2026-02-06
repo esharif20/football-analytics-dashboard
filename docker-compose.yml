@@ -56,6 +56,10 @@ services:
       # App metadata
       VITE_APP_TITLE: Football Analytics
       NODE_ENV: development
+      
+      # Analytics (disabled locally)
+      VITE_ANALYTICS_ENDPOINT: ""
+      VITE_ANALYTICS_WEBSITE_ID: ""
     volumes:
       # Mount source code for hot-reloading during development
       - ./backend:/app/backend:delegated

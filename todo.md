@@ -17,3 +17,5 @@
 - [x] Create Docker Compose setup for local Mac development
 - [x] Make AI commentary optional (no OpenAI key required)
 - [x] Create simple setup script for Mac
+- [x] Fix frontend crash in local dev mode - Invalid URL from getLoginUrl
+- [x] Fix analytics script error when VITE_ANALYTICS vars are empty
