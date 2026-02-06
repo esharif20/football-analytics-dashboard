@@ -23,3 +23,4 @@
 - [x] Add non-Docker local dev run scripts (run without Docker)
 - [x] Create .env.example files for backend and frontend
 - [x] Update README with full local setup steps (no Docker, no Manus)
+- [x] Fix worker to handle relative video URLs from local storage mode

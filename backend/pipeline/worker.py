@@ -147,6 +147,12 @@ def download_video(video_url: str, video_id: str) -> Optional[Path]:
         log(f"Video already exists: {output_path}")
         return output_path
     
+    # Handle relative URLs from local storage mode
+    # Local storage returns paths like /uploads/videos/... without a scheme
+    if video_url.startswith('/') and not video_url.startswith('//'):
+        video_url = f"{DASHBOARD_URL}{video_url}"
+        log(f"Resolved relative URL to: {video_url}")
+    
     try:
         log(f"Downloading video: {video_url}")
         response = requests.get(video_url, stream=True, timeout=300)
