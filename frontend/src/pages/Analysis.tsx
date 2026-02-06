@@ -320,15 +320,16 @@ export default function Analysis() {
   // --- Main Analysis Page ---
   return (
     <div className="min-h-screen bg-background">
-      {/* Subtle gradient background overlay */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[128px]" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-[128px]" />
+      {/* Animated gradient background */}
+      <div className="analysis-bg">
+        <div className="floating-orb" />
+        <div className="floating-orb" />
+        <div className="floating-orb" />
       </div>
 
       {/* Header */}
-      <header className="relative border-b border-border/50 bg-card/30 backdrop-blur-xl sticky top-0 z-50">
-        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+      <header className="relative border-b border-white/[0.06] bg-black/20 backdrop-blur-xl sticky top-0 z-50">
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
@@ -337,8 +338,8 @@ export default function Analysis() {
               </Button>
             </Link>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center">
-                <Activity className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.1)]">
+                <Activity className="w-5 h-5 text-emerald-400" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -359,7 +360,7 @@ export default function Analysis() {
         </div>
       </header>
 
-      <main className="container py-8 relative z-10">
+      <main className="container py-8 relative z-10 stagger-children">
         {/* Processing Status */}
         {(analysis.status === "pending" || analysis.status === "processing" || analysis.status === "uploading") && (
           <ProcessingStatus analysis={analysisWithRealtime || analysis} wsConnected={wsConnected} />
@@ -388,11 +389,12 @@ export default function Analysis() {
               {/* Video Player */}
               <div className="lg:col-span-3">
                 {analysis.annotatedVideoUrl ? (
-                  <div className="glass-card overflow-hidden">
-                    <CardHeader className="pb-3 border-b border-border/30">
+                  <div className="glass-card overflow-hidden relative">
+                    <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-sky-500/5 blur-3xl" />
+                    <CardHeader className="pb-3 border-b border-border/30 relative">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Video className="w-4 h-4 text-primary" />
+                        <div className="section-icon icon-accent">
+                          <Video className="w-4 h-4 text-sky-400" />
                         </div>
                         <div>
                           <CardTitle className="text-sm">Annotated Video</CardTitle>
@@ -418,12 +420,13 @@ export default function Analysis() {
 
               {/* Match Statistics + Quick Stats */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="glass-card overflow-hidden">
-                  <CardHeader className="pb-3 border-b border-border/30">
+                <div className="glass-card overflow-hidden relative">
+                  <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-emerald-500/5 blur-3xl" />
+                  <CardHeader className="pb-3 border-b border-border/30 relative">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <BarChart3 className="w-4 h-4 text-primary" />
+                        <div className="section-icon icon-primary">
+                          <BarChart3 className="w-4 h-4 text-emerald-400" />
                         </div>
                         <CardTitle className="text-sm">Match Statistics</CardTitle>
                       </div>
@@ -482,11 +485,12 @@ export default function Analysis() {
             <div className="grid lg:grid-cols-5 gap-6">
               {/* Visualizations */}
               <div className="lg:col-span-3">
-                <div className="glass-card overflow-hidden">
-                  <CardHeader className="pb-3 border-b border-border/30">
+                <div className="glass-card overflow-hidden relative">
+                  <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-emerald-500/5 blur-3xl" />
+                  <CardHeader className="pb-3 border-b border-border/30 relative">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Eye className="w-4 h-4 text-primary" />
+                      <div className="section-icon icon-primary">
+                        <Eye className="w-4 h-4 text-emerald-400" />
                       </div>
                       <div>
                         <CardTitle className="text-sm">Pitch Visualizations</CardTitle>
@@ -502,11 +506,12 @@ export default function Analysis() {
 
               {/* AI Commentary */}
               <div className="lg:col-span-2">
-                <div className="glass-card overflow-hidden h-full">
-                  <CardHeader className="pb-3 border-b border-border/30">
+                <div className="glass-card overflow-hidden h-full relative">
+                  <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-violet-500/5 blur-3xl" />
+                  <CardHeader className="pb-3 border-b border-border/30 relative">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
-                        <Sparkles className="w-4 h-4 text-accent" />
+                      <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-violet-400" />
                       </div>
                       <div>
                         <CardTitle className="text-sm">AI Commentary</CardTitle>
@@ -590,11 +595,12 @@ function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
   ];
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden relative">
+      <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-rose-500/5 blur-3xl" />
       <CardHeader className="pb-2 border-b border-border/30">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Target className="w-3.5 h-3.5 text-primary" />
+          <div className="section-icon icon-danger">
+            <Target className="w-4 h-4 text-rose-400" />
           </div>
           <CardTitle className="text-sm">Possession</CardTitle>
         </div>
@@ -607,32 +613,34 @@ function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
+                innerRadius={55}
                 outerRadius={85}
-                paddingAngle={3}
+                paddingAngle={4}
                 dataKey="value"
                 strokeWidth={0}
+                animationBegin={200}
+                animationDuration={1200}
               >
                 {data.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} style={{ filter: "drop-shadow(0 0 6px " + entry.color + "40)" }} />
+                  <Cell key={index} fill={entry.color} style={{ filter: `drop-shadow(0 0 8px ${entry.color}60)` }} />
                 ))}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
           {/* Center label */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-2xl font-bold font-mono">{team1}%</span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Team 1</span>
+            <span className="text-3xl font-bold font-mono text-rose-400" style={{ textShadow: '0 0 20px rgba(220,50,50,0.3)' }}>{team1}%</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Team 1</span>
           </div>
         </div>
-        <div className="flex justify-center gap-6 mt-2">
+        <div className="flex justify-center gap-6 mt-3">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: TEAM1_HEX }} />
-            <span className="text-xs text-muted-foreground">Team 1 — {team1}%</span>
+            <div className="w-2.5 h-2.5 rounded-full ring-2 ring-rose-400/20" style={{ backgroundColor: TEAM1_HEX }} />
+            <span className="text-xs text-muted-foreground">Team 1 — <span className="text-rose-400 font-semibold">{team1}%</span></span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: TEAM2_HEX }} />
-            <span className="text-xs text-muted-foreground">Team 2 — {team2}%</span>
+            <div className="w-2.5 h-2.5 rounded-full ring-2 ring-sky-400/20" style={{ backgroundColor: TEAM2_HEX }} />
+            <span className="text-xs text-muted-foreground">Team 2 — <span className="text-sky-400 font-semibold">{team2}%</span></span>
           </div>
         </div>
       </CardContent>
@@ -652,22 +660,23 @@ function TeamPerformanceRadar({ stats }: { stats: any }) {
   ];
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden relative">
+      <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-sky-500/5 blur-3xl" />
       <CardHeader className="pb-2 border-b border-border/30">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
-            <Radar className="w-3.5 h-3.5 text-accent" />
+          <div className="section-icon icon-accent">
+            <Radar className="w-4 h-4 text-sky-400" />
           </div>
           <CardTitle className="text-sm">Team Performance</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="p-2">
-        <ResponsiveContainer width="100%" height={230}>
-          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
-            <PolarGrid stroke="rgba(255,255,255,0.08)" />
+        <ResponsiveContainer width="100%" height={240}>
+          <RadarChart cx="50%" cy="50%" outerRadius="68%" data={data}>
+            <PolarGrid stroke="rgba(255,255,255,0.06)" gridType="polygon" />
             <PolarAngleAxis
               dataKey="subject"
-              tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+              tick={{ fill: "rgba(255,255,255,0.55)", fontSize: 10, fontWeight: 500 }}
             />
             <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
             <RechartsRadar
@@ -675,21 +684,26 @@ function TeamPerformanceRadar({ stats }: { stats: any }) {
               dataKey="team1"
               stroke={TEAM1_HEX}
               fill={TEAM1_HEX}
-              fillOpacity={0.2}
+              fillOpacity={0.15}
               strokeWidth={2}
+              animationDuration={1500}
+              animationBegin={300}
             />
             <RechartsRadar
               name="Team 2"
               dataKey="team2"
               stroke={TEAM2_HEX}
               fill={TEAM2_HEX}
-              fillOpacity={0.2}
+              fillOpacity={0.15}
               strokeWidth={2}
+              animationDuration={1500}
+              animationBegin={500}
             />
             <Legend
-              wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+              wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
               iconType="circle"
               iconSize={8}
+              formatter={(value: string) => <span style={{ color: 'rgba(255,255,255,0.6)' }}>{value}</span>}
             />
           </RadarChart>
         </ResponsiveContainer>
@@ -708,24 +722,35 @@ function StatsComparisonBar({ stats }: { stats: any }) {
   ];
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden relative">
+      <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-emerald-500/5 blur-3xl" />
       <CardHeader className="pb-2 border-b border-border/30">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-            <BarChart3 className="w-3.5 h-3.5 text-primary" />
+          <div className="section-icon icon-primary">
+            <BarChart3 className="w-4 h-4 text-emerald-400" />
           </div>
           <CardTitle className="text-sm">Stats Comparison</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="p-2">
-        <ResponsiveContainer width="100%" height={230}>
-          <BarChart data={data} barGap={2} barCategoryGap="20%">
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }} axisLine={false} tickLine={false} />
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={data} barGap={3} barCategoryGap="25%">
+            <defs>
+              <linearGradient id="barT1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={TEAM1_HEX} stopOpacity={0.9} />
+                <stop offset="100%" stopColor={TEAM1_HEX} stopOpacity={0.5} />
+              </linearGradient>
+              <linearGradient id="barT2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={TEAM2_HEX} stopOpacity={0.9} />
+                <stop offset="100%" stopColor={TEAM2_HEX} stopOpacity={0.5} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.55)", fontSize: 10, fontWeight: 500 }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip content={<ChartTooltip />} />
-            <Bar dataKey="team1" name="Team 1" fill={TEAM1_HEX} radius={[4, 4, 0, 0]} fillOpacity={0.85} />
-            <Bar dataKey="team2" name="Team 2" fill={TEAM2_HEX} radius={[4, 4, 0, 0]} fillOpacity={0.85} />
+            <Bar dataKey="team1" name="Team 1" fill="url(#barT1)" radius={[6, 6, 0, 0]} animationDuration={1200} animationBegin={200} />
+            <Bar dataKey="team2" name="Team 2" fill="url(#barT2)" radius={[6, 6, 0, 0]} animationDuration={1200} animationBegin={400} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
@@ -744,19 +769,20 @@ function TeamShapeChart() {
   }, []);
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden relative">
+      <div className="absolute -top-8 -left-8 w-24 h-24 rounded-full bg-violet-500/5 blur-3xl" />
       <CardHeader className="pb-2 border-b border-border/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users className="w-3.5 h-3.5 text-primary" />
+            <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+              <Users className="w-3.5 h-3.5 text-violet-400" />
             </div>
             <div>
               <CardTitle className="text-sm">Team Compactness</CardTitle>
               <CardDescription className="text-[10px]">Formation spread over time (m)</CardDescription>
             </div>
           </div>
-          <Badge variant="outline" className="text-[10px] border-primary/20 text-primary/70 bg-primary/5">Planned</Badge>
+          <Badge variant="outline" className="text-[10px] border-violet-400/20 text-violet-400/70 bg-violet-500/5 animate-pulse">Planned</Badge>
         </div>
       </CardHeader>
       <CardContent className="p-2">
@@ -764,20 +790,20 @@ function TeamShapeChart() {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="compactT1" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={TEAM1_HEX} stopOpacity={0.3} />
+                <stop offset="5%" stopColor={TEAM1_HEX} stopOpacity={0.35} />
                 <stop offset="95%" stopColor={TEAM1_HEX} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="compactT2" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={TEAM2_HEX} stopOpacity={0.3} />
+                <stop offset="5%" stopColor={TEAM2_HEX} stopOpacity={0.35} />
                 <stop offset="95%" stopColor={TEAM2_HEX} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="minute" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v)}'`} />
-            <YAxis tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9 }} axisLine={false} tickLine={false} domain={[10, 45]} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="minute" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${Math.round(v)}'`} />
+            <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 9 }} axisLine={false} tickLine={false} domain={[10, 45]} />
             <Tooltip content={<ChartTooltip />} />
-            <Area type="monotone" dataKey="team1" name="Team 1" stroke={TEAM1_HEX} fill="url(#compactT1)" strokeWidth={2} />
-            <Area type="monotone" dataKey="team2" name="Team 2" stroke={TEAM2_HEX} fill="url(#compactT2)" strokeWidth={2} />
+            <Area type="monotone" dataKey="team1" name="Team 1" stroke={TEAM1_HEX} fill="url(#compactT1)" strokeWidth={2} animationDuration={1500} />
+            <Area type="monotone" dataKey="team2" name="Team 2" stroke={TEAM2_HEX} fill="url(#compactT2)" strokeWidth={2} animationDuration={1500} />
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>
@@ -796,30 +822,31 @@ function DefensiveLineChart() {
   }, []);
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden relative">
+      <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-amber-500/5 blur-3xl" />
       <CardHeader className="pb-2 border-b border-border/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
-              <ArrowUpDown className="w-3.5 h-3.5 text-accent" />
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
             </div>
             <div>
               <CardTitle className="text-sm">Defensive Line</CardTitle>
               <CardDescription className="text-[10px]">Average defensive height (m from goal)</CardDescription>
             </div>
           </div>
-          <Badge variant="outline" className="text-[10px] border-accent/20 text-accent/70 bg-accent/5">Planned</Badge>
+          <Badge variant="outline" className="text-[10px] border-amber-400/20 text-amber-400/70 bg-amber-500/5 animate-pulse">Planned</Badge>
         </div>
       </CardHeader>
       <CardContent className="p-2">
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="minute" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v)}'`} />
-            <YAxis tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9 }} axisLine={false} tickLine={false} domain={[20, 85]} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="minute" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${Math.round(v)}'`} />
+            <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 9 }} axisLine={false} tickLine={false} domain={[20, 85]} />
             <Tooltip content={<ChartTooltip />} />
-            <Line type="monotone" dataKey="team1" name="Team 1" stroke={TEAM1_HEX} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="team2" name="Team 2" stroke={TEAM2_HEX} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="team1" name="Team 1" stroke={TEAM1_HEX} strokeWidth={2.5} dot={false} animationDuration={1500} strokeLinecap="round" />
+            <Line type="monotone" dataKey="team2" name="Team 2" stroke={TEAM2_HEX} strokeWidth={2.5} dot={false} animationDuration={1500} strokeLinecap="round" />
           </LineChart>
         </ResponsiveContainer>
       </CardContent>
@@ -838,19 +865,20 @@ function PressingIntensityChart() {
   }, []);
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden relative">
+      <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-orange-500/5 blur-3xl" />
       <CardHeader className="pb-2 border-b border-border/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-destructive" />
+            <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center">
+              <Zap className="w-3.5 h-3.5 text-orange-400" />
             </div>
             <div>
               <CardTitle className="text-sm">Pressing Intensity</CardTitle>
               <CardDescription className="text-[10px]">High-press actions per 5-min window</CardDescription>
             </div>
           </div>
-          <Badge variant="outline" className="text-[10px] border-destructive/20 text-destructive/70 bg-destructive/5">Planned</Badge>
+          <Badge variant="outline" className="text-[10px] border-orange-400/20 text-orange-400/70 bg-orange-500/5 animate-pulse">Planned</Badge>
         </div>
       </CardHeader>
       <CardContent className="p-2">
@@ -866,12 +894,12 @@ function PressingIntensityChart() {
                 <stop offset="95%" stopColor={TEAM2_HEX} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="minute" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v)}'`} />
-            <YAxis tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9 }} axisLine={false} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="minute" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${Math.round(v)}'`} />
+            <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 9 }} axisLine={false} tickLine={false} />
             <Tooltip content={<ChartTooltip />} />
-            <Area type="monotone" dataKey="team1" name="Team 1" stroke={TEAM1_HEX} fill="url(#pressT1)" strokeWidth={2} />
-            <Area type="monotone" dataKey="team2" name="Team 2" stroke={TEAM2_HEX} fill="url(#pressT2)" strokeWidth={2} />
+            <Area type="monotone" dataKey="team1" name="Team 1" stroke={TEAM1_HEX} fill="url(#pressT1)" strokeWidth={2} animationDuration={1500} />
+            <Area type="monotone" dataKey="team2" name="Team 2" stroke={TEAM2_HEX} fill="url(#pressT2)" strokeWidth={2} animationDuration={1500} />
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>
@@ -882,20 +910,30 @@ function PressingIntensityChart() {
 // Pipeline Performance Card
 function PipelinePerformanceCard({ mode }: { mode: PipelineMode }) {
   const stages = [
-    { name: "Detection", model: "YOLOv8x", metric: "99.4% mAP@50", time: "~12s/frame", icon: <Crosshair className="w-4 h-4" /> },
-    { name: "Ball Detection", model: "YOLOv8x + SAHI", metric: "92.5% mAP@50", time: "~8s/frame", icon: <Target className="w-4 h-4" /> },
-    { name: "Tracking", model: "ByteTrack", metric: "25 fps", time: "~2s/frame", icon: <Activity className="w-4 h-4" /> },
-    { name: "Team Classification", model: "SigLIP + KMeans", metric: "k=2 clusters", time: "~5s total", icon: <Users className="w-4 h-4" /> },
-    { name: "Pitch Mapping", model: "YOLOv8x-pose", metric: "0.97 mAP@50", time: "~3s/frame", icon: <Map className="w-4 h-4" /> },
-    { name: "Analytics", model: "Custom", metric: "8 metrics", time: "~1s total", icon: <BarChart3 className="w-4 h-4" /> },
+    { name: "Detection", model: "YOLOv8x", metric: "99.4% mAP@50", time: "~12s/frame", icon: <Crosshair className="w-4 h-4" />, color: "emerald" },
+    { name: "Ball Detection", model: "YOLOv8x + SAHI", metric: "92.5% mAP@50", time: "~8s/frame", icon: <Target className="w-4 h-4" />, color: "amber" },
+    { name: "Tracking", model: "ByteTrack", metric: "25 fps", time: "~2s/frame", icon: <Activity className="w-4 h-4" />, color: "sky" },
+    { name: "Team Classification", model: "SigLIP + KMeans", metric: "k=2 clusters", time: "~5s total", icon: <Users className="w-4 h-4" />, color: "violet" },
+    { name: "Pitch Mapping", model: "YOLOv8x-pose", metric: "0.97 mAP@50", time: "~3s/frame", icon: <Map className="w-4 h-4" />, color: "rose" },
+    { name: "Analytics", model: "Custom", metric: "8 metrics", time: "~1s total", icon: <BarChart3 className="w-4 h-4" />, color: "orange" },
   ];
 
+  const colorClasses: Record<string, { bg: string; text: string; border: string }> = {
+    emerald: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "hover:border-emerald-500/20" },
+    amber: { bg: "bg-amber-500/10", text: "text-amber-400", border: "hover:border-amber-500/20" },
+    sky: { bg: "bg-sky-500/10", text: "text-sky-400", border: "hover:border-sky-500/20" },
+    violet: { bg: "bg-violet-500/10", text: "text-violet-400", border: "hover:border-violet-500/20" },
+    rose: { bg: "bg-rose-500/10", text: "text-rose-400", border: "hover:border-rose-500/20" },
+    orange: { bg: "bg-orange-500/10", text: "text-orange-400", border: "hover:border-orange-500/20" },
+  };
+
   return (
-    <div className="glass-card overflow-hidden">
-      <CardHeader className="pb-3 border-b border-border/30">
+    <div className="glass-card overflow-hidden relative">
+      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/3 via-transparent to-violet-500/3" />
+      <CardHeader className="pb-3 border-b border-border/30 relative">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Timer className="w-4 h-4 text-primary" />
+          <div className="section-icon icon-primary">
+            <Timer className="w-4 h-4 text-emerald-400" />
           </div>
           <div>
             <CardTitle className="text-sm">Pipeline Architecture</CardTitle>
@@ -903,21 +941,27 @@ function PipelinePerformanceCard({ mode }: { mode: PipelineMode }) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-4">
+      <CardContent className="p-4 relative">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {stages.map((stage, i) => (
-            <div key={i} className="p-3 rounded-xl bg-secondary/20 border border-border/20 hover:border-primary/20 transition-all group">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-primary/70 group-hover:text-primary transition-colors">{stage.icon}</span>
-                <span className="text-xs font-semibold truncate">{stage.name}</span>
+          {stages.map((stage, i) => {
+            const cc = colorClasses[stage.color] || colorClasses.emerald;
+            return (
+              <div key={i} className={`p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] ${cc.border} transition-all group relative overflow-hidden`}>
+                <div className={`absolute -top-4 -right-4 w-12 h-12 rounded-full ${cc.bg} blur-xl opacity-0 group-hover:opacity-100 transition-opacity`} />
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`${cc.text} opacity-70 group-hover:opacity-100 transition-opacity`}>{stage.icon}</span>
+                    <span className="text-xs font-semibold truncate">{stage.name}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground">{stage.model}</p>
+                    <p className={`text-xs font-mono font-bold ${cc.text}`}>{stage.metric}</p>
+                    <p className="text-[10px] text-muted-foreground">{stage.time}</p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground">{stage.model}</p>
-                <p className="text-xs font-mono font-semibold text-primary">{stage.metric}</p>
-                <p className="text-[10px] text-muted-foreground">{stage.time}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </div>
@@ -927,20 +971,27 @@ function PipelinePerformanceCard({ mode }: { mode: PipelineMode }) {
 // ==================== Sub-Components ====================
 
 function QuickStat({ label, value, icon, color }: { label: string; value: string; icon: React.ReactNode; color: string }) {
-  const iconColorMap: Record<string, string> = {
-    primary: "text-primary",
-    accent: "text-accent",
-    team1: "text-[var(--color-team-1)]",
-    team2: "text-[var(--color-team-2)]",
+  const colorMap: Record<string, { text: string; bg: string; glow: string }> = {
+    primary: { text: "text-emerald-400", bg: "bg-emerald-500/10", glow: "shadow-emerald-500/20" },
+    accent: { text: "text-sky-400", bg: "bg-sky-500/10", glow: "shadow-sky-500/20" },
+    team1: { text: "text-rose-400", bg: "bg-rose-500/10", glow: "shadow-rose-500/20" },
+    team2: { text: "text-blue-400", bg: "bg-blue-500/10", glow: "shadow-blue-500/20" },
   };
+  const c = colorMap[color] || colorMap.primary;
 
   return (
-    <div className="glass-card p-4 group hover:border-border/60 transition-all">
-      <div className="flex items-center gap-2 mb-2">
-        <span className={iconColorMap[color] || "text-primary"}>{icon}</span>
-        <span className="text-xs text-muted-foreground uppercase tracking-wider">{label}</span>
+    <div className="glass-card p-4 group hover:border-white/10 transition-all relative overflow-hidden">
+      {/* Background glow */}
+      <div className={`absolute -top-4 -right-4 w-20 h-20 rounded-full ${c.bg} blur-2xl opacity-40 group-hover:opacity-60 transition-opacity`} />
+      <div className="relative">
+        <div className="flex items-center gap-2 mb-3">
+          <div className={`w-8 h-8 rounded-lg ${c.bg} flex items-center justify-center`}>
+            <span className={c.text}>{icon}</span>
+          </div>
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
+        </div>
+        <div className={`text-2xl font-bold font-mono ${c.text}`}>{value}</div>
       </div>
-      <div className="text-2xl font-bold font-mono">{value}</div>
     </div>
   );
 }
@@ -1123,7 +1174,15 @@ function PitchRadar({ data }: { data: any }) {
             <stop offset="100%" stopColor="rgba(0,0,0,0.05)" />
           </linearGradient>
           <filter id="lineGlow">
-            <feGaussianBlur stdDeviation="0.3" result="blur" />
+            <feGaussianBlur stdDeviation="0.4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="centerGlow">
+            <feGaussianBlur stdDeviation="1.5" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -1135,17 +1194,40 @@ function PitchRadar({ data }: { data: any }) {
           </radialGradient>
         </defs>
         <rect x="0" y="0" width="105" height="68" fill="url(#pitchGrad)" />
-        <g filter="url(#lineGlow)" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" fill="none">
+        {/* Subtle center circle ambient glow */}
+        <circle cx="52.5" cy="34" r="12" fill="rgba(100,200,130,0.04)" filter="url(#centerGlow)" />
+        <g filter="url(#lineGlow)" stroke="rgba(255,255,255,0.6)" strokeWidth="0.45" fill="none">
+          {/* Outer boundary */}
           <rect x="0.5" y="0.5" width="104" height="67" rx="0.5" />
+          {/* Halfway line */}
           <line x1="52.5" y1="0.5" x2="52.5" y2="67.5" />
+          {/* Center circle */}
           <circle cx="52.5" cy="34" r="9.15" />
-          <circle cx="52.5" cy="34" r="0.6" fill="rgba(255,255,255,0.6)" stroke="none" />
+          {/* Center spot */}
+          <circle cx="52.5" cy="34" r="0.7" fill="rgba(255,255,255,0.7)" stroke="none" />
+          {/* Left penalty area */}
           <rect x="0.5" y="13.84" width="16.5" height="40.32" />
+          {/* Left goal area */}
           <rect x="0.5" y="24.84" width="5.5" height="18.32" />
+          {/* Right penalty area */}
           <rect x="88" y="13.84" width="16.5" height="40.32" />
+          {/* Right goal area */}
           <rect x="99" y="24.84" width="5.5" height="18.32" />
-          <path d="M 0.5 18.34 A 6 6 0 0 1 0.5 49.66" />
-          <path d="M 104.5 18.34 A 6 6 0 0 0 104.5 49.66" />
+          {/* Left penalty arc */}
+          <path d="M 16.5 24.84 A 9.15 9.15 0 0 1 16.5 43.16" />
+          {/* Right penalty arc */}
+          <path d="M 88.5 24.84 A 9.15 9.15 0 0 0 88.5 43.16" />
+          {/* Penalty spots */}
+          <circle cx="11" cy="34" r="0.5" fill="rgba(255,255,255,0.5)" stroke="none" />
+          <circle cx="94" cy="34" r="0.5" fill="rgba(255,255,255,0.5)" stroke="none" />
+          {/* Corner arcs */}
+          <path d="M 0.5 1.5 A 1 1 0 0 0 1.5 0.5" />
+          <path d="M 103.5 0.5 A 1 1 0 0 0 104.5 1.5" />
+          <path d="M 0.5 66.5 A 1 1 0 0 1 1.5 67.5" />
+          <path d="M 103.5 67.5 A 1 1 0 0 1 104.5 66.5" />
+          {/* Goal lines (subtle) */}
+          <line x1="0" y1="30" x2="0" y2="38" strokeWidth="0.8" strokeOpacity="0.3" />
+          <line x1="105" y1="30" x2="105" y2="38" strokeWidth="0.8" strokeOpacity="0.3" />
         </g>
         <rect x="0" y="0" width="105" height="68" fill="url(#vignette)" />
       </svg>
@@ -1456,11 +1538,11 @@ function ModeSpecificTabs({ mode, activeTab, setActiveTab, trackingData, events 
 
   return (
     <Tabs value={effectiveTab} onValueChange={setActiveTab}>
-      <TabsList className="w-full bg-secondary/30 border border-border/20 rounded-xl p-1 h-auto" style={{ gridTemplateColumns: `repeat(${availableTabs.length}, 1fr)`, display: "grid" }}>
+      <TabsList className="w-full bg-black/20 border border-white/[0.06] rounded-xl p-1 h-auto backdrop-blur-sm" style={{ gridTemplateColumns: `repeat(${availableTabs.length}, 1fr)`, display: "grid" }}>
         {availableTabs.map((tab) => {
           const config = tabConfig[tab];
           return (
-            <TabsTrigger key={tab} value={tab} className="gap-2 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-none py-2.5">
+            <TabsTrigger key={tab} value={tab} className="gap-2 rounded-lg data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 data-[state=active]:shadow-[0_0_12px_rgba(52,211,153,0.1)] data-[state=active]:border data-[state=active]:border-emerald-500/20 data-[state=inactive]:text-muted-foreground py-2.5 transition-all">
               {config.icon}
               <span className="hidden sm:inline text-xs font-medium">{config.label}</span>
             </TabsTrigger>
@@ -1483,19 +1565,23 @@ function StatRow({ label, team1, team2, suffix = "" }: { label: string; team1: n
   const team1Pct = total > 0 ? (team1 / total) * 100 : 50;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 group">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-sm font-semibold tabular-nums" style={{ color: TEAM1_HEX }}>
+        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: TEAM1_HEX, textShadow: `0 0 10px ${TEAM1_HEX}40` }}>
           {team1.toFixed(suffix === "%" ? 1 : 0)}{suffix}
         </span>
-        <span className="text-xs text-muted-foreground font-medium tracking-wider">{label}</span>
-        <span className="font-mono text-sm font-semibold tabular-nums" style={{ color: TEAM2_HEX }}>
+        <span className="text-[10px] text-muted-foreground font-semibold tracking-[0.15em] uppercase">{label}</span>
+        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: TEAM2_HEX, textShadow: `0 0 10px ${TEAM2_HEX}40` }}>
           {team2.toFixed(suffix === "%" ? 1 : 0)}{suffix}
         </span>
       </div>
-      <div className="h-1.5 bg-secondary/30 rounded-full overflow-hidden flex gap-px">
-        <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${team1Pct}%`, backgroundColor: TEAM1_HEX, boxShadow: `0 0 8px ${TEAM1_HEX}` }} />
-        <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${100 - team1Pct}%`, backgroundColor: TEAM2_HEX, boxShadow: `0 0 8px ${TEAM2_HEX}` }} />
+      <div className="h-2 bg-white/[0.03] rounded-full overflow-hidden flex gap-[2px] group-hover:h-2.5 transition-all">
+        <div className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden" style={{ width: `${team1Pct}%`, backgroundColor: TEAM1_HEX, boxShadow: `0 0 12px ${TEAM1_HEX}80, 0 0 4px ${TEAM1_HEX}` }}>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+        </div>
+        <div className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden" style={{ width: `${100 - team1Pct}%`, backgroundColor: TEAM2_HEX, boxShadow: `0 0 12px ${TEAM2_HEX}80, 0 0 4px ${TEAM2_HEX}` }}>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+        </div>
       </div>
     </div>
   );

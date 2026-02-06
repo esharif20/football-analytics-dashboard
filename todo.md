@@ -63,3 +63,17 @@
 - [x] Add pressing intensity placeholder visualization
 - [x] Ensure all visuals match pipeline capabilities from CS350 progress report
 - [x] Ensure dashboard works on Mac after git pull (no sandbox-only dependencies)
+- [x] Fix flat bright green pitch — replace with dark premium gradient
+- [x] Improve pitch line styling — softer glow, better contrast
+- [x] Polish chart colors to match app's dark teal/emerald theme
+- [x] Improve card styling consistency and spacing
+- [x] Better quick stat cards with more visual impact
+- [x] Ensure overall color harmony across all components
+- [x] Verify git pull compatibility on Mac after changes
+- [x] Add animated gradient background instead of plain black
+- [x] Add floating particle/orb animations for depth
+- [x] Redesign pitch with deeper, more realistic dark green gradient
+- [x] Add animated glow borders on cards
+- [x] Improve chart styling with gradient fills and animations
+- [x] Add micro-animations on stat numbers (count-up effect)
+- [x] Better color depth throughout — not just flat dark
