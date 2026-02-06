@@ -222,29 +222,36 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
         }
         
-        // Calculate ETA based on progress and elapsed time
-        const startTime = analysis.createdAt?.getTime() || Date.now();
+        // Safely parse createdAt — handle Date, string, or missing
+        let startTime = Date.now();
+        if (analysis.createdAt) {
+          const ts = analysis.createdAt instanceof Date
+            ? analysis.createdAt.getTime()
+            : new Date(analysis.createdAt).getTime();
+          if (!isNaN(ts)) startTime = ts;
+        }
         const elapsed = Date.now() - startTime;
         const progress = analysis.progress || 1;
         
         // Estimate total time based on current progress
-        const estimatedTotal = (elapsed / progress) * 100;
+        const estimatedTotal = (elapsed / Math.max(progress, 1)) * 100;
         const remaining = Math.max(0, estimatedTotal - elapsed);
         
-        // Stage-based estimates (in seconds)
+        // Stage-based estimates (in seconds) — match worker stage names
         const stageEstimates: Record<string, number> = {
-          uploading: 5,
-          loading: 3,
-          detecting: 60,
-          tracking: 10,
-          classifying: 30,
-          mapping: 20,
-          computing: 15,
-          rendering: 45,
+          upload: 5, uploading: 5,
+          load: 3, loading: 3, downloading: 5,
+          detect: 60, detecting: 60,
+          track: 10, tracking: 10,
+          team: 30, classifying: 30,
+          pitch: 20, mapping: 20,
+          analytics: 15, computing: 15,
+          render: 45, rendering: 45,
+          done: 0,
         };
         
         const currentStage = analysis.currentStage || "uploading";
-        const stageIndex = PROCESSING_STAGES.findIndex(s => s.id === currentStage);
+        const stageIndex = Math.max(0, PROCESSING_STAGES.findIndex(s => s.id === currentStage));
         
         // Calculate remaining time based on stages
         let stageBasedRemaining = 0;
@@ -252,9 +259,8 @@ export const appRouter = router({
           const stageId = PROCESSING_STAGES[i].id;
           const estimate = stageEstimates[stageId] || 10;
           if (i === stageIndex) {
-            // Partial time for current stage
             const stageProgress = (progress % (100 / PROCESSING_STAGES.length)) / (100 / PROCESSING_STAGES.length);
-            stageBasedRemaining += estimate * (1 - stageProgress);
+            stageBasedRemaining += estimate * (1 - Math.min(stageProgress, 1));
           } else {
             stageBasedRemaining += estimate;
           }
@@ -265,8 +271,8 @@ export const appRouter = router({
         
         return {
           elapsedMs: elapsed,
-          remainingMs: Math.round(finalEstimate * 1000),
-          estimatedTotalMs: Math.round((elapsed + finalEstimate * 1000)),
+          remainingMs: Math.round(Math.max(0, finalEstimate * 1000)),
+          estimatedTotalMs: Math.round(Math.max(0, elapsed + finalEstimate * 1000)),
           currentStage,
           stageIndex,
           totalStages: PROCESSING_STAGES.length,
@@ -390,7 +396,8 @@ export const appRouter = router({
         if (!analysis || analysis.userId !== ctx.user.id) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found" });
         }
-        return getStatisticsByAnalysisId(input.analysisId);
+        const stats = await getStatisticsByAnalysisId(input.analysisId);
+        return stats ?? null;
       }),
 
     create: protectedProcedure

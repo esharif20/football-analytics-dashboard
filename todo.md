@@ -28,3 +28,5 @@
 - [ ] Add /api/upload/video multipart endpoint to server
 - [ ] Update frontend Upload.tsx to use FormData instead of FileReader/base64
 - [x] Fix ModuleNotFoundError: No module named 'pipeline' in worker subprocess
+- [x] Fix analysis.getEta 500 error (Cannot read properties of undefined reading 'id')
+- [x] Fix statistics.get 500 error (data is undefined)
