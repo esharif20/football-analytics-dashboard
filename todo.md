@@ -48,3 +48,18 @@
 - [x] Add team legend overlay to PitchRadar
 - [x] Add SVG-based pitch lines with glow filter, center circle glow, goal lines, corner arcs
 - [x] Add grass stripe texture and radial vignette to pitch container CSS
+- [x] Major Analysis page redesign to match premium sports dashboard references
+- [x] Add radar/spider chart for team performance attributes (speed, stamina, passing, etc.)
+- [x] Add donut/pie chart for team player stats or possession breakdown
+- [x] Add bar chart for performance metrics (goals, assists, shots per match)
+- [x] Add line/area chart for team effectiveness over time
+- [x] Add gauge/semi-circle indicators for key metrics (points, ratings)
+- [x] Redesign layout with richer bento grid — more visual variety, less text-heavy
+- [x] Polish pitch visualization to look more like reference designs
+- [x] Add beautiful placeholder data throughout all charts
+- [x] Ensure all visualizations work without real tracking data stored yet
+- [x] Add team shape / formation compactness placeholder visualization
+- [x] Add defensive line height over time placeholder chart
+- [x] Add pressing intensity placeholder visualization
+- [x] Ensure all visuals match pipeline capabilities from CS350 progress report
+- [x] Ensure dashboard works on Mac after git pull (no sandbox-only dependencies)
