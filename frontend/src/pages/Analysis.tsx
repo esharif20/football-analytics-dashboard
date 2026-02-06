@@ -30,6 +30,9 @@ import {
   Zap,
   TrendingUp,
   Map,
+  Video,
+  Eye,
+  Sparkles,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { PIPELINE_MODES, PROCESSING_STAGES, EVENT_TYPES, PipelineMode } from "@/shared/types";
@@ -71,7 +74,6 @@ export default function Analysis() {
 
   const handleWSComplete = useCallback(() => {
     setRealtimeProgress(null);
-    // Refetch analysis data when complete
     utils.analysis.get.invalidate({ id: analysisId });
   }, [analysisId]);
 
@@ -92,12 +94,12 @@ export default function Analysis() {
 
   const utils = trpc.useUtils();
 
-  // Fetch analysis data - reduce polling interval when WebSocket is connected
+  // Fetch analysis data
   const { data: analysis, isLoading: analysisLoading, refetch } = trpc.analysis.get.useQuery(
     { id: analysisId },
     { 
       enabled: isAuthenticated && analysisId > 0, 
-      refetchInterval: wsConnected ? 10000 : 2000 // Slower polling when WS connected
+      refetchInterval: wsConnected ? 10000 : 2000
     }
   );
 
@@ -105,7 +107,6 @@ export default function Analysis() {
   const analysisWithRealtime = useMemo(() => {
     if (!analysis) return null;
     if (!realtimeProgress) return analysis;
-    
     return {
       ...analysis,
       progress: realtimeProgress.progress ?? analysis.progress,
@@ -137,8 +138,6 @@ export default function Analysis() {
   // Generate demo tracking data for visualization
   const demoTrackingData = useMemo(() => {
     if (!analysis || analysis.status !== "completed") return null;
-    
-    // Generate sample player positions for demo
     const team1Players = Array.from({ length: 11 }, (_, i) => ({
       id: i + 1,
       trackId: i + 1,
@@ -147,7 +146,6 @@ export default function Analysis() {
       y: 10 + Math.random() * 48,
       speed: 5 + Math.random() * 10,
     }));
-
     const team2Players = Array.from({ length: 11 }, (_, i) => ({
       id: i + 12,
       trackId: i + 12,
@@ -156,13 +154,11 @@ export default function Analysis() {
       y: 10 + Math.random() * 48,
       speed: 5 + Math.random() * 10,
     }));
-
     const ball = {
       x: 52.5 + (Math.random() - 0.5) * 20,
       y: 34 + (Math.random() - 0.5) * 20,
       confidence: 0.95,
     };
-
     return { team1Players, team2Players, ball };
   }, [analysis]);
 
@@ -230,10 +226,17 @@ export default function Analysis() {
     }
   };
 
+  // --- Loading / Auth / Not Found States ---
   if (authLoading || analysisLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            <Activity className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className="text-muted-foreground text-sm animate-pulse">Loading analysis...</p>
+        </div>
       </div>
     );
   }
@@ -241,17 +244,16 @@ export default function Analysis() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle>Sign In Required</CardTitle>
-            <CardDescription>Please sign in to view this analysis</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <a href={getLoginUrl()}>
-              <Button className="w-full">Sign In</Button>
-            </a>
-          </CardContent>
-        </Card>
+        <div className="glass-card p-8 max-w-md w-full text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
+            <Activity className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-xl font-bold">Sign In Required</h2>
+          <p className="text-muted-foreground text-sm">Please sign in to view this analysis</p>
+          <a href={getLoginUrl()}>
+            <Button className="w-full mt-2">Sign In</Button>
+          </a>
+        </div>
       </div>
     );
   }
@@ -259,41 +261,55 @@ export default function Analysis() {
   if (!analysis) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle>Analysis Not Found</CardTitle>
-            <CardDescription>This analysis doesn't exist or you don't have access</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard">
-              <Button className="w-full">Back to Dashboard</Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="glass-card p-8 max-w-md w-full text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center mx-auto">
+            <XCircle className="w-8 h-8 text-destructive" />
+          </div>
+          <h2 className="text-xl font-bold">Analysis Not Found</h2>
+          <p className="text-muted-foreground text-sm">This analysis doesn't exist or you don't have access</p>
+          <Link href="/dashboard">
+            <Button className="w-full mt-2">Back to Dashboard</Button>
+          </Link>
+        </div>
       </div>
     );
   }
 
+  // --- Main Analysis Page ---
   return (
     <div className="min-h-screen bg-background">
+      {/* Subtle gradient background overlay */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[128px]" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-[128px]" />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+      <header className="relative border-b border-border/50 bg-card/30 backdrop-blur-xl sticky top-0 z-50">
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="rounded-xl hover:bg-primary/10 transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Activity className="w-5 h-5 text-primary-foreground" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center">
+                <Activity className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <span className="font-semibold">Analysis #{analysis.id}</span>
-                <Badge variant="outline" className="ml-2">
-                  {modeConfig?.name || analysis.mode}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-bold text-lg">Analysis #{analysis.id}</h1>
+                  <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5 text-xs">
+                    {modeConfig?.name || analysis.mode}
+                  </Badge>
+                </div>
+                {analysis.createdAt && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(analysis.createdAt), { addSuffix: true })}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -301,7 +317,7 @@ export default function Analysis() {
         </div>
       </header>
 
-      <main className="container py-6">
+      <main className="container py-8 relative z-10">
         {/* Processing Status */}
         {(analysis.status === "pending" || analysis.status === "processing" || analysis.status === "uploading") && (
           <ProcessingStatus analysis={analysisWithRealtime || analysis} wsConnected={wsConnected} />
@@ -309,150 +325,225 @@ export default function Analysis() {
 
         {/* Failed Status */}
         {analysis.status === "failed" && (
-          <Card className="mb-6 border-destructive">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <XCircle className="w-6 h-6 text-destructive" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg">Analysis Failed</h3>
-                  <p className="text-muted-foreground">{analysis.errorMessage || "An error occurred during processing"}</p>
-                </div>
+          <div className="glass-card border-destructive/30 mb-8 p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center shrink-0">
+                <XCircle className="w-7 h-7 text-destructive" />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <h3 className="font-bold text-lg">Analysis Failed</h3>
+                <p className="text-muted-foreground text-sm mt-1">{analysis.errorMessage || "An error occurred during processing"}</p>
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Completed Analysis */}
+        {/* Completed Analysis - Bento Grid Layout */}
         {analysis.status === "completed" && (
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Video Player */}
-              {analysis.annotatedVideoUrl && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Play className="w-5 h-5" />
-                      Annotated Video
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="video-player-container">
-                      <video
-                        ref={videoRef}
-                        src={analysis.annotatedVideoUrl}
-                        controls
-                        className="w-full h-full object-contain"
-                      />
+          <div className="space-y-6">
+            {/* Top Row: Video + Stats side by side */}
+            <div className="grid lg:grid-cols-5 gap-6">
+              {/* Video Player - takes 3 cols */}
+              <div className="lg:col-span-3">
+                {analysis.annotatedVideoUrl ? (
+                  <div className="glass-card overflow-hidden group">
+                    <div className="p-4 pb-3 flex items-center gap-2 border-b border-border/30">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Video className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-sm">Annotated Video</h3>
+                        <p className="text-xs text-muted-foreground">AI-processed output</p>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                    <div className="p-4 pt-3">
+                      <div className="video-player-container rounded-xl overflow-hidden ring-1 ring-white/5">
+                        <video
+                          ref={videoRef}
+                          src={analysis.annotatedVideoUrl}
+                          controls
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="glass-card p-8 flex flex-col items-center justify-center min-h-[300px]">
+                    <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+                      <Video className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground text-sm">No annotated video available for this mode</p>
+                  </div>
+                )}
+              </div>
 
-              {/* Visualization Tabs */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Visualizations</CardTitle>
-                  <CardDescription>
-                    Interactive analysis views based on {modeConfig?.name || analysis.mode} mode
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ModeSpecificTabs 
-                    mode={mode} 
-                    activeTab={activeTab} 
-                    setActiveTab={setActiveTab}
-                    trackingData={demoTrackingData}
-                    events={demoEvents}
+              {/* Stats Panel - takes 2 cols */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Match Statistics */}
+                <div className="glass-card overflow-hidden">
+                  <div className="p-4 pb-3 flex items-center justify-between border-b border-border/30">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <BarChart3 className="w-4 h-4 text-primary" />
+                      </div>
+                      <h3 className="font-semibold text-sm">Match Statistics</h3>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "var(--color-team-1)" }} />
+                        <span className="text-muted-foreground">Team 1</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "var(--color-team-2)" }} />
+                        <span className="text-muted-foreground">Team 2</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <StatRow label="Possession" team1={demoStats.possessionTeam1} team2={demoStats.possessionTeam2} suffix="%" />
+                    <StatRow label="Passes" team1={demoStats.passesTeam1} team2={demoStats.passesTeam2} />
+                    <StatRow label="Pass Accuracy" team1={demoStats.passAccuracyTeam1} team2={demoStats.passAccuracyTeam2} suffix="%" />
+                    <StatRow label="Shots" team1={demoStats.shotsTeam1} team2={demoStats.shotsTeam2} />
+                    <StatRow label="Distance (km)" team1={demoStats.distanceCoveredTeam1} team2={demoStats.distanceCoveredTeam2} />
+                    <StatRow label="Avg Speed (km/h)" team1={demoStats.avgSpeedTeam1} team2={demoStats.avgSpeedTeam2} />
+                  </div>
+                </div>
+
+                {/* Quick Stats Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <QuickStat 
+                    label="Total Events" 
+                    value={demoEvents.length.toString()} 
+                    icon={<Zap className="w-4 h-4" />}
+                    color="primary"
                   />
-                </CardContent>
-              </Card>
+                  <QuickStat 
+                    label="Pass Rate" 
+                    value={`${((demoStats.passAccuracyTeam1 + demoStats.passAccuracyTeam2) / 2).toFixed(0)}%`}
+                    icon={<Target className="w-4 h-4" />}
+                    color="accent"
+                  />
+                  <QuickStat 
+                    label="Total Shots" 
+                    value={(demoStats.shotsTeam1 + demoStats.shotsTeam2).toString()}
+                    icon={<Activity className="w-4 h-4" />}
+                    color="team1"
+                  />
+                  <QuickStat 
+                    label="Avg Speed" 
+                    value={`${((demoStats.avgSpeedTeam1 + demoStats.avgSpeedTeam2) / 2).toFixed(1)}`}
+                    icon={<TrendingUp className="w-4 h-4" />}
+                    color="team2"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Statistics */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5" />
-                    Match Statistics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <StatRow label="Possession" team1={demoStats.possessionTeam1} team2={demoStats.possessionTeam2} suffix="%" />
-                  <StatRow label="Passes" team1={demoStats.passesTeam1} team2={demoStats.passesTeam2} />
-                  <StatRow label="Pass Accuracy" team1={demoStats.passAccuracyTeam1} team2={demoStats.passAccuracyTeam2} suffix="%" />
-                  <StatRow label="Shots" team1={demoStats.shotsTeam1} team2={demoStats.shotsTeam2} />
-                  <StatRow label="Distance (km)" team1={demoStats.distanceCoveredTeam1} team2={demoStats.distanceCoveredTeam2} />
-                  <StatRow label="Avg Speed (km/h)" team1={demoStats.avgSpeedTeam1} team2={demoStats.avgSpeedTeam2} />
-                </CardContent>
-              </Card>
-
-              {/* AI Commentary */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5" />
-                    AI Commentary
-                  </CardTitle>
-                  <CardDescription>
-                    Tactical analysis grounded in tracking data
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {commentaryList && commentaryList.length > 0 ? (
-                    <ScrollArea className="h-64">
-                      <div className="space-y-4">
-                        {commentaryList.map((c) => (
-                          <div key={c.id} className="p-3 rounded-lg bg-secondary/50">
-                            <Badge variant="outline" className="mb-2">{c.type}</Badge>
-                            <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
-                              <Streamdown>{c.content}</Streamdown>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  ) : (
-                    <div className="space-y-3">
-                      <p className="text-sm text-muted-foreground">
-                        Generate AI-powered tactical commentary based on the analysis data.
-                      </p>
-                      <div className="flex flex-col gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleGenerateCommentary("match_summary")}
-                          disabled={generateCommentaryMutation.isPending}
-                        >
-                          {generateCommentaryMutation.isPending ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <MessageSquare className="w-4 h-4 mr-2" />
-                          )}
-                          Match Summary
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleGenerateCommentary("tactical_analysis")}
-                          disabled={generateCommentaryMutation.isPending}
-                        >
-                          {generateCommentaryMutation.isPending ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <TrendingUp className="w-4 h-4 mr-2" />
-                          )}
-                          Tactical Analysis
-                        </Button>
-                      </div>
+            {/* Bottom Row: Visualizations + Commentary */}
+            <div className="grid lg:grid-cols-5 gap-6">
+              {/* Visualizations - takes 3 cols */}
+              <div className="lg:col-span-3">
+                <div className="glass-card overflow-hidden">
+                  <div className="p-4 pb-3 flex items-center gap-2 border-b border-border/30">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Eye className="w-4 h-4 text-primary" />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <div>
+                      <h3 className="font-semibold text-sm">Visualizations</h3>
+                      <p className="text-xs text-muted-foreground">Interactive analysis views &middot; {modeConfig?.name || analysis.mode} mode</p>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <ModeSpecificTabs 
+                      mode={mode} 
+                      activeTab={activeTab} 
+                      setActiveTab={setActiveTab}
+                      trackingData={demoTrackingData}
+                      events={demoEvents}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Commentary - takes 2 cols */}
+              <div className="lg:col-span-2">
+                <div className="glass-card overflow-hidden h-full">
+                  <div className="p-4 pb-3 flex items-center gap-2 border-b border-border/30">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-accent" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">AI Commentary</h3>
+                      <p className="text-xs text-muted-foreground">Tactical analysis grounded in tracking data</p>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    {commentaryList && commentaryList.length > 0 ? (
+                      <ScrollArea className="h-[400px]">
+                        <div className="space-y-3">
+                          {commentaryList.map((c) => (
+                            <div key={c.id} className="p-4 rounded-xl bg-secondary/30 border border-border/20 hover:border-border/40 transition-colors">
+                              <Badge variant="outline" className="mb-2 text-xs border-accent/30 text-accent">{c.type}</Badge>
+                              <div className="text-sm prose prose-sm dark:prose-invert max-w-none leading-relaxed">
+                                <Streamdown>{c.content}</Streamdown>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="text-center py-6">
+                          <div className="w-12 h-12 rounded-2xl bg-accent/5 border border-accent/10 flex items-center justify-center mx-auto mb-3">
+                            <MessageSquare className="w-6 h-6 text-accent/60" />
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Generate AI-powered tactical commentary based on the analysis data.
+                          </p>
+                        </div>
+                        <div className="grid gap-2">
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start gap-3 h-12 rounded-xl border-border/30 hover:border-primary/30 hover:bg-primary/5 transition-all"
+                            onClick={() => handleGenerateCommentary("match_summary")}
+                            disabled={generateCommentaryMutation.isPending}
+                          >
+                            {generateCommentaryMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                <MessageSquare className="w-4 h-4 text-primary" />
+                              </div>
+                            )}
+                            <div className="text-left">
+                              <div className="text-sm font-medium">Match Summary</div>
+                              <div className="text-xs text-muted-foreground">Overview of key moments</div>
+                            </div>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start gap-3 h-12 rounded-xl border-border/30 hover:border-accent/30 hover:bg-accent/5 transition-all"
+                            onClick={() => handleGenerateCommentary("tactical_analysis")}
+                            disabled={generateCommentaryMutation.isPending}
+                          >
+                            {generateCommentaryMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                                <TrendingUp className="w-4 h-4 text-accent" />
+                              </div>
+                            )}
+                            <div className="text-left">
+                              <div className="text-sm font-medium">Tactical Analysis</div>
+                              <div className="text-xs text-muted-foreground">In-depth strategic breakdown</div>
+                            </div>
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -461,32 +552,79 @@ export default function Analysis() {
   );
 }
 
-// Status Badge Component
-function StatusBadge({ status, progress }: { status: string; progress: number }) {
-  const config = {
-    pending: { icon: <Clock className="w-4 h-4" />, text: "Pending", variant: "secondary" as const },
-    uploading: { icon: <Loader2 className="w-4 h-4 animate-spin" />, text: "Uploading", variant: "secondary" as const },
-    processing: { icon: <Loader2 className="w-4 h-4 animate-spin" />, text: `Processing ${progress}%`, variant: "default" as const },
-    completed: { icon: <CheckCircle2 className="w-4 h-4" />, text: "Completed", variant: "default" as const },
-    failed: { icon: <XCircle className="w-4 h-4" />, text: "Failed", variant: "destructive" as const },
+// ==================== Sub-Components ====================
+
+// Quick Stat Card
+function QuickStat({ label, value, icon, color }: { label: string; value: string; icon: React.ReactNode; color: string }) {
+  const colorMap: Record<string, string> = {
+    primary: "bg-primary/10 text-primary border-primary/20",
+    accent: "bg-accent/10 text-accent border-accent/20",
+    team1: "bg-[var(--color-team-1)]/10 text-[var(--color-team-1)] border-[var(--color-team-1)]/20",
+    team2: "bg-[var(--color-team-2)]/10 text-[var(--color-team-2)] border-[var(--color-team-2)]/20",
+  };
+  const iconColorMap: Record<string, string> = {
+    primary: "bg-primary/10 text-primary",
+    accent: "bg-accent/10 text-accent",
+    team1: "text-[var(--color-team-1)]",
+    team2: "text-[var(--color-team-2)]",
   };
 
-  const c = config[status as keyof typeof config] || config.pending;
-
   return (
-    <Badge variant={c.variant} className="gap-1">
-      {c.icon}
-      {c.text}
-    </Badge>
+    <div className="glass-card p-4 group hover:border-border/60 transition-all">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={iconColorMap[color] || "text-primary"}>{icon}</span>
+        <span className="text-xs text-muted-foreground uppercase tracking-wider">{label}</span>
+      </div>
+      <div className="text-2xl font-bold font-mono">{value}</div>
+    </div>
   );
 }
 
-// Processing Status Component with ETA and Termination
+// Status Badge Component
+function StatusBadge({ status, progress }: { status: string; progress: number }) {
+  const config: Record<string, { icon: React.ReactNode; text: string; className: string }> = {
+    pending: { 
+      icon: <Clock className="w-3.5 h-3.5" />, 
+      text: "Pending", 
+      className: "bg-muted/50 text-muted-foreground border-border/30" 
+    },
+    uploading: { 
+      icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />, 
+      text: "Uploading", 
+      className: "bg-primary/10 text-primary border-primary/20" 
+    },
+    processing: { 
+      icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />, 
+      text: `Processing ${progress}%`, 
+      className: "bg-primary/10 text-primary border-primary/20" 
+    },
+    completed: { 
+      icon: <CheckCircle2 className="w-3.5 h-3.5" />, 
+      text: "Completed", 
+      className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+    },
+    failed: { 
+      icon: <XCircle className="w-3.5 h-3.5" />, 
+      text: "Failed", 
+      className: "bg-destructive/10 text-destructive border-destructive/20" 
+    },
+  };
+
+  const c = config[status] || config.pending;
+
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${c.className}`}>
+      {c.icon}
+      {c.text}
+    </div>
+  );
+}
+
+// Processing Status Component
 function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; wsConnected?: boolean }) {
   const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.id === analysis.currentStage);
   const utils = trpc.useUtils();
   
-  // Fetch ETA - slower polling when WebSocket connected (real-time ETA comes via WS)
   const { data: etaData } = trpc.analysis.getEta.useQuery(
     { id: analysis.id },
     { 
@@ -495,10 +633,8 @@ function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; ws
     }
   );
   
-  // Use real-time ETA from WebSocket if available, otherwise fall back to polling
   const displayEta = analysis.eta !== undefined ? analysis.eta * 1000 : etaData?.remainingMs;
   
-  // Terminate mutation
   const terminateMutation = trpc.analysis.terminate.useMutation({
     onSuccess: () => {
       toast.success("Analysis terminated");
@@ -515,7 +651,6 @@ function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; ws
     }
   };
   
-  // Format time remaining
   const formatTime = (ms: number) => {
     if (ms < 1000) return "< 1s";
     const seconds = Math.floor(ms / 1000);
@@ -529,21 +664,34 @@ function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; ws
   };
   
   return (
-    <Card className="mb-6">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
-              Processing Video
-            </CardTitle>
-            <CardDescription>
-              {analysis.currentStage ? `Current stage: ${PROCESSING_STAGES.find(s => s.id === analysis.currentStage)?.name || analysis.currentStage}` : "Initializing..."}
-            </CardDescription>
+    <div className="glass-card mb-8 overflow-hidden">
+      {/* Animated gradient top bar */}
+      <div className="h-1 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[shimmer_2s_linear_infinite]" />
+      
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <Loader2 className="w-7 h-7 animate-spin text-primary" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-primary">{analysis.progress}%</span>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">Processing Video</h3>
+              <p className="text-sm text-muted-foreground">
+                {analysis.currentStage 
+                  ? PROCESSING_STAGES.find(s => s.id === analysis.currentStage)?.name || analysis.currentStage
+                  : "Initializing..."}
+              </p>
+            </div>
           </div>
           <Button 
-            variant="destructive" 
+            variant="outline" 
             size="sm"
+            className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/50"
             onClick={handleTerminate}
             disabled={terminateMutation.isPending}
           >
@@ -551,67 +699,77 @@ function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; ws
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <>
-                <XCircle className="w-4 h-4 mr-1" />
+                <XCircle className="w-4 h-4 mr-1.5" />
                 Terminate
               </>
             )}
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {/* Progress bar with percentage */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium">{analysis.progress}%</span>
+
+        {/* Progress bar */}
+        <div className="space-y-3">
+          <div className="h-2 bg-secondary/50 rounded-full overflow-hidden">
+            <div 
+              className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-500 ease-out relative"
+              style={{ width: `${analysis.progress}%` }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent bg-[length:200%_100%] animate-[shimmer_1.5s_linear_infinite]" />
             </div>
-            <Progress value={analysis.progress} className="h-2" />
           </div>
           
-          {/* ETA Display */}
+          {/* ETA */}
           {(displayEta !== undefined || etaData) && (
-            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+            <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Estimated time remaining</span>
+                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Estimated time remaining</span>
                 {wsConnected && (
-                  <span className="text-xs text-green-500 font-medium">(Live)</span>
+                  <span className="text-[10px] text-emerald-400 font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">LIVE</span>
                 )}
               </div>
-              <span className="font-semibold text-primary">
+              <span className="text-sm font-semibold font-mono text-primary">
                 {formatTime(displayEta ?? etaData?.remainingMs ?? 0)}
               </span>
             </div>
           )}
-          
-          {/* Stage indicators */}
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-            {PROCESSING_STAGES.map((stage, i) => (
+        </div>
+
+        {/* Stage indicators */}
+        <div className="mt-6 grid grid-cols-4 sm:grid-cols-8 gap-2">
+          {PROCESSING_STAGES.map((stage, i) => {
+            const isComplete = i < currentStageIndex;
+            const isCurrent = i === currentStageIndex;
+            return (
               <div
                 key={stage.id}
-                className={`text-center p-2 rounded-lg text-xs transition-all ${
-                  i < currentStageIndex
-                    ? "bg-primary/20 text-primary"
-                    : i === currentStageIndex
-                    ? "bg-primary text-primary-foreground animate-pulse"
-                    : "bg-secondary text-muted-foreground"
+                className={`relative text-center p-2.5 rounded-xl text-xs font-medium transition-all duration-300 ${
+                  isComplete
+                    ? "bg-primary/15 text-primary border border-primary/20"
+                    : isCurrent
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_12px_rgba(var(--color-primary),0.15)]"
+                    : "bg-secondary/30 text-muted-foreground border border-transparent"
                 }`}
               >
-                {stage.name.split(" ")[0]}
+                {isComplete && (
+                  <CheckCircle2 className="w-3 h-3 absolute top-1 right-1 text-primary" />
+                )}
+                {isCurrent && (
+                  <div className="absolute inset-0 rounded-xl bg-primary/5 animate-pulse" />
+                )}
+                <span className="relative">{stage.name.split(" ")[0]}</span>
               </div>
-            ))}
-          </div>
-          
-          {/* Elapsed time */}
-          {etaData && (
-            <div className="text-xs text-muted-foreground text-center">
-              Elapsed: {formatTime(etaData.elapsedMs)} • Stage {etaData.stageIndex + 1} of {etaData.totalStages}
-            </div>
-          )}
+            );
+          })}
         </div>
-      </CardContent>
-    </Card>
+        
+        {/* Elapsed time */}
+        {etaData && (
+          <div className="text-xs text-muted-foreground text-center mt-4">
+            Elapsed: {formatTime(etaData.elapsedMs)} &middot; Stage {Math.max(1, etaData.stageIndex + 1)} of {etaData.totalStages}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -627,40 +785,25 @@ function PitchRadar({ data }: { data: any }) {
 
   return (
     <div className="pitch-container">
-      {/* Pitch SVG */}
       <svg className="pitch-lines" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
-        {/* Outer boundary */}
         <rect x="0" y="0" width="105" height="68" />
-        {/* Center line */}
         <line x1="52.5" y1="0" x2="52.5" y2="68" />
-        {/* Center circle */}
         <circle cx="52.5" cy="34" r="9.15" />
-        {/* Center spot */}
         <circle cx="52.5" cy="34" r="0.3" fill="currentColor" />
-        {/* Left penalty area */}
         <rect x="0" y="13.84" width="16.5" height="40.32" />
-        {/* Left goal area */}
         <rect x="0" y="24.84" width="5.5" height="18.32" />
-        {/* Left penalty spot */}
         <circle cx="11" cy="34" r="0.3" fill="currentColor" />
-        {/* Left penalty arc */}
         <path d="M 16.5 25 A 9.15 9.15 0 0 1 16.5 43" />
-        {/* Right penalty area */}
         <rect x="88.5" y="13.84" width="16.5" height="40.32" />
-        {/* Right goal area */}
         <rect x="99.5" y="24.84" width="5.5" height="18.32" />
-        {/* Right penalty spot */}
         <circle cx="94" cy="34" r="0.3" fill="currentColor" />
-        {/* Right penalty arc */}
         <path d="M 88.5 25 A 9.15 9.15 0 0 0 88.5 43" />
-        {/* Corner arcs */}
         <path d="M 0 1 A 1 1 0 0 0 1 0" />
         <path d="M 104 0 A 1 1 0 0 0 105 1" />
         <path d="M 105 67 A 1 1 0 0 0 104 68" />
         <path d="M 1 68 A 1 1 0 0 0 0 67" />
       </svg>
 
-      {/* Team 1 Players */}
       {data.team1Players.map((player: any) => (
         <div
           key={player.id}
@@ -677,7 +820,6 @@ function PitchRadar({ data }: { data: any }) {
         </div>
       ))}
 
-      {/* Team 2 Players */}
       {data.team2Players.map((player: any) => (
         <div
           key={player.id}
@@ -694,7 +836,6 @@ function PitchRadar({ data }: { data: any }) {
         </div>
       ))}
 
-      {/* Ball */}
       <div
         className="ball-marker"
         style={{
@@ -716,7 +857,6 @@ function HeatmapView() {
         <circle cx="52.5" cy="34" r="9.15" />
       </svg>
       
-      {/* Heatmap overlay */}
       <div className="absolute inset-0 opacity-60">
         <svg viewBox="0 0 105 68" className="w-full h-full">
           <defs>
@@ -729,18 +869,16 @@ function HeatmapView() {
               <stop offset="100%" stopColor="oklch(0.65 0.2 45)" stopOpacity="0" />
             </radialGradient>
           </defs>
-          {/* Sample heat zones */}
           <ellipse cx="30" cy="34" rx="15" ry="20" fill="url(#heatGradient1)" />
           <ellipse cx="52.5" cy="34" rx="20" ry="15" fill="url(#heatGradient2)" />
           <ellipse cx="75" cy="34" rx="15" ry="20" fill="url(#heatGradient1)" />
         </svg>
       </div>
 
-      {/* Legend */}
       <div className="absolute bottom-2 right-2 bg-card/80 backdrop-blur-sm rounded-lg p-2 text-xs">
         <div className="flex items-center gap-2">
           <div className="w-16 h-2 rounded heatmap-gradient" />
-          <span>Low → High</span>
+          <span>Low &rarr; High</span>
         </div>
       </div>
     </div>
@@ -749,7 +887,6 @@ function HeatmapView() {
 
 // Pass Network View Component
 function PassNetworkView() {
-  // Demo pass network data
   const nodes = [
     { id: 1, x: 15, y: 34, passes: 45 },
     { id: 2, x: 30, y: 15, passes: 38 },
@@ -777,7 +914,6 @@ function PassNetworkView() {
         <circle cx="52.5" cy="34" r="9.15" />
       </svg>
 
-      {/* Pass lines */}
       <svg className="absolute inset-0" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -803,7 +939,6 @@ function PassNetworkView() {
         })}
       </svg>
 
-      {/* Player nodes */}
       {nodes.map(node => (
         <div
           key={node.id}
@@ -824,9 +959,9 @@ function PassNetworkView() {
 function EventTimeline({ events }: { events: any[] }) {
   return (
     <div className="space-y-4">
-      <div className="relative h-12 bg-secondary rounded-lg overflow-hidden">
+      <div className="relative h-12 bg-secondary/30 rounded-xl overflow-hidden border border-border/20">
         {events.map((event, i) => {
-          const position = (event.timestamp / 90) * 100; // Assuming 90 min match
+          const position = (event.timestamp / 90) * 100;
           const eventConfig = EVENT_TYPES[event.type as keyof typeof EVENT_TYPES];
           return (
             <div
@@ -849,19 +984,22 @@ function EventTimeline({ events }: { events: any[] }) {
             return (
               <div
                 key={i}
-                className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                className="flex items-center gap-3 p-3 rounded-xl bg-secondary/20 border border-border/10 hover:border-border/30 hover:bg-secondary/30 transition-all"
               >
                 <div
-                  className="w-3 h-3 rounded-full"
+                  className="w-3 h-3 rounded-full shrink-0"
                   style={{ backgroundColor: eventConfig?.color || "#666" }}
                 />
-                <div className="flex-1">
-                  <span className="font-medium capitalize">{event.type}</span>
-                  <span className="text-muted-foreground ml-2">
-                    Team {event.teamId} • {event.timestamp}s
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium capitalize text-sm">{event.type}</span>
+                  <span className="text-muted-foreground text-xs ml-2">
+                    Team {event.teamId} &middot; {event.timestamp}s
                   </span>
                 </div>
-                <Badge variant={event.success ? "default" : "secondary"}>
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs shrink-0 ${event.success ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5' : 'border-border/30 text-muted-foreground'}`}
+                >
                   {event.success ? "Success" : "Failed"}
                 </Badge>
               </div>
@@ -887,7 +1025,6 @@ function ModeSpecificTabs({
   trackingData: any;
   events: any[];
 }) {
-  // Define which tabs are available for each mode
   const modeTabs: Record<PipelineMode, string[]> = {
     all: ["radar", "voronoi", "heatmap", "passes", "events"],
     radar: ["radar", "voronoi"],
@@ -907,18 +1044,24 @@ function ModeSpecificTabs({
     events: { icon: <Zap className="w-4 h-4" />, label: "Events" },
   };
 
-  // Reset to first available tab if current is not available
   const effectiveTab = availableTabs.includes(activeTab) ? activeTab : availableTabs[0];
 
   return (
     <Tabs value={effectiveTab} onValueChange={setActiveTab}>
-      <TabsList className={`grid w-full grid-cols-${Math.min(availableTabs.length, 5)}`} style={{ gridTemplateColumns: `repeat(${availableTabs.length}, 1fr)` }}>
+      <TabsList 
+        className="w-full bg-secondary/30 border border-border/20 rounded-xl p-1 h-auto"
+        style={{ gridTemplateColumns: `repeat(${availableTabs.length}, 1fr)`, display: 'grid' }}
+      >
         {availableTabs.map(tab => {
           const config = tabConfig[tab as keyof typeof tabConfig];
           return (
-            <TabsTrigger key={tab} value={tab} className="gap-2">
+            <TabsTrigger 
+              key={tab} 
+              value={tab} 
+              className="gap-2 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-none py-2.5"
+            >
               {config.icon}
-              <span className="hidden sm:inline">{config.label}</span>
+              <span className="hidden sm:inline text-xs font-medium">{config.label}</span>
             </TabsTrigger>
           );
         })}
@@ -957,15 +1100,11 @@ function VoronoiView({ data }: { data: any }) {
     );
   }
 
-  // Compute Voronoi cells for all players
   const allPlayers = [...data.team1Players, ...data.team2Players];
   
-  // Generate Voronoi polygons using a simple algorithm
   const voronoiCells = useMemo(() => {
     const cells: { playerId: number; teamId: number; path: string }[] = [];
-    
-    // Grid-based Voronoi approximation
-    const gridSize = 1; // 1 meter resolution
+    const gridSize = 1;
     const grid: { x: number; y: number; playerId: number; teamId: number }[][] = [];
     
     for (let x = 0; x <= PITCH_WIDTH; x += gridSize) {
@@ -973,7 +1112,6 @@ function VoronoiView({ data }: { data: any }) {
       for (let y = 0; y <= PITCH_HEIGHT; y += gridSize) {
         let minDist = Infinity;
         let closestPlayer = allPlayers[0];
-        
         for (const player of allPlayers) {
           const dist = Math.sqrt((x - player.x) ** 2 + (y - player.y) ** 2);
           if (dist < minDist) {
@@ -981,21 +1119,16 @@ function VoronoiView({ data }: { data: any }) {
             closestPlayer = player;
           }
         }
-        
         row.push({ x, y, playerId: closestPlayer.id, teamId: closestPlayer.teamId });
       }
       grid.push(row);
     }
     
-    // Create simplified polygon paths for each player
     for (const player of allPlayers) {
       const points: [number, number][] = [];
-      
-      // Find boundary points for this player's region
       for (let x = 0; x < grid.length; x++) {
         for (let y = 0; y < grid[x].length; y++) {
           if (grid[x][y].playerId === player.id) {
-            // Check if this is a boundary point
             const isBoundary = 
               x === 0 || x === grid.length - 1 ||
               y === 0 || y === grid[x].length - 1 ||
@@ -1003,7 +1136,6 @@ function VoronoiView({ data }: { data: any }) {
               grid[x + 1]?.[y]?.playerId !== player.id ||
               grid[x]?.[y - 1]?.playerId !== player.id ||
               grid[x]?.[y + 1]?.playerId !== player.id;
-            
             if (isBoundary) {
               points.push([grid[x][y].x, grid[x][y].y]);
             }
@@ -1012,11 +1144,9 @@ function VoronoiView({ data }: { data: any }) {
       }
       
       if (points.length > 2) {
-        // Sort points by angle from centroid
         const cx = points.reduce((sum, p) => sum + p[0], 0) / points.length;
         const cy = points.reduce((sum, p) => sum + p[1], 0) / points.length;
         points.sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
-        
         const path = `M ${points.map(p => `${p[0]} ${p[1]}`).join(' L ')} Z`;
         cells.push({ playerId: player.id, teamId: player.teamId, path });
       }
@@ -1027,9 +1157,7 @@ function VoronoiView({ data }: { data: any }) {
 
   return (
     <div className="pitch-container">
-      {/* Pitch SVG with Voronoi overlay */}
       <svg className="absolute inset-0" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
-        {/* Voronoi cells */}
         {voronoiCells.map((cell, i) => (
           <path
             key={i}
@@ -1041,14 +1169,11 @@ function VoronoiView({ data }: { data: any }) {
             strokeOpacity={0.5}
           />
         ))}
-        
-        {/* Pitch lines */}
         <rect x="0" y="0" width="105" height="68" fill="none" stroke="var(--color-pitch-lines)" strokeWidth="0.5" />
         <line x1="52.5" y1="0" x2="52.5" y2="68" stroke="var(--color-pitch-lines)" strokeWidth="0.5" />
         <circle cx="52.5" cy="34" r="9.15" fill="none" stroke="var(--color-pitch-lines)" strokeWidth="0.5" />
       </svg>
 
-      {/* Team 1 Players */}
       {data.team1Players.map((player: any) => (
         <div
           key={player.id}
@@ -1064,7 +1189,6 @@ function VoronoiView({ data }: { data: any }) {
         </div>
       ))}
 
-      {/* Team 2 Players */}
       {data.team2Players.map((player: any) => (
         <div
           key={player.id}
@@ -1080,7 +1204,6 @@ function VoronoiView({ data }: { data: any }) {
         </div>
       ))}
 
-      {/* Ball */}
       <div
         className="ball-marker"
         style={{
@@ -1089,7 +1212,6 @@ function VoronoiView({ data }: { data: any }) {
         }}
       />
 
-      {/* Legend */}
       <div className="absolute bottom-2 right-2 bg-card/80 backdrop-blur-sm rounded-lg p-2 text-xs">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
@@ -1106,30 +1228,38 @@ function VoronoiView({ data }: { data: any }) {
   );
 }
 
-// Stat Row Component
+// Stat Row Component - Premium Design
 function StatRow({ label, team1, team2, suffix = "" }: { label: string; team1: number; team2: number; suffix?: string }) {
   const total = team1 + team2;
   const team1Pct = total > 0 ? (team1 / total) * 100 : 50;
 
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span className="font-mono" style={{ color: "var(--color-team-1)" }}>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-sm font-semibold tabular-nums" style={{ color: "var(--color-team-1)" }}>
           {team1.toFixed(suffix === "%" ? 1 : 0)}{suffix}
         </span>
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-mono" style={{ color: "var(--color-team-2)" }}>
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</span>
+        <span className="font-mono text-sm font-semibold tabular-nums" style={{ color: "var(--color-team-2)" }}>
           {team2.toFixed(suffix === "%" ? 1 : 0)}{suffix}
         </span>
       </div>
-      <div className="h-2 bg-secondary rounded-full overflow-hidden flex">
+      <div className="h-1.5 bg-secondary/30 rounded-full overflow-hidden flex gap-px">
         <div
-          className="h-full transition-all"
-          style={{ width: `${team1Pct}%`, backgroundColor: "var(--color-team-1)" }}
+          className="h-full rounded-full transition-all duration-700 ease-out"
+          style={{ 
+            width: `${team1Pct}%`, 
+            backgroundColor: "var(--color-team-1)",
+            boxShadow: "0 0 8px var(--color-team-1)"
+          }}
         />
         <div
-          className="h-full transition-all"
-          style={{ width: `${100 - team1Pct}%`, backgroundColor: "var(--color-team-2)" }}
+          className="h-full rounded-full transition-all duration-700 ease-out"
+          style={{ 
+            width: `${100 - team1Pct}%`, 
+            backgroundColor: "var(--color-team-2)",
+            boxShadow: "0 0 8px var(--color-team-2)"
+          }}
         />
       </div>
     </div>

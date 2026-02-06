@@ -13,5 +13,8 @@
   "dependencies": {
     "@types/multer": "^2.0.0",
     "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18"
   }
 }

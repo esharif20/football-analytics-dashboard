@@ -24,9 +24,17 @@
 - [x] Create .env.example files for backend and frontend
 - [x] Update README with full local setup steps (no Docker, no Manus)
 - [x] Fix worker to handle relative video URLs from local storage mode
-- [ ] Fix video upload crashing browser - switch from base64 to multipart FormData upload
-- [ ] Add /api/upload/video multipart endpoint to server
-- [ ] Update frontend Upload.tsx to use FormData instead of FileReader/base64
+- [x] Fix video upload crashing browser - switch from base64 to multipart FormData upload
+- [x] Add /api/upload/video multipart endpoint to server
+- [x] Update frontend Upload.tsx to use FormData instead of FileReader/base64
 - [x] Fix ModuleNotFoundError: No module named 'pipeline' in worker subprocess
 - [x] Fix analysis.getEta 500 error (Cannot read properties of undefined reading 'id')
 - [x] Fix statistics.get 500 error (data is undefined)
+- [x] Redesign Analysis page with premium sports dashboard aesthetic
+- [x] Add glassmorphism card styling with subtle borders and glow
+- [x] Implement bento-grid layout for stats and visualizations
+- [x] Polish stat comparison bars with gradient accents
+- [x] Improve video player section styling
+- [x] Enhance processing status UI
+- [x] Keep existing color scheme and tRPC hooks intact
+- [x] Ensure no new npm dependencies needed (pure Tailwind/CSS)

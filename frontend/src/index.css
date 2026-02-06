@@ -198,6 +198,16 @@
   .event-marker.challenge { @apply bg-amber-500; }
   .event-marker.interception { @apply bg-blue-500; }
 
+  /* Glass card - premium glassmorphism */
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl rounded-2xl border border-border/30;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset, 0 4px 24px rgba(0,0,0,0.2);
+  }
+
+  .glass-card:hover {
+    border-color: rgba(255,255,255,0.08);
+  }
+
   /* Stats cards */
   .stat-card {
     @apply bg-card rounded-xl p-4 border border-border;
@@ -210,6 +220,11 @@
 
   .stat-label {
     @apply text-sm text-muted-foreground uppercase tracking-wide;
+  }
+
+  /* Heatmap gradient */
+  .heatmap-gradient {
+    background: linear-gradient(to right, oklch(0.55 0.18 200), oklch(0.65 0.2 145), oklch(0.65 0.2 45), oklch(0.55 0.2 25));
   }
 
   /* Progress bar */
@@ -280,4 +295,9 @@
   .gradient-text {
     @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
   }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
