@@ -9,5 +9,9 @@
     "test": "cd backend && pnpm test",
     "db:push": "cd backend && pnpm db:push"
   },
-  "packageManager": "pnpm@10.4.1"
+  "packageManager": "pnpm@10.4.1",
+  "dependencies": {
+    "@types/multer": "^2.0.0",
+    "multer": "^2.0.2"
+  }
 }

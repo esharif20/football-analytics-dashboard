@@ -8,8 +8,11 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { isLocalDevMode } from "./localMode";
-import { getLocalStorageDir } from "../storage";
+import { isLocalDevMode, getLocalDevUser } from "./localMode";
+import { getLocalStorageDir, storagePut } from "../storage";
+import { createVideo } from "../db";
+import multer from "multer";
+import { nanoid } from "nanoid";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -53,6 +56,51 @@ async function startServer() {
   
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // Multipart video upload endpoint (avoids base64 encoding in browser)
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 500 * 1024 * 1024 } // 500MB limit
+  });
+  
+  app.post("/api/upload/video", upload.single("video"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No video file provided" });
+      }
+      
+      // Get user - in local dev mode use local user, otherwise would need auth
+      const user = isLocalDevMode() ? getLocalDevUser() : null;
+      if (!user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const title = req.body.title || req.file.originalname;
+      const description = req.body.description || null;
+      const fileName = req.file.originalname;
+      const mimeType = req.file.mimetype;
+      const fileSize = req.file.size;
+      
+      const fileKey = `videos/${user.id}/${nanoid()}-${fileName}`;
+      const { url } = await storagePut(fileKey, req.file.buffer, mimeType);
+      
+      const videoId = await createVideo({
+        userId: user.id,
+        title,
+        description,
+        originalUrl: url,
+        fileKey,
+        fileSize,
+        mimeType,
+      });
+      
+      console.log(`[Upload] Video saved: ${fileName} (${(fileSize / (1024 * 1024)).toFixed(1)}MB) -> id=${videoId}`);
+      res.json({ id: videoId, url });
+    } catch (error) {
+      console.error("Video upload error:", error);
+      res.status(500).json({ error: "Failed to upload video" });
+    }
+  });
   
   // Worker API endpoints (for Python worker to call)
   app.get("/api/worker/pending", async (req, res) => {

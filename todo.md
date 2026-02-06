@@ -24,3 +24,7 @@
 - [x] Create .env.example files for backend and frontend
 - [x] Update README with full local setup steps (no Docker, no Manus)
 - [x] Fix worker to handle relative video URLs from local storage mode
+- [ ] Fix video upload crashing browser - switch from base64 to multipart FormData upload
+- [ ] Add /api/upload/video multipart endpoint to server
+- [ ] Update frontend Upload.tsx to use FormData instead of FileReader/base64
+- [x] Fix ModuleNotFoundError: No module named 'pipeline' in worker subprocess

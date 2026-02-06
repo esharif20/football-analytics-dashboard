@@ -248,8 +248,11 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     
     log(f"Running pipeline: {' '.join(cmd)}")
     
-    # Set up environment
+    # Set up environment - ensure src/ is on PYTHONPATH for subprocess
     env = os.environ.copy()
+    src_dir = str(pipeline_dir / "src")
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{src_dir}:{existing_pythonpath}" if existing_pythonpath else src_dir
     
     try:
         process = subprocess.Popen(

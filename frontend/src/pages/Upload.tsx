@@ -112,32 +112,17 @@ export default function Upload() {
 
     setUploading(true);
     setUploadProgress(0);
-    setUploadStage("reading");
+    setUploadStage("uploading");
     setUploadSpeed(0);
     setTimeRemaining(0);
 
     try {
-      // Convert file to base64 with progress
-      const reader = new FileReader();
-      const fileBase64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(",")[1]);
-        };
-        reader.onerror = reject;
-        reader.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const progress = Math.round((e.loaded / e.total) * 30);
-            setUploadProgress(progress);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
+      // Use FormData multipart upload (no base64, streams the file directly)
+      const formData = new FormData();
+      formData.append("video", file);
+      formData.append("title", title.trim());
+      formData.append("description", description.trim() || "");
 
-      setUploadProgress(30);
-      setUploadStage("uploading");
-
-      // Upload with real-time progress using XMLHttpRequest
       const startTime = Date.now();
       let lastLoaded = 0;
       let lastTime = startTime;
@@ -147,20 +132,19 @@ export default function Upload() {
         
         xhr.upload.addEventListener("progress", (e) => {
           if (e.lengthComputable) {
-            const uploadPercent = (e.loaded / e.total) * 50; // 30-80% range
-            setUploadProgress(30 + Math.round(uploadPercent));
+            const uploadPercent = (e.loaded / e.total) * 80; // 0-80% range
+            setUploadProgress(Math.round(uploadPercent));
             
             // Calculate upload speed
             const now = Date.now();
-            const timeDiff = (now - lastTime) / 1000; // seconds
-            if (timeDiff > 0.5) { // Update every 500ms
+            const timeDiff = (now - lastTime) / 1000;
+            if (timeDiff > 0.5) {
               const bytesDiff = e.loaded - lastLoaded;
-              const speed = bytesDiff / timeDiff; // bytes per second
+              const speed = bytesDiff / timeDiff;
               setUploadSpeed(speed);
               
-              // Estimate time remaining
               const remaining = e.total - e.loaded;
-              const eta = remaining / speed;
+              const eta = speed > 0 ? remaining / speed : 0;
               setTimeRemaining(Math.round(eta));
               
               lastLoaded = e.loaded;
@@ -172,9 +156,7 @@ export default function Upload() {
         xhr.addEventListener("load", () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
-              const response = JSON.parse(xhr.responseText);
-              // tRPC wraps response in result.data.json
-              const data = response.result?.data?.json || response.result?.data || response;
+              const data = JSON.parse(xhr.responseText);
               console.log("Upload response:", data);
               if (!data.id) {
                 reject(new Error("No video ID in response"));
@@ -193,22 +175,9 @@ export default function Upload() {
         xhr.addEventListener("error", () => reject(new Error("Network error")));
         xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
 
-        // Use the tRPC endpoint directly
-        xhr.open("POST", "/api/trpc/video.upload");
-        xhr.setRequestHeader("Content-Type", "application/json");
-        
-        const payload = JSON.stringify({
-          json: {
-            title: title.trim(),
-            description: description.trim() || undefined,
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            fileBase64,
-          }
-        });
-        
-        xhr.send(payload);
+        // Use the multipart upload endpoint (no base64 encoding needed)
+        xhr.open("POST", "/api/upload/video");
+        xhr.send(formData);
       });
 
       setUploadProgress(85);
@@ -658,7 +627,6 @@ export default function Upload() {
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin text-primary" />
                       <span className="font-medium">
-                        {uploadStage === "reading" && "Reading file..."}
                         {uploadStage === "uploading" && "Uploading to server..."}
                         {uploadStage === "processing" && "Creating analysis job..."}
                         {uploadStage === "done" && "Complete!"}
@@ -708,16 +676,16 @@ export default function Upload() {
                   
                   {/* Stage steps */}
                   <div className="flex items-center justify-between pt-2">
-                    {["reading", "uploading", "processing", "done"].map((stage, i) => (
+                    {["uploading", "processing", "done"].map((stage, i) => (
                       <div key={stage} className="flex items-center">
                         <div className={`w-2 h-2 rounded-full ${
-                          ["reading", "uploading", "processing", "done"].indexOf(uploadStage) >= i
+                          ["uploading", "processing", "done"].indexOf(uploadStage) >= i
                             ? "bg-primary"
                             : "bg-muted"
                         }`} />
-                        {i < 3 && (
-                          <div className={`w-16 h-0.5 ${
-                            ["reading", "uploading", "processing", "done"].indexOf(uploadStage) > i
+                        {i < 2 && (
+                          <div className={`w-24 h-0.5 ${
+                            ["uploading", "processing", "done"].indexOf(uploadStage) > i
                               ? "bg-primary"
                               : "bg-muted"
                           }`} />
@@ -726,7 +694,6 @@ export default function Upload() {
                     ))}
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground -mt-2">
-                    <span>Read</span>
                     <span>Upload</span>
                     <span>Process</span>
                     <span>Done</span>
