@@ -391,14 +391,14 @@ export default function Analysis() {
                 {analysis.annotatedVideoUrl ? (
                   <div className="glass-card overflow-hidden relative">
                     <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-sky-500/5 blur-3xl" />
-                    <CardHeader className="pb-3 border-b border-border/30 relative">
-                      <div className="flex items-center gap-2">
+                    <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30 relative">
+                      <div className="flex items-center gap-3">
                         <div className="section-icon icon-accent">
                           <Video className="w-4 h-4 text-sky-400" />
                         </div>
                         <div>
-                          <CardTitle className="text-sm">Annotated Video</CardTitle>
-                          <CardDescription className="text-xs">AI-processed output with bounding boxes &amp; track IDs</CardDescription>
+                          <CardTitle className="text-sm font-semibold">Annotated Video</CardTitle>
+                          <CardDescription className="text-xs mt-0.5">AI-processed output with bounding boxes &amp; track IDs</CardDescription>
                         </div>
                       </div>
                     </CardHeader>
@@ -422,13 +422,13 @@ export default function Analysis() {
               <div className="lg:col-span-2 space-y-6">
                 <div className="glass-card overflow-hidden relative">
                   <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-emerald-500/5 blur-3xl" />
-                  <CardHeader className="pb-3 border-b border-border/30 relative">
+                  <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30 relative">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <div className="section-icon icon-primary">
                           <BarChart3 className="w-4 h-4 text-emerald-400" />
                         </div>
-                        <CardTitle className="text-sm">Match Statistics</CardTitle>
+                        <CardTitle className="text-sm font-semibold">Match Statistics</CardTitle>
                       </div>
                       <div className="flex items-center gap-3 text-xs">
                         <div className="flex items-center gap-1.5">
@@ -487,14 +487,14 @@ export default function Analysis() {
               <div className="lg:col-span-3">
                 <div className="glass-card overflow-hidden relative">
                   <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-emerald-500/5 blur-3xl" />
-                  <CardHeader className="pb-3 border-b border-border/30 relative">
-                    <div className="flex items-center gap-2">
+                  <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30 relative">
+                    <div className="flex items-center gap-3">
                       <div className="section-icon icon-primary">
                         <Eye className="w-4 h-4 text-emerald-400" />
                       </div>
                       <div>
-                        <CardTitle className="text-sm">Pitch Visualizations</CardTitle>
-                        <CardDescription className="text-xs">Interactive analysis views &middot; {modeConfig?.name || analysis.mode} mode</CardDescription>
+                        <CardTitle className="text-sm font-semibold">Pitch Visualizations</CardTitle>
+                        <CardDescription className="text-xs mt-0.5">Interactive analysis views &middot; {modeConfig?.name || analysis.mode} mode</CardDescription>
                       </div>
                     </div>
                   </CardHeader>
@@ -508,14 +508,14 @@ export default function Analysis() {
               <div className="lg:col-span-2">
                 <div className="glass-card overflow-hidden h-full relative">
                   <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-violet-500/5 blur-3xl" />
-                  <CardHeader className="pb-3 border-b border-border/30 relative">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                  <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30 relative">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
                         <Sparkles className="w-4 h-4 text-violet-400" />
                       </div>
                       <div>
-                        <CardTitle className="text-sm">AI Commentary</CardTitle>
-                        <CardDescription className="text-xs">Tactical analysis grounded in tracking data</CardDescription>
+                        <CardTitle className="text-sm font-semibold">AI Commentary</CardTitle>
+                        <CardDescription className="text-xs mt-0.5">Tactical analysis grounded in tracking data</CardDescription>
                       </div>
                     </div>
                   </CardHeader>
@@ -597,8 +597,8 @@ function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
   return (
     <div className="glass-card overflow-hidden relative">
       <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-rose-500/5 blur-3xl" />
-      <CardHeader className="pb-2 border-b border-border/30">
-        <div className="flex items-center gap-2">
+      <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30">
+        <div className="flex items-center gap-3">
           <div className="section-icon icon-danger">
             <Target className="w-4 h-4 text-rose-400" />
           </div>
@@ -662,8 +662,8 @@ function TeamPerformanceRadar({ stats }: { stats: any }) {
   return (
     <div className="glass-card overflow-hidden relative">
       <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-sky-500/5 blur-3xl" />
-      <CardHeader className="pb-2 border-b border-border/30">
-        <div className="flex items-center gap-2">
+      <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30">
+        <div className="flex items-center gap-3">
           <div className="section-icon icon-accent">
             <Radar className="w-4 h-4 text-sky-400" />
           </div>
@@ -724,8 +724,8 @@ function StatsComparisonBar({ stats }: { stats: any }) {
   return (
     <div className="glass-card overflow-hidden relative">
       <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-emerald-500/5 blur-3xl" />
-      <CardHeader className="pb-2 border-b border-border/30">
-        <div className="flex items-center gap-2">
+      <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30">
+        <div className="flex items-center gap-3">
           <div className="section-icon icon-primary">
             <BarChart3 className="w-4 h-4 text-emerald-400" />
           </div>
@@ -771,11 +771,11 @@ function TeamShapeChart() {
   return (
     <div className="glass-card overflow-hidden relative">
       <div className="absolute -top-8 -left-8 w-24 h-24 rounded-full bg-violet-500/5 blur-3xl" />
-      <CardHeader className="pb-2 border-b border-border/30">
+       <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-              <Users className="w-3.5 h-3.5 text-violet-400" />
+          <div className="flex items-center gap-3">
+            <div className="section-icon icon-primary">
+              <BarChart3 className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
               <CardTitle className="text-sm">Team Compactness</CardTitle>
@@ -824,11 +824,11 @@ function DefensiveLineChart() {
   return (
     <div className="glass-card overflow-hidden relative">
       <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-amber-500/5 blur-3xl" />
-      <CardHeader className="pb-2 border-b border-border/30">
+      <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+              <ArrowUpDown className="w-4 h-4 text-amber-400" />
             </div>
             <div>
               <CardTitle className="text-sm">Defensive Line</CardTitle>
@@ -867,11 +867,11 @@ function PressingIntensityChart() {
   return (
     <div className="glass-card overflow-hidden relative">
       <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-orange-500/5 blur-3xl" />
-      <CardHeader className="pb-2 border-b border-border/30">
+      <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-orange-400" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
+              <Zap className="w-4 h-4 text-orange-400" />
             </div>
             <div>
               <CardTitle className="text-sm">Pressing Intensity</CardTitle>
@@ -930,14 +930,14 @@ function PipelinePerformanceCard({ mode }: { mode: PipelineMode }) {
   return (
     <div className="glass-card overflow-hidden relative">
       <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/3 via-transparent to-violet-500/3" />
-      <CardHeader className="pb-3 border-b border-border/30 relative">
-        <div className="flex items-center gap-2">
+      <CardHeader className="pb-4 pt-5 px-5 border-b border-border/30 relative">
+        <div className="flex items-center gap-3">
           <div className="section-icon icon-primary">
             <Timer className="w-4 h-4 text-emerald-400" />
           </div>
           <div>
-            <CardTitle className="text-sm">Pipeline Architecture</CardTitle>
-            <CardDescription className="text-xs">Model performance from CS350 evaluation</CardDescription>
+            <CardTitle className="text-sm font-semibold">Pipeline Architecture</CardTitle>
+            <CardDescription className="text-xs mt-0.5">Model performance from CS350 evaluation</CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -1195,8 +1195,8 @@ function PitchRadar({ data }: { data: any }) {
         </defs>
         <rect x="0" y="0" width="105" height="68" fill="url(#pitchGrad)" />
         {/* Subtle center circle ambient glow */}
-        <circle cx="52.5" cy="34" r="12" fill="rgba(100,200,130,0.04)" filter="url(#centerGlow)" />
-        <g filter="url(#lineGlow)" stroke="rgba(255,255,255,0.6)" strokeWidth="0.45" fill="none">
+        <circle cx="52.5" cy="34" r="16" fill="rgba(52,211,153,0.04)" filter="url(#centerGlow)" />
+        <g filter="url(#lineGlow)" stroke="rgba(52,211,153,0.45)" strokeWidth="0.35" fill="none">
           {/* Outer boundary */}
           <rect x="0.5" y="0.5" width="104" height="67" rx="0.5" />
           {/* Halfway line */}
@@ -1204,7 +1204,7 @@ function PitchRadar({ data }: { data: any }) {
           {/* Center circle */}
           <circle cx="52.5" cy="34" r="9.15" />
           {/* Center spot */}
-          <circle cx="52.5" cy="34" r="0.7" fill="rgba(255,255,255,0.7)" stroke="none" />
+          <circle cx="52.5" cy="34" r="0.7" fill="rgba(52,211,153,0.5)" stroke="none" />
           {/* Left penalty area */}
           <rect x="0.5" y="13.84" width="16.5" height="40.32" />
           {/* Left goal area */}
@@ -1218,16 +1218,16 @@ function PitchRadar({ data }: { data: any }) {
           {/* Right penalty arc */}
           <path d="M 88.5 24.84 A 9.15 9.15 0 0 0 88.5 43.16" />
           {/* Penalty spots */}
-          <circle cx="11" cy="34" r="0.5" fill="rgba(255,255,255,0.5)" stroke="none" />
-          <circle cx="94" cy="34" r="0.5" fill="rgba(255,255,255,0.5)" stroke="none" />
+          <circle cx="11" cy="34" r="0.5" fill="rgba(52,211,153,0.3)" stroke="none" />
+          <circle cx="94" cy="34" r="0.5" fill="rgba(52,211,153,0.3)" stroke="none" />
           {/* Corner arcs */}
           <path d="M 0.5 1.5 A 1 1 0 0 0 1.5 0.5" />
           <path d="M 103.5 0.5 A 1 1 0 0 0 104.5 1.5" />
           <path d="M 0.5 66.5 A 1 1 0 0 1 1.5 67.5" />
           <path d="M 103.5 67.5 A 1 1 0 0 1 104.5 66.5" />
           {/* Goal lines (subtle) */}
-          <line x1="0" y1="30" x2="0" y2="38" strokeWidth="0.8" strokeOpacity="0.3" />
-          <line x1="105" y1="30" x2="105" y2="38" strokeWidth="0.8" strokeOpacity="0.3" />
+          <line x1="0" y1="30" x2="0" y2="38" strokeWidth="0.8" strokeOpacity="0.2" />
+          <line x1="105" y1="30" x2="105" y2="38" strokeWidth="0.8" strokeOpacity="0.2" />
         </g>
         <rect x="0" y="0" width="105" height="68" fill="url(#vignette)" />
       </svg>

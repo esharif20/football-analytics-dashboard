@@ -77,3 +77,5 @@
 - [x] Improve chart styling with gradient fills and animations
 - [x] Add micro-animations on stat numbers (count-up effect)
 - [x] Better color depth throughout — not just flat dark
+- [x] Fix pitch visualization — very dark with emerald lines matching app theme
+- [x] Fix section title/icon padding — consistent pt-5 px-5 gap-3 across all sections
