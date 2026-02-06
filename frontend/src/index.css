@@ -640,6 +640,175 @@
     border: 1px solid oklch(0.45 0.15 25 / 0.2);
   }
   .section-icon.icon-danger::after { background: oklch(0.45 0.15 25 / 0.3); }
+
+  /* =============================================
+     HOVER LIFT - Premium card interaction
+     ============================================= */
+  .hover-lift {
+    transition:
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.3s ease;
+    will-change: transform;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-4px) scale(1.005);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.08) inset,
+      0 16px 50px rgba(0,0,0,0.35),
+      0 4px 12px rgba(0,0,0,0.2),
+      0 0 40px rgba(52,211,153,0.04);
+    border-color: rgba(255,255,255,0.12);
+  }
+
+  .hover-lift:active {
+    transform: translateY(-1px) scale(1.002);
+    transition-duration: 0.1s;
+  }
+
+  /* =============================================
+     PLAYER NODE - Redesigned for track ID
+     ============================================= */
+  .player-node {
+    @apply absolute transform -translate-x-1/2 -translate-y-1/2;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--player-color);
+    border: 2px solid rgba(255,255,255,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    cursor: pointer;
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      filter 0.3s ease;
+    box-shadow:
+      0 2px 10px color-mix(in oklch, var(--player-color) 60%, transparent),
+      0 0 20px color-mix(in oklch, var(--player-color) 20%, transparent);
+  }
+
+  .player-node::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in oklch, var(--player-color) 40%, transparent), transparent 70%);
+    opacity: 0.4;
+    animation: node-pulse 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .player-node::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 20%;
+    right: 20%;
+    height: 30%;
+    border-radius: 50%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.35), transparent);
+    pointer-events: none;
+  }
+
+  .player-node:hover {
+    transform: translate(-50%, -50%) scale(1.4);
+    z-index: 25;
+    box-shadow:
+      0 4px 20px color-mix(in oklch, var(--player-color) 70%, transparent),
+      0 0 35px color-mix(in oklch, var(--player-color) 35%, transparent);
+    filter: brightness(1.15);
+  }
+
+  .player-node-selected {
+    transform: translate(-50%, -50%) scale(1.35);
+    z-index: 25;
+    box-shadow:
+      0 0 0 3px rgba(255,255,255,0.3),
+      0 4px 20px color-mix(in oklch, var(--player-color) 70%, transparent),
+      0 0 35px color-mix(in oklch, var(--player-color) 35%, transparent);
+    animation: selected-ring 2s ease-in-out infinite;
+  }
+
+  .player-node-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    line-height: 1;
+    pointer-events: none;
+    position: relative;
+    z-index: 2;
+  }
+
+  @keyframes node-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.5); opacity: 0.1; }
+  }
+
+  @keyframes selected-ring {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(255,255,255,0.3), 0 4px 20px color-mix(in oklch, var(--player-color) 70%, transparent); }
+    50% { box-shadow: 0 0 0 5px rgba(255,255,255,0.15), 0 4px 25px color-mix(in oklch, var(--player-color) 80%, transparent); }
+  }
+
+  /* =============================================
+     PLAYER NODE - Interaction Graph variant
+     ============================================= */
+  .player-node-interaction {
+    @apply absolute transform -translate-x-1/2 -translate-y-1/2;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--node-color);
+    border: 2px solid rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+    box-shadow:
+      0 2px 8px color-mix(in oklch, var(--node-color) 50%, transparent),
+      0 0 15px color-mix(in oklch, var(--node-color) 15%, transparent);
+  }
+
+  .player-node-interaction:hover {
+    transform: translate(-50%, -50%) scale(1.4);
+    z-index: 25;
+    box-shadow:
+      0 4px 16px color-mix(in oklch, var(--node-color) 65%, transparent),
+      0 0 30px color-mix(in oklch, var(--node-color) 30%, transparent);
+  }
+
+  /* =============================================
+     CHART TOOLTIP - Premium
+     ============================================= */
+  .chart-tooltip {
+    background: oklch(0.14 0.025 260 / 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 8px 12px;
+    box-shadow:
+      0 8px 30px rgba(0,0,0,0.4),
+      0 0 0 1px rgba(255,255,255,0.03) inset;
+  }
+
+  /* =============================================
+     BALL TRAJECTORY ANIMATION
+     ============================================= */
+  .ball-trajectory-path {
+    stroke-dasharray: 300;
+    stroke-dashoffset: 300;
+    animation: draw-trajectory 3s ease-out forwards;
+  }
+
+  @keyframes draw-trajectory {
+    to { stroke-dashoffset: 0; }
+  }
 }
 
 @layer utilities {
@@ -690,4 +859,13 @@
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* =============================================
+   GLOBAL SMOOTH TRANSITIONS
+   ============================================= */
+@layer utilities {
+  .transition-spring {
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }

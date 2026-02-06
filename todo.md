@@ -79,3 +79,24 @@
 - [x] Better color depth throughout — not just flat dark
 - [x] Fix pitch visualization — very dark with emerald lines matching app theme
 - [x] Fix section title/icon padding — consistent pt-5 px-5 gap-3 across all sections
+- [x] Add timeline graphs — team stats evolution over match time (possession, pressing, etc.)
+- [x] Add player interaction graph placeholder (network of passes between players)
+- [x] Add ball trajectory diagram placeholder
+- [x] Add filter sidebar to Analysis page (filter by team, time range, stat type)
+- [x] Fix player nodes on pitch — make them more aesthetic (cleaner circles, better labels)
+- [x] Add AI Commentary tabs — Match Summary / Tactical Analysis / Chat Agent (Coming Soon)
+- [x] Reorganize Analysis page layout to better fit sports analytics platform style
+- [x] Add "Coming Soon" placeholder for future chat bot agent feature
+- [x] Add "Coming Soon" placeholder for future player stats dashboard
+- [x] Ensure all changes work on Mac after git pull (no Manus dependencies)
+- [x] Per-player stats section keyed by track ID (no images/names, just numeric IDs)
+- [x] Redesign player nodes on pitch — cleaner, more aesthetic markers with track ID labels
+- [x] Ball trajectory diagram with curved path visualization
+- [x] Player interaction/pass network graph with weighted edges
+- [x] Filter sidebar (team filter, time range, visualization type)
+- [x] AI Commentary tabs: Tactical Analysis, Commentary, Chat Mode (Coming Soon badge)
+- [x] Timeline graphs for team shape evolution, possession flow over time
+- [x] Reorganize Analysis page layout for premium sports analytics platform style
+- [x] Coming Soon placeholder for chat bot agent feature
+- [x] Coming Soon placeholder for individual player detail views
+- [x] Add smooth premium animations: hover transforms, card lift effects, glowing borders, tab transitions, pulse effects, micro-interactions
