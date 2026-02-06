@@ -1,5 +1,5 @@
-# Football Analytics Dashboard - Local Development
-# Run with: docker compose up
+# Football Analytics Dashboard - Local Development (Docker)
+# Run with: docker compose up --build
 # Dashboard available at: http://localhost:3000
 
 services:
@@ -12,14 +12,24 @@ services:
       MYSQL_ROOT_PASSWORD: football123
       MYSQL_DATABASE: football_dashboard
     ports:
-      - "3306:3306"
+      - "3307:3306"  # Use 3307 to avoid conflicts with local MySQL
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./docker/mysql-dev.cnf:/etc/mysql/conf.d/dev.cnf:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pfootball123"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   # Backend + Frontend App
   app:
@@ -31,48 +41,67 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Database
+      # Database (note: port 3306 inside Docker network, not 3307)
       DATABASE_URL: mysql://root:football123@db:3306/football_dashboard
-      
+
       # Local development mode - bypasses Manus OAuth
       LOCAL_DEV_MODE: "true"
-      
+
       # JWT Secret for sessions
       JWT_SECRET: local-dev-secret-change-in-production
-      
+
       # Local file storage
       LOCAL_STORAGE_DIR: /app/uploads
-      
+
       # Optional: OpenAI API key for AI commentary (leave empty to disable)
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      
+
       # Disable Manus services
       BUILT_IN_FORGE_API_URL: ""
       BUILT_IN_FORGE_API_KEY: ""
       OAUTH_SERVER_URL: ""
       VITE_APP_ID: ""
       VITE_OAUTH_PORTAL_URL: ""
-      
+
       # App metadata
       VITE_APP_TITLE: Football Analytics
       NODE_ENV: development
-      
+
       # Analytics (disabled locally)
       VITE_ANALYTICS_ENDPOINT: ""
       VITE_ANALYTICS_WEBSITE_ID: ""
+
+      # Use polling for file watching (macOS Docker stability)
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
     volumes:
       # Mount source code for hot-reloading during development
-      - ./backend:/app/backend:delegated
-      - ./frontend:/app/frontend:delegated
+      - ./backend/server:/app/backend/server:delegated
+      - ./backend/drizzle:/app/backend/drizzle:delegated
+      - ./backend/shared:/app/backend/shared:delegated
+      - ./frontend/src:/app/frontend/src:delegated
+      - ./frontend/index.html:/app/frontend/index.html:delegated
       # Persist uploads
       - uploads_data:/app/uploads
-      # Exclude node_modules (use container's versions)
-      - /app/node_modules
-      - /app/backend/node_modules
-      - /app/frontend/node_modules
+      # IMPORTANT: Do NOT mount node_modules - use container's versions
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
 volumes:
   mysql_data:

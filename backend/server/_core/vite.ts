@@ -1,4 +1,3 @@
-import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import express, { type Express } from "express";
@@ -7,12 +6,23 @@ import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "../../..");
 const FRONTEND_ROOT = path.resolve(PROJECT_ROOT, "frontend");
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
+// Core plugins (always available)
+const plugins: any[] = [react(), tailwindcss()];
+
+// Manus-specific plugins - optional, only loaded when available
+try {
+  const { jsxLocPlugin } = await import("@builder.io/vite-plugin-jsx-loc");
+  plugins.push(jsxLocPlugin());
+} catch { /* Not available outside Manus */ }
+
+try {
+  const { vitePluginManusRuntime } = await import("vite-plugin-manus-runtime");
+  plugins.push(vitePluginManusRuntime());
+} catch { /* Not available outside Manus */ }
 
 const viteConfig = {
   plugins,

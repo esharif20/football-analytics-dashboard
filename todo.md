@@ -12,10 +12,14 @@
 - [x] Fix 403 Forbidden error on worker API endpoints
 - [x] Fix custom model loading - pipeline uses YOLOv8 pretrained instead of custom models
 - [x] Fix S3 video upload endpoint returning invalid JSON response
-- [ ] Debug and fix custom model loading - pipeline still using YOLOv8 pretrained
+- [x] Debug and fix custom model loading - pipeline still using YOLOv8 pretrained (fixed - config.py path + git pull cache issue)
 - [x] Create comprehensive migration guide for running independently from Manus
 - [x] Create Docker Compose setup for local Mac development
 - [x] Make AI commentary optional (no OpenAI key required)
 - [x] Create simple setup script for Mac
 - [x] Fix frontend crash in local dev mode - Invalid URL from getLoginUrl
 - [x] Fix analytics script error when VITE_ANALYTICS vars are empty
+- [x] Fix Docker Compose for macOS stability (logging, resource limits, .dockerignore, MySQL config)
+- [x] Add non-Docker local dev run scripts (run without Docker)
+- [x] Create .env.example files for backend and frontend
+- [x] Update README with full local setup steps (no Docker, no Manus)

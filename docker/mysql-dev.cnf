@@ -1,0 +1,26 @@
+# MySQL configuration optimised for macOS Docker Desktop development
+# Reduces memory footprint to prevent Docker Engine crashes
+
+[mysqld]
+# Reduce InnoDB buffer pool (default 128M, too much for dev)
+innodb_buffer_pool_size = 64M
+
+# Reduce log file size
+innodb_log_file_size = 16M
+
+# Reduce max connections
+max_connections = 20
+
+# Disable performance schema (saves ~100MB)
+performance_schema = OFF
+
+# Reduce sort/join buffers
+sort_buffer_size = 256K
+join_buffer_size = 256K
+
+# Disable binary logging (not needed for dev)
+skip-log-bin
+
+# Reduce temp table size
+tmp_table_size = 16M
+max_heap_table_size = 16M
