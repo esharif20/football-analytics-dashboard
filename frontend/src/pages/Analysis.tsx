@@ -773,7 +773,7 @@ function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; ws
   );
 }
 
-// Pitch Radar Component
+// Pitch Radar Component - Premium
 function PitchRadar({ data }: { data: any }) {
   if (!data) {
     return (
@@ -785,25 +785,94 @@ function PitchRadar({ data }: { data: any }) {
 
   return (
     <div className="pitch-container">
-      <svg className="pitch-lines" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
-        <rect x="0" y="0" width="105" height="68" />
-        <line x1="52.5" y1="0" x2="52.5" y2="68" />
-        <circle cx="52.5" cy="34" r="9.15" />
-        <circle cx="52.5" cy="34" r="0.3" fill="currentColor" />
-        <rect x="0" y="13.84" width="16.5" height="40.32" />
-        <rect x="0" y="24.84" width="5.5" height="18.32" />
-        <circle cx="11" cy="34" r="0.3" fill="currentColor" />
-        <path d="M 16.5 25 A 9.15 9.15 0 0 1 16.5 43" />
-        <rect x="88.5" y="13.84" width="16.5" height="40.32" />
-        <rect x="99.5" y="24.84" width="5.5" height="18.32" />
-        <circle cx="94" cy="34" r="0.3" fill="currentColor" />
-        <path d="M 88.5 25 A 9.15 9.15 0 0 0 88.5 43" />
-        <path d="M 0 1 A 1 1 0 0 0 1 0" />
-        <path d="M 104 0 A 1 1 0 0 0 105 1" />
-        <path d="M 105 67 A 1 1 0 0 0 104 68" />
-        <path d="M 1 68 A 1 1 0 0 0 0 67" />
+      {/* Premium pitch SVG with gradient and glow */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet" style={{ zIndex: 2 }}>
+        <defs>
+          {/* Pitch grass gradient */}
+          <linearGradient id="pitchGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.03)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.05)" />
+          </linearGradient>
+          {/* Line glow filter */}
+          <filter id="lineGlow">
+            <feGaussianBlur stdDeviation="0.3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          {/* Vignette */}
+          <radialGradient id="vignette" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stopColor="transparent" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.35)" />
+          </radialGradient>
+          {/* Center spot glow */}
+          <radialGradient id="spotGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
+            <stop offset="100%" stopColor="transparent" />
+          </radialGradient>
+        </defs>
+
+        {/* Grass overlay */}
+        <rect x="0" y="0" width="105" height="68" fill="url(#pitchGrad)" />
+
+        {/* Pitch lines with glow */}
+        <g filter="url(#lineGlow)" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" fill="none">
+          {/* Outer boundary */}
+          <rect x="0.5" y="0.5" width="104" height="67" rx="0.5" />
+          {/* Center line */}
+          <line x1="52.5" y1="0.5" x2="52.5" y2="67.5" />
+          {/* Center circle */}
+          <circle cx="52.5" cy="34" r="9.15" />
+          {/* Center spot */}
+          <circle cx="52.5" cy="34" r="0.6" fill="rgba(255,255,255,0.6)" stroke="none" />
+          {/* Left penalty area */}
+          <rect x="0.5" y="13.84" width="16.5" height="40.32" />
+          {/* Left goal area */}
+          <rect x="0.5" y="24.84" width="5.5" height="18.32" />
+          {/* Left penalty spot */}
+          <circle cx="11" cy="34" r="0.4" fill="rgba(255,255,255,0.5)" stroke="none" />
+          {/* Left penalty arc */}
+          <path d="M 16.5 25 A 9.15 9.15 0 0 1 16.5 43" />
+          {/* Right penalty area */}
+          <rect x="88" y="13.84" width="16.5" height="40.32" />
+          {/* Right goal area */}
+          <rect x="99" y="24.84" width="5.5" height="18.32" />
+          {/* Right penalty spot */}
+          <circle cx="94" cy="34" r="0.4" fill="rgba(255,255,255,0.5)" stroke="none" />
+          {/* Right penalty arc */}
+          <path d="M 88.5 25 A 9.15 9.15 0 0 0 88.5 43" />
+          {/* Corner arcs */}
+          <path d="M 0.5 1.5 A 1 1 0 0 0 1.5 0.5" />
+          <path d="M 103.5 0.5 A 1 1 0 0 0 104.5 1.5" />
+          <path d="M 104.5 66.5 A 1 1 0 0 0 103.5 67.5" />
+          <path d="M 1.5 67.5 A 1 1 0 0 0 0.5 66.5" />
+          {/* Goal lines (subtle) */}
+          <rect x="-1.5" y="29" width="2" height="10" rx="0.3" strokeWidth="0.3" stroke="rgba(255,255,255,0.3)" />
+          <rect x="104.5" y="29" width="2" height="10" rx="0.3" strokeWidth="0.3" stroke="rgba(255,255,255,0.3)" />
+        </g>
+
+        {/* Center circle glow */}
+        <circle cx="52.5" cy="34" r="12" fill="url(#spotGlow)" />
+
+        {/* Vignette overlay */}
+        <rect x="0" y="0" width="105" height="68" fill="url(#vignette)" />
       </svg>
 
+      {/* Team legend */}
+      <div className="absolute top-3 right-3 flex items-center gap-3 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-1.5 text-[11px] font-medium" style={{ zIndex: 20 }}>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg, oklch(0.65 0.22 25), oklch(0.5 0.2 25))', boxShadow: '0 0 6px rgba(220,50,50,0.4)' }} />
+          <span className="text-white/80">Team 1</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg, oklch(0.6 0.2 200), oklch(0.45 0.18 200))', boxShadow: '0 0 6px rgba(50,130,200,0.4)' }} />
+          <span className="text-white/80">Team 2</span>
+        </div>
+      </div>
+
+      {/* Player markers */}
       {data.team1Players.map((player: any) => (
         <div
           key={player.id}
@@ -814,7 +883,7 @@ function PitchRadar({ data }: { data: any }) {
           }}
           title={`Player ${player.id} - Speed: ${player.speed?.toFixed(1)} km/h`}
         >
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-sm" style={{ zIndex: 1 }}>
             {player.id}
           </span>
         </div>
@@ -830,12 +899,13 @@ function PitchRadar({ data }: { data: any }) {
           }}
           title={`Player ${player.id} - Speed: ${player.speed?.toFixed(1)} km/h`}
         >
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-sm" style={{ zIndex: 1 }}>
             {player.id - 11}
           </span>
         </div>
       ))}
 
+      {/* Ball marker */}
       <div
         className="ball-marker"
         style={{
@@ -847,38 +917,60 @@ function PitchRadar({ data }: { data: any }) {
   );
 }
 
-// Heatmap View Component
+// Heatmap View Component - Premium
 function HeatmapView() {
   return (
     <div className="pitch-container">
-      <svg className="pitch-lines" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
-        <rect x="0" y="0" width="105" height="68" />
-        <line x1="52.5" y1="0" x2="52.5" y2="68" />
-        <circle cx="52.5" cy="34" r="9.15" />
-      </svg>
-      
-      <div className="absolute inset-0 opacity-60">
-        <svg viewBox="0 0 105 68" className="w-full h-full">
-          <defs>
-            <radialGradient id="heatGradient1">
-              <stop offset="0%" stopColor="oklch(0.55 0.2 25)" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="oklch(0.55 0.2 25)" stopOpacity="0" />
-            </radialGradient>
-            <radialGradient id="heatGradient2">
-              <stop offset="0%" stopColor="oklch(0.65 0.2 45)" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="oklch(0.65 0.2 45)" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          <ellipse cx="30" cy="34" rx="15" ry="20" fill="url(#heatGradient1)" />
-          <ellipse cx="52.5" cy="34" rx="20" ry="15" fill="url(#heatGradient2)" />
-          <ellipse cx="75" cy="34" rx="15" ry="20" fill="url(#heatGradient1)" />
-        </svg>
-      </div>
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet" style={{ zIndex: 2 }}>
+        <defs>
+          <linearGradient id="heatPitchGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.03)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.05)" />
+          </linearGradient>
+          <filter id="heatLineGlow">
+            <feGaussianBlur stdDeviation="0.3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <radialGradient id="heatVignette" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stopColor="transparent" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.3)" />
+          </radialGradient>
+          <radialGradient id="heatZone1"><stop offset="0%" stopColor="oklch(0.55 0.22 25)" stopOpacity="0.85" /><stop offset="100%" stopColor="oklch(0.55 0.2 25)" stopOpacity="0" /></radialGradient>
+          <radialGradient id="heatZone2"><stop offset="0%" stopColor="oklch(0.65 0.22 45)" stopOpacity="0.7" /><stop offset="100%" stopColor="oklch(0.65 0.2 45)" stopOpacity="0" /></radialGradient>
+          <radialGradient id="heatZone3"><stop offset="0%" stopColor="oklch(0.6 0.2 145)" stopOpacity="0.5" /><stop offset="100%" stopColor="oklch(0.6 0.2 145)" stopOpacity="0" /></radialGradient>
+          <filter id="heatBlur"><feGaussianBlur stdDeviation="3" /></filter>
+        </defs>
 
-      <div className="absolute bottom-2 right-2 bg-card/80 backdrop-blur-sm rounded-lg p-2 text-xs">
+        <rect x="0" y="0" width="105" height="68" fill="url(#heatPitchGrad)" />
+
+        {/* Pitch lines */}
+        <g filter="url(#heatLineGlow)" stroke="rgba(255,255,255,0.35)" strokeWidth="0.35" fill="none">
+          <rect x="0.5" y="0.5" width="104" height="67" rx="0.5" />
+          <line x1="52.5" y1="0.5" x2="52.5" y2="67.5" />
+          <circle cx="52.5" cy="34" r="9.15" />
+          <circle cx="52.5" cy="34" r="0.5" fill="rgba(255,255,255,0.4)" stroke="none" />
+          <rect x="0.5" y="13.84" width="16.5" height="40.32" />
+          <rect x="0.5" y="24.84" width="5.5" height="18.32" />
+          <rect x="88" y="13.84" width="16.5" height="40.32" />
+          <rect x="99" y="24.84" width="5.5" height="18.32" />
+        </g>
+
+        {/* Heat zones */}
+        <g filter="url(#heatBlur)" style={{ mixBlendMode: 'screen' }}>
+          <ellipse cx="28" cy="30" rx="14" ry="18" fill="url(#heatZone1)" />
+          <ellipse cx="52.5" cy="34" rx="18" ry="14" fill="url(#heatZone2)" />
+          <ellipse cx="77" cy="38" rx="14" ry="18" fill="url(#heatZone1)" />
+          <ellipse cx="40" cy="20" rx="10" ry="12" fill="url(#heatZone3)" />
+          <ellipse cx="65" cy="48" rx="10" ry="12" fill="url(#heatZone3)" />
+        </g>
+
+        <rect x="0" y="0" width="105" height="68" fill="url(#heatVignette)" />
+      </svg>
+
+      <div className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-medium" style={{ zIndex: 20 }}>
         <div className="flex items-center gap-2">
-          <div className="w-16 h-2 rounded heatmap-gradient" />
-          <span>Low &rarr; High</span>
+          <div className="w-20 h-2 rounded-full heatmap-gradient" />
+          <span className="text-white/70">Low &rarr; High</span>
         </div>
       </div>
     </div>
@@ -908,47 +1000,81 @@ function PassNetworkView() {
 
   return (
     <div className="pitch-container">
-      <svg className="pitch-lines" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
-        <rect x="0" y="0" width="105" height="68" />
-        <line x1="52.5" y1="0" x2="52.5" y2="68" />
-        <circle cx="52.5" cy="34" r="9.15" />
-      </svg>
-
-      <svg className="absolute inset-0" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet" style={{ zIndex: 2 }}>
         <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="oklch(0.65 0.2 145)" />
+          <linearGradient id="passNetGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.03)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.05)" />
+          </linearGradient>
+          <filter id="passLineGlow">
+            <feGaussianBlur stdDeviation="0.3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <radialGradient id="passVignette" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stopColor="transparent" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.3)" />
+          </radialGradient>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="oklch(0.7 0.18 145)" fillOpacity="0.7" />
           </marker>
+          <filter id="edgeGlow">
+            <feGaussianBlur stdDeviation="0.5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
         </defs>
-        {edges.map((edge, i) => {
-          const fromNode = nodes.find(n => n.id === edge.from)!;
-          const toNode = nodes.find(n => n.id === edge.to)!;
-          return (
-            <line
-              key={i}
-              x1={fromNode.x}
-              y1={fromNode.y}
-              x2={toNode.x}
-              y2={toNode.y}
-              stroke="oklch(0.65 0.2 145)"
-              strokeWidth={Math.max(1, edge.count / 5)}
-              strokeOpacity={0.6}
-              markerEnd="url(#arrowhead)"
-            />
-          );
-        })}
+
+        <rect x="0" y="0" width="105" height="68" fill="url(#passNetGrad)" />
+
+        {/* Pitch lines */}
+        <g filter="url(#passLineGlow)" stroke="rgba(255,255,255,0.35)" strokeWidth="0.35" fill="none">
+          <rect x="0.5" y="0.5" width="104" height="67" rx="0.5" />
+          <line x1="52.5" y1="0.5" x2="52.5" y2="67.5" />
+          <circle cx="52.5" cy="34" r="9.15" />
+          <circle cx="52.5" cy="34" r="0.5" fill="rgba(255,255,255,0.4)" stroke="none" />
+          <rect x="0.5" y="13.84" width="16.5" height="40.32" />
+          <rect x="0.5" y="24.84" width="5.5" height="18.32" />
+          <rect x="88" y="13.84" width="16.5" height="40.32" />
+          <rect x="99" y="24.84" width="5.5" height="18.32" />
+        </g>
+
+        {/* Pass edges */}
+        <g filter="url(#edgeGlow)">
+          {edges.map((edge, i) => {
+            const fromNode = nodes.find(n => n.id === edge.from)!;
+            const toNode = nodes.find(n => n.id === edge.to)!;
+            return (
+              <line
+                key={i}
+                x1={fromNode.x}
+                y1={fromNode.y}
+                x2={toNode.x}
+                y2={toNode.y}
+                stroke="oklch(0.7 0.18 145)"
+                strokeWidth={Math.max(0.5, edge.count / 6)}
+                strokeOpacity={0.5}
+                markerEnd="url(#arrowhead)"
+              />
+            );
+          })}
+        </g>
+
+        <rect x="0" y="0" width="105" height="68" fill="url(#passVignette)" />
       </svg>
 
       {nodes.map(node => (
         <div
           key={node.id}
-          className="absolute w-8 h-8 rounded-full bg-primary border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center"
+          className="absolute w-7 h-7 rounded-full transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center"
           style={{
             left: `${(node.x / PITCH_WIDTH) * 100}%`,
             top: `${(node.y / PITCH_HEIGHT) * 100}%`,
+            background: 'linear-gradient(135deg, oklch(0.6 0.2 200), oklch(0.45 0.18 200))',
+            boxShadow: '0 0 10px rgba(50,130,200,0.5), 0 0 20px rgba(50,130,200,0.2), inset 0 1px 1px rgba(255,255,255,0.2)',
+            border: '1.5px solid rgba(255,255,255,0.25)',
+            zIndex: 15,
           }}
         >
-          <span className="text-xs font-bold text-primary-foreground">{node.id}</span>
+          <span className="text-[10px] font-bold text-white drop-shadow-sm">{node.id}</span>
         </div>
       ))}
     </div>
@@ -1157,21 +1283,50 @@ function VoronoiView({ data }: { data: any }) {
 
   return (
     <div className="pitch-container">
-      <svg className="absolute inset-0" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet">
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet" style={{ zIndex: 2 }}>
+        <defs>
+          <linearGradient id="voronoiPitchGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.03)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.05)" />
+          </linearGradient>
+          <filter id="voronoiLineGlow">
+            <feGaussianBlur stdDeviation="0.3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <radialGradient id="voronoiVignette" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stopColor="transparent" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.3)" />
+          </radialGradient>
+        </defs>
+
+        <rect x="0" y="0" width="105" height="68" fill="url(#voronoiPitchGrad)" />
+
+        {/* Voronoi cells */}
         {voronoiCells.map((cell, i) => (
           <path
             key={i}
             d={cell.path}
             fill={cell.teamId === 1 ? "var(--color-team-1)" : "var(--color-team-2)"}
-            fillOpacity={0.2}
+            fillOpacity={0.15}
             stroke={cell.teamId === 1 ? "var(--color-team-1)" : "var(--color-team-2)"}
-            strokeWidth={0.3}
-            strokeOpacity={0.5}
+            strokeWidth={0.25}
+            strokeOpacity={0.4}
           />
         ))}
-        <rect x="0" y="0" width="105" height="68" fill="none" stroke="var(--color-pitch-lines)" strokeWidth="0.5" />
-        <line x1="52.5" y1="0" x2="52.5" y2="68" stroke="var(--color-pitch-lines)" strokeWidth="0.5" />
-        <circle cx="52.5" cy="34" r="9.15" fill="none" stroke="var(--color-pitch-lines)" strokeWidth="0.5" />
+
+        {/* Pitch lines */}
+        <g filter="url(#voronoiLineGlow)" stroke="rgba(255,255,255,0.45)" strokeWidth="0.4" fill="none">
+          <rect x="0.5" y="0.5" width="104" height="67" rx="0.5" />
+          <line x1="52.5" y1="0.5" x2="52.5" y2="67.5" />
+          <circle cx="52.5" cy="34" r="9.15" />
+          <circle cx="52.5" cy="34" r="0.5" fill="rgba(255,255,255,0.5)" stroke="none" />
+          <rect x="0.5" y="13.84" width="16.5" height="40.32" />
+          <rect x="0.5" y="24.84" width="5.5" height="18.32" />
+          <rect x="88" y="13.84" width="16.5" height="40.32" />
+          <rect x="99" y="24.84" width="5.5" height="18.32" />
+        </g>
+
+        <rect x="0" y="0" width="105" height="68" fill="url(#voronoiVignette)" />
       </svg>
 
       {data.team1Players.map((player: any) => (
@@ -1183,7 +1338,7 @@ function VoronoiView({ data }: { data: any }) {
             top: `${(player.y / PITCH_HEIGHT) * 100}%`,
           }}
         >
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-sm" style={{ zIndex: 1 }}>
             {player.id}
           </span>
         </div>
@@ -1198,7 +1353,7 @@ function VoronoiView({ data }: { data: any }) {
             top: `${(player.y / PITCH_HEIGHT) * 100}%`,
           }}
         >
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-sm" style={{ zIndex: 1 }}>
             {player.id - 11}
           </span>
         </div>
@@ -1212,15 +1367,15 @@ function VoronoiView({ data }: { data: any }) {
         }}
       />
 
-      <div className="absolute bottom-2 right-2 bg-card/80 backdrop-blur-sm rounded-lg p-2 text-xs">
+      <div className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-medium" style={{ zIndex: 20 }}>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded" style={{ backgroundColor: "var(--color-team-1)", opacity: 0.5 }} />
-            <span>Team 1 Zone</span>
+            <span className="text-white/70">Team 1 Zone</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded" style={{ backgroundColor: "var(--color-team-2)", opacity: 0.5 }} />
-            <span>Team 2 Zone</span>
+            <span className="text-white/70">Team 2 Zone</span>
           </div>
         </div>
       </div>

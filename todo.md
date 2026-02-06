@@ -38,3 +38,13 @@
 - [x] Enhance processing status UI
 - [x] Keep existing color scheme and tRPC hooks intact
 - [x] Ensure no new npm dependencies needed (pure Tailwind/CSS)
+- [x] Redesign pitch/radar visualization - darker pitch, glowing player markers, premium styling
+- [x] Add gradient effects and glow to pitch lines
+- [x] Improve player marker design with shadows and team color glow
+- [x] Add subtle background texture/gradient to pitch area
+- [x] Update HeatmapView with premium pitch styling (glowing lines, heat zone blur, vignette)
+- [x] Update PassNetworkView with premium pitch styling (glowing edges, 3D node markers)
+- [x] Update VoronoiView with premium pitch styling (glowing lines, vignette overlay)
+- [x] Add team legend overlay to PitchRadar
+- [x] Add SVG-based pitch lines with glow filter, center circle glow, goal lines, corner arcs
+- [x] Add grass stripe texture and radial vignette to pitch container CSS
