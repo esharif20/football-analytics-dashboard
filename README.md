@@ -9,47 +9,34 @@ Built with **React + FastAPI + MySQL** and a **Python CV pipeline** running on a
 ## System Architecture
 
 ```mermaid
-graph TB
-    subgraph LOCAL["LOCAL MACHINE"]
-        subgraph DB["Database"]
-            MySQL["MySQL 8.0<br/>localhost:3307"]
-        end
-
-        subgraph APP["Application"]
-            FastAPI["FastAPI :8000<br/>REST API + WebSocket"]
-            Vite["Vite Dev :5173<br/>React Frontend"]
-            Storage["Local Storage<br/>./uploads/"]
-        end
-
-        Browser["Browser<br/>http://localhost:5173"]
+graph LR
+    subgraph Browser
+        UI["React Frontend\n:5173"]
     end
 
-    subgraph CLOUD["CLOUD GPU (RunPod)"]
-        Worker["worker.py"]
-        subgraph PIPELINE["CV Pipeline"]
-            YOLO["YOLOv8 Detection"]
-            ByteTrack["ByteTrack Tracking"]
-            SigLIP["SigLIP Teams"]
-            Homography["Homography Map"]
-            Analytics["Analytics Engine"]
-        end
+    subgraph Local["LOCAL MACHINE"]
+        API["FastAPI\n:8000"]
+        DB[("MySQL\n:3307")]
+        FS[("./uploads/")]
     end
 
-    Browser -->|"User interactions"| Vite
-    Vite -->|"/api proxy"| FastAPI
-    FastAPI --> MySQL
-    FastAPI --> Storage
+    subgraph RunPod["CLOUD GPU"]
+        W["worker.py"]
+        P1["YOLOv8\nDetection"]
+        P2["ByteTrack\nTracking"]
+        P3["SigLIP\nTeams"]
+        P4["Homography\nMapping"]
+        P5["Analytics\nEngine"]
+    end
 
-    Worker -->|"ngrok tunnel<br/>GET /api/worker/pending<br/>POST progress & results"| FastAPI
-    FastAPI -.->|"WebSocket<br/>live progress"| Browser
+    UI -- "/api proxy" --> API
+    API -- "WebSocket\nprogress" -.-> UI
+    API --- DB
+    API --- FS
 
-    Worker --> YOLO --> ByteTrack --> SigLIP --> Homography --> Analytics
+    W == "ngrok tunnel\nGET /api/worker/pending\nPOST progress + results" ==> API
 
-    style LOCAL fill:#0d1117,stroke:#30363d,color:#f0f6fc
-    style CLOUD fill:#0d1117,stroke:#30363d,color:#f0f6fc
-    style DB fill:#161b22,stroke:#10b981,color:#f0f6fc
-    style APP fill:#161b22,stroke:#10b981,color:#f0f6fc
-    style PIPELINE fill:#161b22,stroke:#10b981,color:#f0f6fc
+    W --> P1 --> P2 --> P3 --> P4 --> P5
 ```
 
 ### The Flow
