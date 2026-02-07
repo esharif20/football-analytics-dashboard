@@ -46,6 +46,7 @@ class BallFilter:
         # State tracking
         self.last_bbox: Optional[np.ndarray] = None
         self.last_area: Optional[float] = None
+        self._frames_since_accepted: int = 0
 
         # Auto-area tracking
         self.area_ratios: deque = deque(maxlen=60)
@@ -54,6 +55,7 @@ class BallFilter:
         """Reset filter state."""
         self.last_bbox = None
         self.last_area = None
+        self._frames_since_accepted = 0
         self.area_ratios.clear()
 
     def filter(
@@ -73,6 +75,7 @@ class BallFilter:
         debug = self._empty_debug()
 
         if detections is None or len(detections) == 0:
+            self._frames_since_accepted += 1
             return FilterResult(detection=None, debug=debug)
 
         raw_count = len(detections)
@@ -85,6 +88,7 @@ class BallFilter:
         debug["reject_conf"] = reject_conf
 
         if len(detections) == 0:
+            self._frames_since_accepted += 1
             return FilterResult(detection=None, debug=debug)
 
         # Stage 2: Aspect ratio filter
@@ -93,6 +97,7 @@ class BallFilter:
         debug["reject_aspect"] = reject_aspect
 
         if len(detections) == 0:
+            self._frames_since_accepted += 1
             return FilterResult(detection=None, debug=debug)
 
         # Stage 3 & 4: Gating (area + jump distance)
@@ -103,6 +108,7 @@ class BallFilter:
         debug["reject_jump"] = reject_jump
 
         if len(detections) == 0:
+            self._frames_since_accepted += 1
             return FilterResult(detection=None, debug=debug)
 
         # Select best detection (highest confidence)
@@ -116,6 +122,7 @@ class BallFilter:
 
         # Update state
         self._update_state(result)
+        self._frames_since_accepted = 0
 
         return FilterResult(detection=result, debug=debug)
 
@@ -199,6 +206,15 @@ class BallFilter:
 
             min_ratio = self.config.area_ratio_min
             max_ratio = self.config.area_ratio_max
+
+            # Relax area bounds when reference is stale — the older last_bbox
+            # is, the less reliable the area comparison. After 30+ frames of
+            # staleness, area gating is effectively disabled.
+            staleness = self._frames_since_accepted
+            if staleness > 3:
+                decay = min(staleness / 30.0, 1.0)  # ramp 0→1 over 30 frames
+                min_ratio = min_ratio * (1.0 - decay)  # shrinks toward 0
+                max_ratio = max_ratio + (100.0 - max_ratio) * decay  # grows toward 100
 
             if self.config.auto_area:
                 # Dynamic area bounds

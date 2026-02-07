@@ -30,6 +30,7 @@ except ImportError:
 # Configuration
 DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:3000")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "5"))  # seconds
+PITCH_STRIDE = int(os.getenv("PITCH_STRIDE", "25"))  # optical flow fills intermediate frames
 MODELS_DIR = Path(__file__).parent / "models"
 INPUT_DIR = Path(__file__).parent / "input_videos"
 OUTPUT_DIR = Path(__file__).parent / "output_videos"
@@ -226,6 +227,7 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
         "--target-video-path", str(output_video),
         "--mode", pipeline_mode,
         "--device", device,
+        "--analytics",
     ]
     
     # Always use custom models when they exist (fine-tuned models are better)
@@ -245,6 +247,9 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     if pitch_model.exists():
         cmd.extend(["--pitch-model", "custom"])
         log(f"Using custom pitch model: {pitch_model}")
+
+    # Pitch stride — reduces API calls, optical flow interpolates between keyframes
+    cmd.extend(["--pitch-stride", str(PITCH_STRIDE)])
 
     if skip_cache:
         cmd.append("--fresh")
@@ -318,7 +323,9 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     # Load tracking data if available
     video_name = video_path.stem
     tracks_file = STUBS_DIR / video_name / "tracks.pkl"
-    analytics_file = OUTPUT_DIR / f"{video_name}_analytics.json"
+    # Pipeline writes analytics to src/output_videos/{name}/{name}_analytics.json
+    pipeline_output_dir = Path(__file__).parent / "src" / "output_videos"
+    analytics_file = pipeline_output_dir / video_name / f"{video_name}_analytics.json"
     
     if analytics_file.exists():
         with open(analytics_file, "r") as f:

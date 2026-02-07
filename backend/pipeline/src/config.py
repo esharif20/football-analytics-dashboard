@@ -71,8 +71,8 @@ BALL_KALMAN_MAX_GAP = 10
 BALL_AUTO_AREA = False
 BALL_ACQUIRE_CONF = 0.25
 BALL_MAX_ASPECT = 3.0
-BALL_AREA_RATIO_MIN = 0.25
-BALL_AREA_RATIO_MAX = 4.0
+BALL_AREA_RATIO_MIN = 0.15
+BALL_AREA_RATIO_MAX = 6.5
 BALL_MAX_JUMP_RATIO = 8.0
 
 # =============================================================================
