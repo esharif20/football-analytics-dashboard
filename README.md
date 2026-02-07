@@ -9,44 +9,36 @@ Built with **React + FastAPI + MySQL** and a **Python CV pipeline** running on a
 ## System Architecture
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#10b981', 'primaryTextColor': '#e2e8f0', 'primaryBorderColor': '#059669', 'lineColor': '#6b7280', 'secondaryColor': '#1e293b', 'tertiaryColor': '#0f172a', 'mainBkg': '#1e293b', 'nodeBorder': '#334155'}}}%%
+graph TD
+    Browser["Browser<br/><i>React + Vite · localhost:5173</i>"]
 
-flowchart TD
-    subgraph client [" 🖥️  CLIENT "]
-        Browser["<b>Browser</b><br/>React + Vite<br/>localhost:5173"]
-    end
+    Browser -->|"upload video · view results"| API
+    API -.->|"WebSocket · live progress"| Browser
 
-    subgraph local [" 🏠  LOCAL MACHINE "]
-        direction LR
-        API["<b>FastAPI</b><br/>REST API + WebSocket<br/>localhost:8000"]
-        DB[("<b>MySQL 8.0</b><br/>localhost:3307")]
-        Files[("<b>File Storage</b><br/>./uploads/")]
-    end
+    API["FastAPI Server<br/><i>REST API · localhost:8000</i>"]
+    API --> DB["MySQL 8.0<br/><i>localhost:3307</i>"]
+    API --> FS["File Storage<br/><i>./uploads/</i>"]
 
-    subgraph tunnel [" 🌐  NGROK TUNNEL "]
-        ngrok["https://xxx.ngrok-free.dev"]
-    end
+    API <-->|"ngrok tunnel"| Worker
 
-    subgraph cloud [" ☁️  CLOUD GPU — RunPod "]
-        Worker["<b>worker.py</b><br/>Polls for pending jobs"]
-        subgraph pipeline [" 🔬  CV Pipeline "]
-            direction LR
-            D["<b>Detect</b><br/>YOLOv8"]
-            T["<b>Track</b><br/>ByteTrack"]
-            C["<b>Classify</b><br/>SigLIP"]
-            M["<b>Map</b><br/>Homography"]
-            A["<b>Analyse</b><br/>Stats Engine"]
-        end
-    end
+    Worker["worker.py<br/><i>Polls /api/worker/pending</i>"]
+    Worker --> Detect["YOLOv8 Detection"]
+    Detect --> Track["ByteTrack Tracking"]
+    Track --> Classify["SigLIP Team Classification"]
+    Classify --> Map["Homography Mapping"]
+    Map --> Analyse["Analytics Engine"]
+    Analyse -->|"POST results + video"| API
 
-    Browser -- "upload video · view results" --> API
-    API -. "WebSocket · live progress" .-> Browser
-    API --- DB
-    API --- Files
-    API --- ngrok
-    ngrok --- Worker
-    Worker --> D --> T --> C --> M --> A
-    A -- "POST results + video" --> ngrok
+    style Browser fill:#1f2937,stroke:#3b82f6,color:#f0f6fc
+    style API fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style DB fill:#1f2937,stroke:#8b5cf6,color:#f0f6fc
+    style FS fill:#1f2937,stroke:#8b5cf6,color:#f0f6fc
+    style Worker fill:#1f2937,stroke:#f59e0b,color:#f0f6fc
+    style Detect fill:#1f2937,stroke:#f59e0b,color:#f0f6fc
+    style Track fill:#1f2937,stroke:#f59e0b,color:#f0f6fc
+    style Classify fill:#1f2937,stroke:#f59e0b,color:#f0f6fc
+    style Map fill:#1f2937,stroke:#f59e0b,color:#f0f6fc
+    style Analyse fill:#1f2937,stroke:#f59e0b,color:#f0f6fc
 ```
 
 ### The Flow
