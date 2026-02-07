@@ -170,6 +170,69 @@ class TrackAnnotator:
             cv2.LINE_AA,
         )
 
+    def draw_speed_badge(
+        self,
+        frame: np.ndarray,
+        bbox: List[float],
+        speed_kmh: float,
+        distance_m: float,
+    ) -> np.ndarray:
+        """Draw speed/distance text above player ellipse.
+
+        Args:
+            frame: Frame to draw on.
+            bbox: Bounding box [x1, y1, x2, y2].
+            speed_kmh: Current speed in km/h.
+            distance_m: Cumulative distance in meters.
+
+        Returns:
+            Annotated frame.
+        """
+        if speed_kmh < 0.5:
+            return frame
+
+        x_center, _ = get_center_of_bbox(bbox)
+        y1 = int(bbox[1])
+
+        label = f"{speed_kmh:.1f}km/h"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.45
+        thickness = 1
+        text_size, _ = cv2.getTextSize(label, font, font_scale, thickness)
+
+        pad_x, pad_y = 6, 4
+        rect_w = text_size[0] + pad_x * 2
+        rect_h = text_size[1] + pad_y * 2
+        x1_rect = x_center - rect_w // 2
+        y1_rect = y1 - rect_h - 4  # above the bbox top
+
+        # Semi-transparent background
+        overlay = frame.copy()
+        cv2.rectangle(
+            overlay,
+            (x1_rect, y1_rect),
+            (x1_rect + rect_w, y1_rect + rect_h),
+            (0, 0, 0),
+            cv2.FILLED,
+        )
+        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+        # White text
+        text_x = x1_rect + pad_x
+        text_y = y1_rect + pad_y + text_size[1]
+        cv2.putText(
+            frame,
+            label,
+            (text_x, text_y),
+            font,
+            font_scale,
+            (255, 255, 255),
+            thickness,
+            cv2.LINE_AA,
+        )
+
+        return frame
+
     def draw_ball_marker(
         self,
         frame: np.ndarray,
