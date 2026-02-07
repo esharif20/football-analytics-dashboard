@@ -9,34 +9,44 @@ Built with **React + FastAPI + MySQL** and a **Python CV pipeline** running on a
 ## System Architecture
 
 ```mermaid
-graph LR
-    subgraph Browser
-        UI["React Frontend\n:5173"]
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#10b981', 'primaryTextColor': '#e2e8f0', 'primaryBorderColor': '#059669', 'lineColor': '#6b7280', 'secondaryColor': '#1e293b', 'tertiaryColor': '#0f172a', 'mainBkg': '#1e293b', 'nodeBorder': '#334155'}}}%%
+
+flowchart TD
+    subgraph client [" 🖥️  CLIENT "]
+        Browser["<b>Browser</b><br/>React + Vite<br/>localhost:5173"]
     end
 
-    subgraph Local["LOCAL MACHINE"]
-        API["FastAPI\n:8000"]
-        DB[("MySQL\n:3307")]
-        FS[("./uploads/")]
+    subgraph local [" 🏠  LOCAL MACHINE "]
+        direction LR
+        API["<b>FastAPI</b><br/>REST API + WebSocket<br/>localhost:8000"]
+        DB[("<b>MySQL 8.0</b><br/>localhost:3307")]
+        Files[("<b>File Storage</b><br/>./uploads/")]
     end
 
-    subgraph RunPod["CLOUD GPU"]
-        W["worker.py"]
-        P1["YOLOv8\nDetection"]
-        P2["ByteTrack\nTracking"]
-        P3["SigLIP\nTeams"]
-        P4["Homography\nMapping"]
-        P5["Analytics\nEngine"]
+    subgraph tunnel [" 🌐  NGROK TUNNEL "]
+        ngrok["https://xxx.ngrok-free.dev"]
     end
 
-    UI -- "/api proxy" --> API
-    API -- "WebSocket\nprogress" -.-> UI
+    subgraph cloud [" ☁️  CLOUD GPU — RunPod "]
+        Worker["<b>worker.py</b><br/>Polls for pending jobs"]
+        subgraph pipeline [" 🔬  CV Pipeline "]
+            direction LR
+            D["<b>Detect</b><br/>YOLOv8"]
+            T["<b>Track</b><br/>ByteTrack"]
+            C["<b>Classify</b><br/>SigLIP"]
+            M["<b>Map</b><br/>Homography"]
+            A["<b>Analyse</b><br/>Stats Engine"]
+        end
+    end
+
+    Browser -- "upload video · view results" --> API
+    API -. "WebSocket · live progress" .-> Browser
     API --- DB
-    API --- FS
-
-    W == "ngrok tunnel\nGET /api/worker/pending\nPOST progress + results" ==> API
-
-    W --> P1 --> P2 --> P3 --> P4 --> P5
+    API --- Files
+    API --- ngrok
+    ngrok --- Worker
+    Worker --> D --> T --> C --> M --> A
+    A -- "POST results + video" --> ngrok
 ```
 
 ### The Flow
