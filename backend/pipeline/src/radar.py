@@ -36,6 +36,7 @@ from pitch.annotators import render_radar_overlay
 from analytics import AnalyticsEngine, BallPathTracker, print_analytics_summary
 from trackers.track_stabiliser import stabilise_tracks
 from team_assigner import TeamAssigner, TeamAssignerConfig
+from all import _precompute_pitch_keypoints
 from __init__ import Mode
 from base import load_frames, build_tracker, get_stub_path
 
@@ -93,6 +94,7 @@ def run(
     radar_scale: float = 0.25,
     radar_position: str = "bottom_center",
     pitch_backend: str | None = None,
+    pitch_stride: int | None = None,
 ) -> Iterator[np.ndarray]:
     """Run radar pipeline - detection, tracking, team classification with pitch overlay.
 
@@ -114,6 +116,7 @@ def run(
         radar_scale: Scale of radar relative to frame width
         radar_position: Position of radar on frame
         pitch_backend: Optional override for pitch model backend
+        pitch_stride: Pitch keypoint detection stride (None = use config default)
 
     Yields:
         Annotated frames with radar overlay
@@ -204,30 +207,21 @@ def run(
     # Store ball path positions for drawing
     accumulated_ball_positions: List[np.ndarray] = []
 
-    # Precompute pitch keypoints on keyframes only (stride optimization)
-    pitch_vertices_all = np.array(pitch_config.vertices, dtype=np.float32)
-    num_vertices = len(pitch_vertices_all)
-    stride = max(1, PITCH_KEYFRAME_STRIDE)
-    keyframe_indices = list(range(0, len(frames), stride))
-    print(f"Detecting pitch keypoints on {len(keyframe_indices)}/{len(frames)} keyframes (stride={stride})")
+    # Precompute pitch keypoints (with optical flow interpolation for API backend)
+    effective_backend = pitch_backend or PITCH_MODEL_BACKEND
+    effective_stride = pitch_stride if pitch_stride is not None else PITCH_KEYFRAME_STRIDE
 
-    from tqdm import tqdm
-    cached_keypoint_data: dict[int, tuple] = {}
-    for idx in tqdm(keyframe_indices, desc="Pitch keypoints", unit="frame"):
-        keypoints = pitch_detector.detect(frames[idx])
-        if keypoints.confidence is not None and len(keypoints.confidence) > 0:
-            conf_mask = keypoints.confidence[0] > KEYPOINT_CONF_THRESHOLD
-            fk = keypoints.xy[0][conf_mask]
-            pk = pitch_vertices_all[conf_mask]
-        else:
-            conf_mask = np.zeros(num_vertices, dtype=bool)
-            fk = np.array([])
-            pk = np.array([])
-        cached_keypoint_data[idx] = (fk, pk, conf_mask)
+    print("Precomputing pitch keypoints...")
+    pitch_data = _precompute_pitch_keypoints(
+        frames=frames,
+        pitch_detector=pitch_detector,
+        pitch_config=pitch_config,
+        stride=effective_stride,
+        pitch_backend=effective_backend,
+    )
 
     print("Generating radar overlay frames...")
 
-    last_kp_data = cached_keypoint_data[0]
     for frame_idx, frame in enumerate(frames):
         # Get detections for this frame
         players_frame = tracks["players"][frame_idx]
@@ -235,10 +229,11 @@ def run(
         referees_frame = tracks["referees"][frame_idx]
         ball_frame = tracks["ball"][frame_idx]
 
-        # Use cached keypoint data (nearest preceding keyframe)
-        if frame_idx in cached_keypoint_data:
-            last_kp_data = cached_keypoint_data[frame_idx]
-        frame_keypoints, pitch_keypoints, conf_mask = last_kp_data
+        # Use precomputed pitch data (with optical flow warping for intermediate frames)
+        pitch_frame = pitch_data[frame_idx]
+        frame_keypoints = pitch_frame["frame_keypoints"]
+        pitch_keypoints = pitch_frame["pitch_keypoints"]
+        conf_mask = pitch_frame["conf_mask"]
 
         # Create annotated frame with player overlays
         annotated_frame = tracker.draw_annotations([frame], {

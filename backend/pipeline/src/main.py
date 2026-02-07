@@ -49,6 +49,11 @@ def main() -> None:
         max_jump_ratio=args.ball_max_jump,
     )
 
+    # --fresh is shorthand for --no-stub --clear-stub
+    if args.fresh:
+        args.no_stub = True
+        args.clear_stub = True
+
     # Clear stubs if requested
     if args.clear_stub:
         stubs = stub_paths_for_mode(args.source_video_path, args.mode)
@@ -78,6 +83,7 @@ def main() -> None:
         # Pitch debug mode
         debug_pitch=args.debug_pitch,
         pitch_backend=args.pitch_backend,
+        pitch_stride=args.pitch_stride,
     )
 
     # Write output video

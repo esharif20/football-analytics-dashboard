@@ -25,6 +25,7 @@ from config import (
 )
 from utils.drawing import draw_keypoints
 from utils.pitch_detector import PitchDetector
+from utils.camera_motion import estimate_camera_motions, warp_keypoints
 from trackers.track_stabiliser import stabilise_tracks
 from team_assigner import TeamAssigner, TeamAssignerConfig
 from utils.metrics import compute_ball_metrics, print_ball_metrics
@@ -39,6 +40,8 @@ from pitch import (
 )
 from pitch.annotators import render_radar_overlay
 from analytics import AnalyticsEngine, print_analytics_summary, export_analytics_json
+from analytics.kinematics import KinematicsCalculator
+from trackers.annotator import TrackAnnotator
 # Import Mode from __init__ (same directory)
 import sys
 import os
@@ -105,18 +108,26 @@ def _precompute_pitch_keypoints(
     pitch_detector: PitchDetector,
     pitch_config: SoccerPitchConfiguration,
     stride: int = PITCH_KEYFRAME_STRIDE,
+    pitch_backend: str | None = None,
 ) -> list[dict]:
-    """Precompute pitch keypoints, detecting only every `stride` frames.
+    """Precompute pitch keypoints, detecting only every ``stride`` frames.
 
-    Intermediate frames reuse the nearest keyframe result. This cuts
-    API calls (or local inferences) by ~stride×, with negligible quality
-    loss because the camera rarely moves fast enough to invalidate a
-    keypoint set within a few frames.
+    When using the Roboflow API backend (``inference``) with stride > 1,
+    sparse optical flow estimates camera motion between keyframes so that
+    intermediate frames get warped keypoints instead of stale copies.
+
+    When using the local model (``ultralytics``), intermediate frames simply
+    reuse the nearest keyframe result (stride is typically small enough).
     """
     pitch_vertices = np.array(pitch_config.vertices, dtype=np.float32)
     num_vertices = len(pitch_vertices)
     n_frames = len(frames)
     stride = max(1, stride)
+
+    use_optical_flow = (
+        pitch_backend != "ultralytics"
+        and stride > 1
+    )
 
     keyframe_indices = list(range(0, n_frames, stride))
     print(f"Detecting pitch keypoints on {len(keyframe_indices)}/{n_frames} keyframes (stride={stride})")
@@ -128,13 +139,54 @@ def _precompute_pitch_keypoints(
             frames[idx], pitch_detector, pitch_vertices, num_vertices,
         )
 
-    # Fill every frame: use nearest preceding keyframe
-    pitch_data: list[dict] = []
-    last_result = keyframe_results[0]
+    # Estimate camera motions for optical flow interpolation
+    camera_motions = None
+    if use_optical_flow and stride > 1:
+        print("Estimating camera motion via optical flow...")
+        camera_motions = estimate_camera_motions(frames, downscale=0.5)
+
+    # Fill every frame
+    pitch_data: list[dict] = [None] * n_frames  # type: ignore[list-item]
+
     for i in range(n_frames):
         if i in keyframe_results:
-            last_result = keyframe_results[i]
-        pitch_data.append(last_result)
+            pitch_data[i] = keyframe_results[i]
+            continue
+
+        # Find preceding keyframe
+        kf = (i // stride) * stride
+        kf_result = keyframe_results.get(kf, keyframe_results[0])
+
+        if camera_motions is not None and kf_result["frame_keypoints"].shape[0] >= 4:
+            # Accumulate camera motion from keyframe to current frame
+            cumulative_H = np.eye(3, dtype=np.float64)
+            for j in range(kf, i):
+                if j < len(camera_motions):
+                    cumulative_H = camera_motions[j] @ cumulative_H
+
+            warped_frame_kps = warp_keypoints(kf_result["frame_keypoints"], cumulative_H)
+
+            # Recompute full_frame_points with warped keypoints
+            full_frame_points = None
+            if warped_frame_kps.shape[0] >= 4:
+                try:
+                    transformer = ViewTransformer(
+                        source=kf_result["pitch_keypoints"].astype(np.float32),
+                        target=warped_frame_kps.astype(np.float32),
+                    )
+                    full_frame_points = transformer.transform_points(pitch_vertices)
+                except ValueError:
+                    pass
+
+            pitch_data[i] = {
+                "frame_keypoints": warped_frame_kps,
+                "pitch_keypoints": kf_result["pitch_keypoints"],
+                "conf_mask": kf_result["conf_mask"],
+                "full_frame_points": full_frame_points,
+            }
+        else:
+            # Fallback: copy keyframe result (local model path)
+            pitch_data[i] = kf_result
 
     return pitch_data
 
@@ -152,6 +204,7 @@ def run(
     no_radar: bool = False,
     show_analytics: bool = False,
     pitch_backend: str | None = None,
+    pitch_stride: int | None = None,
 ) -> Iterator[np.ndarray]:
     """Run all pipeline - detection, tracking, team classification.
 
@@ -168,6 +221,7 @@ def run(
         no_radar: Whether to hide the radar overlay (default False = show radar)
         show_analytics: Whether to print analytics summary at end
         pitch_backend: Optional override for pitch model backend
+        pitch_stride: Pitch keypoint detection stride (None = use config default)
 
     Yields:
         Annotated frames with full analysis
@@ -267,6 +321,9 @@ def run(
             position_alpha=0.3,  # Lowered for smoother radar positions
         )
 
+    effective_backend = pitch_backend or PITCH_MODEL_BACKEND
+    effective_stride = pitch_stride if pitch_stride is not None else PITCH_KEYFRAME_STRIDE
+
     pitch_data = None
     if pitch_detector is not None:
         print("Precomputing pitch keypoints...")
@@ -274,6 +331,8 @@ def run(
             frames=frames,
             pitch_detector=pitch_detector,
             pitch_config=pitch_config,
+            stride=effective_stride,
+            pitch_backend=effective_backend,
         )
 
     # Analytics engine (only initialized if analytics enabled)
@@ -281,8 +340,58 @@ def run(
     if show_analytics:
         analytics_engine = AnalyticsEngine(fps=DEFAULT_VIDEO_FPS, pitch_config=pitch_config)
 
+    # Build per-frame homographies for speed estimation
+    per_frame_transformers: dict[int, ViewTransformer] = {}
+    if pitch_data is not None:
+        print("Building per-frame homographies for speed estimation...")
+        kin_smoother = HomographySmoother(
+            window_size=10,
+            decay=0.85,
+            min_inliers=4,
+            position_alpha=0.5,
+        )
+        for fi, pd in enumerate(pitch_data):
+            fk = pd["frame_keypoints"]
+            pk = pd["pitch_keypoints"]
+            if fk.shape[0] >= 4:
+                try:
+                    vt = ViewTransformer(
+                        source=fk.astype(np.float32),
+                        target=pk.astype(np.float32),
+                    )
+                    smoothed_m = kin_smoother.update_homography(vt, fi)
+                    if smoothed_m is not None:
+                        vt_smooth = ViewTransformer.__new__(ViewTransformer)
+                        vt_smooth.m = smoothed_m
+                        vt_smooth._inlier_count = vt.inlier_count
+                        per_frame_transformers[fi] = vt_smooth
+                except ValueError:
+                    pass
+
+    print("Computing per-frame speed data for overlay...")
+    kin_calc = KinematicsCalculator(fps=DEFAULT_VIDEO_FPS, pitch_config=pitch_config)
+    if per_frame_transformers:
+        speed_lookup = kin_calc.build_per_frame_lookup(
+            tracks, per_frame_transformers=per_frame_transformers,
+        )
+    else:
+        speed_lookup = kin_calc.build_per_frame_lookup(tracks, transformer=None)
+    speed_annotator = TrackAnnotator()
+
     output_frames = tracker.draw_annotations(frames, tracks)
     for frame_idx, frame in enumerate(output_frames):
+        # Draw speed badges on players and goalkeepers
+        for entity_type in ("players", "goalkeepers"):
+            entity_frame = tracks[entity_type][frame_idx]
+            for track_id, track_data in entity_frame.items():
+                if track_id in speed_lookup and frame_idx in speed_lookup[track_id]:
+                    bbox = track_data.get("bbox")
+                    if bbox is not None:
+                        speed_kmh, dist_m = speed_lookup[track_id][frame_idx]
+                        frame = speed_annotator.draw_speed_badge(
+                            frame, bbox, speed_kmh, dist_m
+                        )
+
         if pitch_data is None:
             yield frame
             continue

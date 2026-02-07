@@ -40,6 +40,7 @@ def get_frame_generator(
     # Pitch debug mode
     debug_pitch: bool = False,
     pitch_backend: str | None = None,
+    pitch_stride: int | None = None,
 ) -> Iterator[np.ndarray]:
     """Get appropriate frame generator for pipeline mode.
 
@@ -127,6 +128,7 @@ def get_frame_generator(
             no_radar=no_radar,
             show_analytics=show_analytics,
             pitch_backend=pitch_backend,
+            pitch_stride=pitch_stride,
         )
 
     if mode == Mode.RADAR:
@@ -146,6 +148,7 @@ def get_frame_generator(
             voronoi_overlay=voronoi_overlay,
             show_analytics=show_analytics,
             pitch_backend=pitch_backend,
+            pitch_stride=pitch_stride,
         )
 
     raise NotImplementedError(f"Mode {mode} is not implemented.")

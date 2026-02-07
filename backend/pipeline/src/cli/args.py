@@ -16,6 +16,7 @@ from config import (
     BALL_AREA_RATIO_MAX,
     BALL_MAX_JUMP_RATIO,
     DETECTION_BATCH_SIZE,
+    PITCH_KEYFRAME_STRIDE,
 )
 from pipeline import Mode
 
@@ -170,6 +171,14 @@ def parse_args() -> argparse.Namespace:
         action="store_const",
         const="ultralytics",
         help="Use local pitch model weights (same as --pitch-backend ultralytics)",
+    )
+    parser.add_argument(
+        "--pitch-stride",
+        dest="pitch_stride",
+        type=int,
+        default=PITCH_KEYFRAME_STRIDE,
+        help=f"Pitch keypoint detection stride (default {PITCH_KEYFRAME_STRIDE}). "
+             "Higher values reduce API calls; optical flow interpolates intermediate frames.",
     )
 
     # Caching (hyphen primary, underscore for backward compat)

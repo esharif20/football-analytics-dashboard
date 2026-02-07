@@ -190,6 +190,7 @@ export default function Upload() {
       const { id: analysisId } = await analysisApi.create({
         videoId: uploadResult.id,
         mode: selectedMode,
+        fresh: freshRun,
       });
 
       setUploadProgress(100);

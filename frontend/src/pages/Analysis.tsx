@@ -212,7 +212,7 @@ export default function Analysis() {
     mutationFn: (data: { type: string; context?: any }) => commentaryApi.generate(analysisId, data),
   });
   const rerunMutation = useMutation({
-    mutationFn: (data: { videoId: number; mode: string }) => analysisApi.create(data),
+    mutationFn: (data: { videoId: number; mode: string; fresh?: boolean }) => analysisApi.create(data),
   });
 
   const handleRerun = useCallback(async (fresh: boolean) => {
@@ -221,6 +221,7 @@ export default function Analysis() {
       const { id } = await rerunMutation.mutateAsync({
         videoId: analysis.videoId,
         mode: analysis.mode as PipelineMode,
+        fresh,
       });
       toast.success(fresh ? "Fresh re-run started" : "Re-run started (using cache)");
       navigate(`/analysis/${id}`);
