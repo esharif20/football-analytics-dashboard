@@ -106,8 +106,12 @@ jspm_packages/
 tmp/
 temp/
 
-# Uploads (runtime data)
+# Pipeline runtime data
 backend/uploads/
+backend/pipeline/cache/
+backend/pipeline/models/
+backend/pipeline/src/output_videos/
+backend/pipeline/src/stubs/
 
 # Database
 *.db
