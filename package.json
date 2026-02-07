@@ -1,20 +1,11 @@
 {
   "name": "football-dashboard",
   "version": "1.0.0",
-  "type": "module",
   "private": true,
   "scripts": {
-    "dev": "cd backend && pnpm dev",
-    "build": "cd frontend && pnpm install && pnpm build && cd ../backend && pnpm install && pnpm build && pnpm install --prod && cp -r node_modules ../dist/node_modules",
-    "test": "cd backend && pnpm test",
-    "db:push": "cd backend && pnpm db:push"
+    "dev": "cd frontend && pnpm dev",
+    "dev:api": "cd backend && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload",
+    "build": "cd frontend && pnpm install && pnpm build"
   },
-  "packageManager": "pnpm@10.4.1",
-  "dependencies": {
-    "@types/multer": "^2.0.0",
-    "multer": "^2.0.2"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.1.18"
-  }
+  "packageManager": "pnpm@10.4.1"
 }

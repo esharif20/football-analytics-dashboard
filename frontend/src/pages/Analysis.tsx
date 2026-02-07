@@ -1,11 +1,13 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { analysisApi, eventsApi, statisticsApi, commentaryApi } from "@/lib/api-local";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Link, useParams, useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -43,6 +45,7 @@ import {
   Shield,
   Flame,
   Move,
+  RotateCcw,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { PIPELINE_MODES, PROCESSING_STAGES, EVENT_TYPES, PipelineMode } from "@/shared/types";
@@ -148,16 +151,18 @@ export default function Analysis() {
     }
   }, []);
 
+  const queryClient = useQueryClient();
+
   const handleWSComplete = useCallback(() => {
     setRealtimeProgress(null);
-    utils.analysis.get.invalidate({ id: analysisId });
-  }, [analysisId]);
+    queryClient.invalidateQueries({ queryKey: ["analysis", analysisId] });
+  }, [analysisId, queryClient]);
 
   const handleWSError = useCallback((error: string) => {
     console.error("WebSocket error:", error);
     setRealtimeProgress(null);
-    utils.analysis.get.invalidate({ id: analysisId });
-  }, [analysisId]);
+    queryClient.invalidateQueries({ queryKey: ["analysis", analysisId] });
+  }, [analysisId, queryClient]);
 
   const { isConnected: wsConnected } = useWebSocket({
     analysisId,
@@ -167,15 +172,12 @@ export default function Analysis() {
     enabled: isAuthenticated && analysisId > 0,
   });
 
-  const utils = trpc.useUtils();
-
-  const { data: analysis, isLoading: analysisLoading } = trpc.analysis.get.useQuery(
-    { id: analysisId },
-    {
-      enabled: isAuthenticated && analysisId > 0,
-      refetchInterval: wsConnected ? 10000 : 2000,
-    }
-  );
+  const { data: analysis, isLoading: analysisLoading } = useQuery({
+    queryKey: ["analysis", analysisId],
+    queryFn: () => analysisApi.get(analysisId),
+    enabled: isAuthenticated && analysisId > 0,
+    refetchInterval: wsConnected ? 10000 : 2000,
+  });
 
   const analysisWithRealtime = useMemo(() => {
     if (!analysis) return null;
@@ -188,22 +190,44 @@ export default function Analysis() {
     };
   }, [analysis, realtimeProgress]);
 
-  const { data: events } = trpc.events.list.useQuery(
-    { analysisId },
-    { enabled: isAuthenticated && analysis?.status === "completed" }
-  );
+  const { data: events } = useQuery({
+    queryKey: ["events", analysisId],
+    queryFn: () => eventsApi.list(analysisId),
+    enabled: isAuthenticated && analysis?.status === "completed",
+  });
 
-  const { data: statistics } = trpc.statistics.get.useQuery(
-    { analysisId },
-    { enabled: isAuthenticated && analysis?.status === "completed" }
-  );
+  const { data: statistics } = useQuery({
+    queryKey: ["statistics", analysisId],
+    queryFn: () => statisticsApi.get(analysisId),
+    enabled: isAuthenticated && analysis?.status === "completed",
+  });
 
-  const { data: commentaryList } = trpc.commentary.list.useQuery(
-    { analysisId },
-    { enabled: isAuthenticated && analysis?.status === "completed" }
-  );
+  const { data: commentaryList } = useQuery({
+    queryKey: ["commentary", analysisId],
+    queryFn: () => commentaryApi.list(analysisId),
+    enabled: isAuthenticated && analysis?.status === "completed",
+  });
 
-  const generateCommentaryMutation = trpc.commentary.generate.useMutation();
+  const generateCommentaryMutation = useMutation({
+    mutationFn: (data: { type: string; context?: any }) => commentaryApi.generate(analysisId, data),
+  });
+  const rerunMutation = useMutation({
+    mutationFn: (data: { videoId: number; mode: string }) => analysisApi.create(data),
+  });
+
+  const handleRerun = useCallback(async (fresh: boolean) => {
+    if (!analysis) return;
+    try {
+      const { id } = await rerunMutation.mutateAsync({
+        videoId: analysis.videoId,
+        mode: analysis.mode as PipelineMode,
+      });
+      toast.success(fresh ? "Fresh re-run started" : "Re-run started (using cache)");
+      navigate(`/analysis/${id}`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to start re-run");
+    }
+  }, [analysis, rerunMutation, navigate]);
 
   const mode = analysis?.mode as PipelineMode;
   const modeConfig = mode ? PIPELINE_MODES[mode] : null;
@@ -284,11 +308,10 @@ export default function Analysis() {
   const handleGenerateCommentary = async (type: "match_summary" | "tactical_analysis") => {
     try {
       await generateCommentaryMutation.mutateAsync({
-        analysisId,
         type,
         context: { events: demoEvents, statistics: demoStats },
       });
-      utils.commentary.list.invalidate({ analysisId });
+      queryClient.invalidateQueries({ queryKey: ["commentary", analysisId] });
       toast.success("Commentary generated!");
     } catch {
       toast.error("Failed to generate commentary");
@@ -384,6 +407,39 @@ export default function Analysis() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Re-run */}
+            {(analysis.status === "completed" || analysis.status === "failed") && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl gap-2 text-xs border-border/30 hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-400 transition-all duration-300"
+                    disabled={rerunMutation.isPending}
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${rerunMutation.isPending ? "animate-spin" : ""}`} />
+                    {rerunMutation.isPending ? "Starting..." : "Re-run"}
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => handleRerun(false)} className="gap-2 cursor-pointer">
+                    <RotateCcw className="w-4 h-4" />
+                    <div>
+                      <div className="font-medium text-xs">Re-run (Use Cache)</div>
+                      <div className="text-[10px] text-muted-foreground">Faster — reuse cached tracking data</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleRerun(true)} className="gap-2 cursor-pointer">
+                    <Flame className="w-4 h-4 text-orange-400" />
+                    <div>
+                      <div className="font-medium text-xs">Re-run (Fresh)</div>
+                      <div className="text-[10px] text-muted-foreground">Full pipeline from scratch, no cache</div>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             {/* Filter Toggle */}
             {analysis.status === "completed" && (
               <Button
@@ -1480,26 +1536,26 @@ function StatusBadge({ status, progress }: { status: string; progress: number })
 
 function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; wsConnected?: boolean }) {
   const currentStageIndex = PROCESSING_STAGES.findIndex((s) => s.id === analysis.currentStage);
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
-  const { data: etaData } = trpc.analysis.getEta.useQuery(
-    { id: analysis.id },
-    {
-      enabled: (analysis.status === "processing" || analysis.status === "pending") && !wsConnected,
-      refetchInterval: wsConnected ? 30000 : 5000,
-    }
-  );
+  const { data: etaData } = useQuery({
+    queryKey: ["analysis-eta", analysis.id],
+    queryFn: () => analysisApi.eta(analysis.id),
+    enabled: (analysis.status === "processing" || analysis.status === "pending") && !wsConnected,
+    refetchInterval: wsConnected ? 30000 : 5000,
+  });
 
   const displayEta = analysis.eta !== undefined ? analysis.eta * 1000 : etaData?.remainingMs;
 
-  const terminateMutation = trpc.analysis.terminate.useMutation({
-    onSuccess: () => { toast.success("Analysis terminated"); utils.analysis.get.invalidate({ id: analysis.id }); },
-    onError: (error) => { toast.error(error.message || "Failed to terminate"); },
+  const terminateMutation = useMutation({
+    mutationFn: () => analysisApi.terminate(analysis.id),
+    onSuccess: () => { toast.success("Analysis terminated"); queryClient.invalidateQueries({ queryKey: ["analysis", analysis.id] }); },
+    onError: (error: any) => { toast.error(error.message || "Failed to terminate"); },
   });
 
   const handleTerminate = () => {
     if (confirm("Are you sure you want to terminate this analysis? This cannot be undone.")) {
-      terminateMutation.mutate({ id: analysis.id });
+      terminateMutation.mutate();
     }
   };
 

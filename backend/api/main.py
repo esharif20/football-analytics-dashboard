@@ -1,110 +1,134 @@
-"""
-Football Analytics - FastAPI Backend
-Simple Python backend - no authentication required
-"""
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import os
+from pathlib import Path
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from contextlib import asynccontextmanager
-import os
-import sys
 
-# Add parent directory to path for pipeline imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from .config import settings
+from .auth import AutoLoginMiddleware
+from .ws import websocket_endpoint
 
-from api.routers import videos, analysis, events, tracks, statistics, auth
-from api.services.database import init_db
-from api.services.websocket_manager import manager
+from .routers import system, videos, analyses, events, tracks, stats, commentary, worker
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database on startup"""
-    init_db()
+    # Ensure uploads directory exists
+    uploads_dir = Path(settings.LOCAL_STORAGE_DIR)
+    uploads_dir.mkdir(parents=True, exist_ok=True)
     yield
 
-app = FastAPI(
-    title="Football Analytics API",
-    description="Computer Vision Pipeline for Football Match Analysis",
-    version="1.0.0",
-    lifespan=lifespan,
-)
 
-# CORS - allow all origins for local development
+app = FastAPI(title="Football Analytics Dashboard API", lifespan=lifespan)
+
+# CORS — allow the Vite dev server and any local origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
-app.include_router(videos.router, prefix="/api/videos", tags=["Videos"])
-app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
-app.include_router(events.router, prefix="/api/events", tags=["Events"])
-app.include_router(tracks.router, prefix="/api/tracks", tags=["Tracks"])
-app.include_router(statistics.router, prefix="/api/statistics", tags=["Statistics"])
+# Auto-login middleware (dev mode: every request gets a user)
+app.add_middleware(AutoLoginMiddleware)
 
-# WebSocket endpoint for real-time updates
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    await manager.connect(websocket, client_id)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            if data.get("type") == "subscribe":
-                analysis_id = data.get("analysisId")
-                if analysis_id:
-                    manager.subscribe(client_id, f"analysis:{analysis_id}")
-            elif data.get("type") == "unsubscribe":
-                analysis_id = data.get("analysisId")
-                if analysis_id:
-                    manager.unsubscribe(client_id, f"analysis:{analysis_id}")
-    except WebSocketDisconnect:
-        manager.disconnect(client_id)
+# Static file serving for /uploads
+uploads_path = Path(settings.LOCAL_STORAGE_DIR)
+uploads_path.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
 
-@app.get("/api/health")
-async def health_check():
-    return {"status": "healthy", "service": "football-analytics"}
+# WebSocket endpoint for real-time progress
+app.websocket("/ws/{analysis_id}")(websocket_endpoint)
 
-# Serve output files (annotated videos, etc.)
-output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "outputs")
-os.makedirs(output_dir, exist_ok=True)
+# Auth endpoints (outside /api prefix for simplicity)
+from fastapi import APIRouter, Depends, Request
+from .deps import get_current_user, get_db
+from .models import User
+from .schemas import _row_to_dict
 
-@app.get("/api/outputs/{analysis_id}/{filename}")
-async def serve_output_file(analysis_id: int, filename: str):
-    """Serve output files (annotated videos, etc.)"""
-    file_path = os.path.join(output_dir, str(analysis_id), filename)
-    if not os.path.exists(file_path):
-        return {"error": "File not found"}
-    return FileResponse(file_path)
+auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# Serve static files (for production build of React frontend)
-frontend_build_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
-if os.path.exists(frontend_build_path):
-    # Serve assets
-    assets_path = os.path.join(frontend_build_path, "assets")
-    if os.path.exists(assets_path):
-        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
-    
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        """Serve React frontend for all non-API routes"""
-        if full_path.startswith("api/") or full_path.startswith("ws"):
-            return {"error": "Not found"}
-        
-        file_path = os.path.join(frontend_build_path, full_path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(frontend_build_path, "index.html"))
 
-if __name__ == "__main__":
-    import uvicorn
-    print("\n" + "="*60)
-    print("  Football Analytics Dashboard")
-    print("  Open http://localhost:8000 in your browser")
-    print("  API docs at http://localhost:8000/docs")
-    print("="*60 + "\n")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@auth_router.get("/me")
+async def auth_me(request: Request):
+    user = getattr(request.state, "user", None)
+    if user is None:
+        return None
+    return _row_to_dict(user)
+
+
+@auth_router.post("/auto-login")
+async def auto_login(request: Request):
+    user = getattr(request.state, "user", None)
+    if user is None:
+        return None
+    return _row_to_dict(user)
+
+
+@auth_router.post("/logout")
+async def logout():
+    return {"success": True}
+
+
+app.include_router(auth_router)
+
+# Multipart video upload endpoint (matches /api/upload/video used by Upload.tsx)
+from fastapi import UploadFile, File, Form
+import time
+from .storage import storage_put
+from .models import Video as VideoModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+@app.post("/api/upload/video")
+async def upload_video_multipart(
+    request: Request,
+    video: UploadFile = File(...),
+    title: str = Form(""),
+    description: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    user = getattr(request.state, "user", None)
+    if user is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    file_bytes = await video.read()
+    file_name = video.filename or "video.mp4"
+    mime_type = video.content_type or "video/mp4"
+
+    if not title:
+        title = file_name
+
+    file_key = f"videos/{user.id}/{int(time.time() * 1000)}-{file_name}"
+    result = await storage_put(file_key, file_bytes, mime_type)
+    url = result["url"]
+
+    video_record = VideoModel(
+        userId=user.id,
+        title=title,
+        description=description or None,
+        originalUrl=url,
+        fileKey=file_key,
+        fileSize=len(file_bytes),
+        mimeType=mime_type,
+    )
+    db.add(video_record)
+    await db.commit()
+    await db.refresh(video_record)
+
+    return {"id": video_record.id, "url": url}
+
+
+# Mount all API routers under /api prefix
+app.include_router(system.router, prefix="/api")
+app.include_router(videos.router, prefix="/api")
+app.include_router(analyses.router, prefix="/api")
+app.include_router(events.router, prefix="/api")
+app.include_router(tracks.router, prefix="/api")
+app.include_router(stats.router, prefix="/api")
+app.include_router(commentary.router, prefix="/api")
+app.include_router(worker.router, prefix="/api")

@@ -17,6 +17,7 @@ from config import (
     PITCH_MODEL_ID,
     PITCH_MODEL_IMG_SIZE,
     PITCH_MODEL_STRETCH,
+    PITCH_KEYFRAME_STRIDE,
     ROBOFLOW_API_KEY_ENV,
 )
 from utils.pitch_detector import PitchDetector
@@ -203,8 +204,30 @@ def run(
     # Store ball path positions for drawing
     accumulated_ball_positions: List[np.ndarray] = []
 
+    # Precompute pitch keypoints on keyframes only (stride optimization)
+    pitch_vertices_all = np.array(pitch_config.vertices, dtype=np.float32)
+    num_vertices = len(pitch_vertices_all)
+    stride = max(1, PITCH_KEYFRAME_STRIDE)
+    keyframe_indices = list(range(0, len(frames), stride))
+    print(f"Detecting pitch keypoints on {len(keyframe_indices)}/{len(frames)} keyframes (stride={stride})")
+
+    from tqdm import tqdm
+    cached_keypoint_data: dict[int, tuple] = {}
+    for idx in tqdm(keyframe_indices, desc="Pitch keypoints", unit="frame"):
+        keypoints = pitch_detector.detect(frames[idx])
+        if keypoints.confidence is not None and len(keypoints.confidence) > 0:
+            conf_mask = keypoints.confidence[0] > KEYPOINT_CONF_THRESHOLD
+            fk = keypoints.xy[0][conf_mask]
+            pk = pitch_vertices_all[conf_mask]
+        else:
+            conf_mask = np.zeros(num_vertices, dtype=bool)
+            fk = np.array([])
+            pk = np.array([])
+        cached_keypoint_data[idx] = (fk, pk, conf_mask)
+
     print("Generating radar overlay frames...")
 
+    last_kp_data = cached_keypoint_data[0]
     for frame_idx, frame in enumerate(frames):
         # Get detections for this frame
         players_frame = tracks["players"][frame_idx]
@@ -212,17 +235,10 @@ def run(
         referees_frame = tracks["referees"][frame_idx]
         ball_frame = tracks["ball"][frame_idx]
 
-        # Run pitch keypoint detection
-        keypoints = pitch_detector.detect(frame)
-
-        # Filter low confidence keypoints
-        if keypoints.confidence is not None and len(keypoints.confidence) > 0:
-            conf_mask = keypoints.confidence[0] > KEYPOINT_CONF_THRESHOLD
-            frame_keypoints = keypoints.xy[0][conf_mask]
-            pitch_keypoints = np.array(pitch_config.vertices)[conf_mask]
-        else:
-            frame_keypoints = np.array([])
-            pitch_keypoints = np.array([])
+        # Use cached keypoint data (nearest preceding keyframe)
+        if frame_idx in cached_keypoint_data:
+            last_kp_data = cached_keypoint_data[frame_idx]
+        frame_keypoints, pitch_keypoints, conf_mask = last_kp_data
 
         # Create annotated frame with player overlays
         annotated_frame = tracker.draw_annotations([frame], {

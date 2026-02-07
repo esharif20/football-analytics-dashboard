@@ -1,6 +1,6 @@
 import { getLoginUrl } from "@/const";
-import { trpc } from "@/lib/trpc";
-import { TRPCClientError } from "@trpc/client";
+import { authApi } from "@/lib/api-local";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 
 type UseAuthOptions = {
@@ -11,35 +11,32 @@ type UseAuthOptions = {
 export function useAuth(options?: UseAuthOptions) {
   const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
     options ?? {};
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
-  const meQuery = trpc.auth.me.useQuery(undefined, {
+  const meQuery = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => authApi.me(),
     retry: false,
     refetchOnWindowFocus: false,
   });
 
-  const logoutMutation = trpc.auth.logout.useMutation({
+  const logoutMutation = useMutation({
+    mutationFn: () => authApi.logout(),
     onSuccess: () => {
-      utils.auth.me.setData(undefined, null);
+      queryClient.setQueryData(["auth", "me"], null);
     },
   });
 
   const logout = useCallback(async () => {
     try {
       await logoutMutation.mutateAsync();
-    } catch (error: unknown) {
-      if (
-        error instanceof TRPCClientError &&
-        error.data?.code === "UNAUTHORIZED"
-      ) {
-        return;
-      }
-      throw error;
+    } catch {
+      // ignore logout errors
     } finally {
-      utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
+      queryClient.setQueryData(["auth", "me"], null);
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     }
-  }, [logoutMutation, utils]);
+  }, [logoutMutation, queryClient]);
 
   const state = useMemo(() => {
     localStorage.setItem(
@@ -67,7 +64,7 @@ export function useAuth(options?: UseAuthOptions) {
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath
+    window.location.href = redirectPath;
   }, [
     redirectOnUnauthenticated,
     redirectPath,

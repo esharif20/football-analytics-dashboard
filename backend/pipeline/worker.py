@@ -199,7 +199,7 @@ MODE_MAPPING = {
 }
 
 
-def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Dict[str, str]) -> Dict:
+def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Dict[str, str], skip_cache: bool = False) -> Dict:
     """Run the CV pipeline on a video."""
     global _processing_start_time
     
@@ -245,7 +245,11 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     if pitch_model.exists():
         cmd.extend(["--pitch-model", "custom"])
         log(f"Using custom pitch model: {pitch_model}")
-    
+
+    if skip_cache:
+        cmd.append("--fresh")
+        log("Fresh run requested — skipping stubs cache")
+
     log(f"Running pipeline: {' '.join(cmd)}")
     
     # Set up environment - ensure src/ is on PYTHONPATH for subprocess
@@ -363,33 +367,35 @@ def process_pending_analysis(analysis: Dict) -> bool:
     video_id = analysis.get("videoId")
     mode = analysis.get("mode", "all")
     model_config = analysis.get("modelConfig", {})
-    
-    log(f"Processing analysis {analysis_id} (mode: {mode})")
-    
+    skip_cache = analysis.get("skipCache", False)
+
+    log(f"Processing analysis {analysis_id} (mode: {mode}, fresh: {skip_cache})")
+
     # Update status to processing
     update_analysis_status(analysis_id, "processing", "downloading", 5)
-    
+
     # Download video
     video_path = download_video(video_url, video_id)
     if not video_path:
         update_analysis_status(analysis_id, "failed", error="Failed to download video")
         return False
-    
+
     update_analysis_status(analysis_id, "processing", "loading", 10)
-    
-    # Check cache
+
+    # Check cache (skip if fresh run requested)
     video_hash = compute_video_hash(video_path)
     cache_key = get_cache_key(video_hash, mode, model_config)
-    
-    cached_results = check_cache(cache_key)
-    if cached_results:
-        log(f"Cache hit! Using cached results for {cache_key}")
-        # Post cached results
-        api_request(f"/worker/analysis/{analysis_id}/complete", "POST", cached_results)
-        return True
-    
+
+    if not skip_cache:
+        cached_results = check_cache(cache_key)
+        if cached_results:
+            log(f"Cache hit! Using cached results for {cache_key}")
+            # Post cached results
+            api_request(f"/worker/analysis/{analysis_id}/complete", "POST", cached_results)
+            return True
+
     # Run pipeline
-    results = run_pipeline(video_path, analysis_id, mode, model_config)
+    results = run_pipeline(video_path, analysis_id, mode, model_config, skip_cache=skip_cache)
     
     if results.get("success"):
         # Upload annotated video to S3

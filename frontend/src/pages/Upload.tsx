@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { analysisApi } from "@/lib/api-local";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,7 @@ import { Link } from "wouter";
 import { PIPELINE_MODES, PipelineMode } from "@/shared/types";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, Cloud, Sparkles, Video, Camera, Lock } from "lucide-react";
+import { Cpu, Cloud, Sparkles, Video, Camera, Lock, RotateCcw } from "lucide-react";
 
 const MODE_ICONS: Record<PipelineMode, React.ReactNode> = {
   all: <Layers className="w-5 h-5" />,
@@ -53,10 +53,11 @@ export default function Upload() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [useCustomModels, setUseCustomModels] = useState(true);
+  const [freshRun, setFreshRun] = useState(false);
   const [cameraType, setCameraType] = useState<"tactical" | "broadcast">("tactical");
 
-  const uploadMutation = trpc.video.upload.useMutation();
-  const createAnalysisMutation = trpc.analysis.create.useMutation();
+  // Video upload uses XHR (multipart) below — no mutation needed
+  // Analysis creation uses the REST API directly
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -186,7 +187,7 @@ export default function Upload() {
       setTimeRemaining(0);
 
       // Create analysis job
-      const { id: analysisId } = await createAnalysisMutation.mutateAsync({
+      const { id: analysisId } = await analysisApi.create({
         videoId: uploadResult.id,
         mode: selectedMode,
       });
@@ -542,6 +543,42 @@ export default function Upload() {
                   </div>
                 </button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Fresh Run Toggle */}
+          <Card>
+            <CardContent className="pt-6">
+              <button
+                type="button"
+                onClick={() => setFreshRun(!freshRun)}
+                className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
+                  freshRun
+                    ? "border-orange-500/50 bg-orange-500/5"
+                    : "border-border hover:border-primary/30"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    freshRun ? "bg-orange-500 text-white" : "bg-secondary"
+                  }`}>
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <span className="font-semibold">Fresh Run</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Skip cached tracking data and re-run the full pipeline from scratch
+                    </p>
+                  </div>
+                </div>
+                <div className={`w-11 h-6 rounded-full transition-colors ${
+                  freshRun ? "bg-orange-500" : "bg-secondary"
+                }`}>
+                  <div className={`w-5 h-5 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${
+                    freshRun ? "translate-x-5.5 ml-[22px]" : "ml-0.5"
+                  }`} />
+                </div>
+              </button>
             </CardContent>
           </Card>
 

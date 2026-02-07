@@ -20,27 +20,33 @@ from config import STUB_DIR
 
 
 def get_video_hash(video_path: str) -> str:
-    """Generate a hash of the video file for cache validation.
-    
-    Uses file size and modification time for fast hashing without
-    reading the entire file.
-    
+    """Generate a content-based hash of the video file.
+
+    Reads the first 8 MB + file size so identical clips get the same
+    hash even when uploaded under different filenames.
+
     Args:
         video_path: Path to the video file
-        
+
     Returns:
         Hash string for the video
     """
     path = Path(video_path)
     if not path.exists():
         return ""
-    stat = path.stat()
-    hash_input = f"{path.name}_{stat.st_size}_{stat.st_mtime}"
-    return hashlib.md5(hash_input.encode()).hexdigest()[:12]
+    h = hashlib.sha256()
+    h.update(str(path.stat().st_size).encode())
+    with open(path, "rb") as f:
+        # First 8 MB is enough to identify the clip
+        h.update(f.read(8 * 1024 * 1024))
+    return h.hexdigest()[:16]
 
 
 def stub_path(source_video_path: str, mode: "Mode") -> Path:
     """Generate stub file path for caching.
+
+    Uses a content hash so the same video re-uploaded under a different
+    filename still hits the cache.
 
     Args:
         source_video_path: Path to source video
@@ -53,14 +59,14 @@ def stub_path(source_video_path: str, mode: "Mode") -> Path:
     from pipeline import Mode
 
     STUB_DIR.mkdir(parents=True, exist_ok=True)
-    stem = Path(source_video_path).stem
+    video_hash = get_video_hash(source_video_path)
     if mode in {Mode.PLAYER_DETECTION, Mode.PLAYER_TRACKING, Mode.TEAM_CLASSIFICATION}:
         stub_key = "people_tracks"
     elif mode == Mode.BALL_DETECTION:
         stub_key = "ball_tracks"
     else:
         stub_key = mode.value.lower()
-    return STUB_DIR / f"{stem}_{stub_key}.pkl"
+    return STUB_DIR / f"{video_hash}_{stub_key}.pkl"
 
 
 def stub_paths_for_mode(source_video_path: str, mode: "Mode") -> List[Path]:

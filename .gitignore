@@ -46,6 +46,11 @@ pids
 *.pid.lock
 *.bak
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
@@ -100,6 +105,9 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+
+# Uploads (runtime data)
+backend/uploads/
 
 # Database
 *.db

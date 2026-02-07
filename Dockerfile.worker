@@ -1,10 +1,12 @@
 # Football Analytics Worker
-# Runs the CV pipeline to process videos
+# Runs the CV pipeline on a GPU to process videos
+# Build: docker build -f Dockerfile.worker -t football-worker .
+# Run:   docker run -e DASHBOARD_URL=https://xxx.ngrok-free.dev football-worker
 
 FROM python:3.11-slim
 
 # Install system dependencies for OpenCV and video processing
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -12,14 +14,16 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libgomp1 \
     ffmpeg \
-    && apt-get clean \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy pipeline requirements and install
-COPY backend/pipeline/requirements.txt ./backend/pipeline/
-RUN pip install --no-cache-dir -r backend/pipeline/requirements.txt
+COPY backend/pipeline/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir requests
 
 # Copy pipeline code
 COPY backend/pipeline ./backend/pipeline
@@ -29,11 +33,11 @@ RUN mkdir -p backend/pipeline/models \
     backend/pipeline/input_videos \
     backend/pipeline/output_videos \
     backend/pipeline/stubs \
-    backend/pipeline/cache \
-    backend/data
+    backend/pipeline/cache
 
-# Set working directory
 WORKDIR /app/backend/pipeline
+
+ENV PYTHONUNBUFFERED=1
 
 # Run worker
 CMD ["python", "worker.py"]
