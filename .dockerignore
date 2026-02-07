@@ -1,18 +1,16 @@
-# Dependencies (installed in container)
+# Dependencies
 node_modules
 **/node_modules
 frontend/node_modules
-backend/node_modules
 
 # Build outputs
 frontend/dist
 dist
-.next
-build
 
 # Data and cache
-data
-backend/data
+__pycache__
+**/__pycache__
+*.pyc
 .cache
 **/.cache
 coverage
@@ -34,12 +32,10 @@ docker/
 
 # Logs
 *.log
-.manus-logs
 
 # Environment files (secrets)
 .env
 .env.*
-!.env.example
 
-# Python pipeline (not needed in web container)
-backend/pipeline
+# Uploads (runtime data)
+backend/uploads

@@ -40,7 +40,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
     // Determine WebSocket URL based on current location
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws/${analysisId}`;
 
     try {
       const ws = new WebSocket(wsUrl);

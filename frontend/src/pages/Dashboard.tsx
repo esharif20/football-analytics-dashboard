@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { videosApi, analysisApi } from "@/lib/api-local";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,29 +27,35 @@ import { PIPELINE_MODES, PipelineMode } from "@/shared/types";
 export default function Dashboard() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
 
-  const { data: videos, isLoading: videosLoading } = trpc.video.list.useQuery(undefined, {
+  const { data: videos, isLoading: videosLoading } = useQuery({
+    queryKey: ["videos"],
+    queryFn: () => videosApi.list(),
     enabled: isAuthenticated,
   });
 
-  const { data: analyses, isLoading: analysesLoading } = trpc.analysis.list.useQuery(undefined, {
+  const { data: analyses, isLoading: analysesLoading } = useQuery({
+    queryKey: ["analyses"],
+    queryFn: () => analysisApi.list(),
     enabled: isAuthenticated,
   });
 
-  const deleteVideoMutation = trpc.video.delete.useMutation();
-  const utils = trpc.useUtils();
+  const deleteVideoMutation = useMutation({
+    mutationFn: (videoId: number) => videosApi.delete(videoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
+      queryClient.invalidateQueries({ queryKey: ["analyses"] });
+      toast.success("Video deleted successfully");
+    },
+    onError: () => {
+      toast.error("Failed to delete video");
+    },
+  });
 
   const handleDeleteVideo = async (videoId: number) => {
     if (!confirm("Are you sure you want to delete this video?")) return;
-    
-    try {
-      await deleteVideoMutation.mutateAsync({ id: videoId });
-      utils.video.list.invalidate();
-      utils.analysis.list.invalidate();
-      toast.success("Video deleted successfully");
-    } catch (error) {
-      toast.error("Failed to delete video");
-    }
+    deleteVideoMutation.mutate(videoId);
   };
 
   if (authLoading) {
@@ -78,7 +85,7 @@ export default function Dashboard() {
   }
 
   const recentAnalyses = analyses?.slice(0, 5) || [];
-  const processingAnalyses = analyses?.filter(a => a.status === "processing") || [];
+  const processingAnalyses = analyses?.filter((a: any) => a.status === "processing") || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,7 +136,7 @@ export default function Dashboard() {
           />
           <StatCard
             title="Completed"
-            value={analyses?.filter(a => a.status === "completed").length || 0}
+            value={analyses?.filter((a: any) => a.status === "completed").length || 0}
             icon={<CheckCircle2 className="w-5 h-5" />}
           />
         </div>
@@ -161,7 +168,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {recentAnalyses.map(analysis => (
+                    {recentAnalyses.map((analysis: any) => (
                       <AnalysisCard key={analysis.id} analysis={analysis} />
                     ))}
                   </div>
@@ -191,7 +198,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {videos?.slice(0, 5).map(video => (
+                    {videos?.slice(0, 5).map((video: any) => (
                       <div
                         key={video.id}
                         className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"

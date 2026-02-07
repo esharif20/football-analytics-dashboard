@@ -20,6 +20,7 @@ from config import (
     PITCH_MODEL_ID,
     PITCH_MODEL_IMG_SIZE,
     PITCH_MODEL_STRETCH,
+    PITCH_KEYFRAME_STRIDE,
     ROBOFLOW_API_KEY_ENV,
 )
 from utils.drawing import draw_keypoints
@@ -56,51 +57,84 @@ KEYPOINT_CONF_THRESHOLD = 0.5
 PITCH_MODEL_CONF_THRESHOLD = 0.3
 
 
+def _detect_single_frame(
+    frame: np.ndarray,
+    pitch_detector: PitchDetector,
+    pitch_vertices: np.ndarray,
+    num_vertices: int,
+) -> dict:
+    """Run pitch keypoint detection on a single frame."""
+    keypoints = pitch_detector.detect(frame)
+
+    conf_mask = np.zeros(num_vertices, dtype=bool)
+    frame_keypoints = np.empty((0, 2), dtype=np.float32)
+    pitch_keypoints = np.empty((0, 2), dtype=np.float32)
+
+    if keypoints.confidence is not None and len(keypoints.confidence) > 0:
+        conf = keypoints.confidence[0]
+        if conf.shape[0] == num_vertices:
+            conf_mask = conf > KEYPOINT_CONF_THRESHOLD
+
+    if conf_mask.any() and keypoints.xy is not None and len(keypoints.xy) > 0:
+        xy = keypoints.xy[0]
+        if xy.shape[0] == num_vertices:
+            frame_keypoints = xy[conf_mask].astype(np.float32)
+            pitch_keypoints = pitch_vertices[conf_mask]
+
+    full_frame_points = None
+    if frame_keypoints.shape[0] >= 4:
+        try:
+            transformer = ViewTransformer(
+                source=pitch_keypoints.astype(np.float32),
+                target=frame_keypoints.astype(np.float32)
+            )
+            full_frame_points = transformer.transform_points(pitch_vertices)
+        except ValueError:
+            pass
+
+    return {
+        "frame_keypoints": frame_keypoints,
+        "pitch_keypoints": pitch_keypoints,
+        "conf_mask": conf_mask,
+        "full_frame_points": full_frame_points,
+    }
+
+
 def _precompute_pitch_keypoints(
     frames: list[np.ndarray],
     pitch_detector: PitchDetector,
     pitch_config: SoccerPitchConfiguration,
+    stride: int = PITCH_KEYFRAME_STRIDE,
 ) -> list[dict]:
-    """Precompute pitch keypoints for all frames using local YOLO model."""
+    """Precompute pitch keypoints, detecting only every `stride` frames.
+
+    Intermediate frames reuse the nearest keyframe result. This cuts
+    API calls (or local inferences) by ~stride×, with negligible quality
+    loss because the camera rarely moves fast enough to invalidate a
+    keypoint set within a few frames.
+    """
     pitch_vertices = np.array(pitch_config.vertices, dtype=np.float32)
     num_vertices = len(pitch_vertices)
-    pitch_data = []
+    n_frames = len(frames)
+    stride = max(1, stride)
 
-    for frame in tqdm(frames, desc="Pitch keypoints", unit="frame"):
-        keypoints = pitch_detector.detect(frame)
+    keyframe_indices = list(range(0, n_frames, stride))
+    print(f"Detecting pitch keypoints on {len(keyframe_indices)}/{n_frames} keyframes (stride={stride})")
 
-        conf_mask = np.zeros(num_vertices, dtype=bool)
-        frame_keypoints = np.empty((0, 2), dtype=np.float32)
-        pitch_keypoints = np.empty((0, 2), dtype=np.float32)
+    # Detect on keyframes only
+    keyframe_results: dict[int, dict] = {}
+    for idx in tqdm(keyframe_indices, desc="Pitch keypoints", unit="frame"):
+        keyframe_results[idx] = _detect_single_frame(
+            frames[idx], pitch_detector, pitch_vertices, num_vertices,
+        )
 
-        if keypoints.confidence is not None and len(keypoints.confidence) > 0:
-            conf = keypoints.confidence[0]
-            if conf.shape[0] == num_vertices:
-                conf_mask = conf > KEYPOINT_CONF_THRESHOLD
-
-        if conf_mask.any() and keypoints.xy is not None and len(keypoints.xy) > 0:
-            xy = keypoints.xy[0]
-            if xy.shape[0] == num_vertices:
-                frame_keypoints = xy[conf_mask].astype(np.float32)
-                pitch_keypoints = pitch_vertices[conf_mask]
-
-        full_frame_points = None
-        if frame_keypoints.shape[0] >= 4:
-            try:
-                transformer = ViewTransformer(
-                    source=pitch_keypoints.astype(np.float32),
-                    target=frame_keypoints.astype(np.float32)
-                )
-                full_frame_points = transformer.transform_points(pitch_vertices)
-            except ValueError:
-                pass
-
-        pitch_data.append({
-            "frame_keypoints": frame_keypoints,
-            "pitch_keypoints": pitch_keypoints,
-            "conf_mask": conf_mask,
-            "full_frame_points": full_frame_points,
-        })
+    # Fill every frame: use nearest preceding keyframe
+    pitch_data: list[dict] = []
+    last_result = keyframe_results[0]
+    for i in range(n_frames):
+        if i in keyframe_results:
+            last_result = keyframe_results[i]
+        pitch_data.append(last_result)
 
     return pitch_data
 

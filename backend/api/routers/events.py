@@ -1,55 +1,64 @@
-"""
-Events Router - Match events management
-"""
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Optional, List, Any
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.services.database import get_analysis_by_id
+from ..deps import get_db, get_current_user
+from ..models import User, Analysis, Event
+from ..schemas import EventsCreate, _row_to_dict
 
-router = APIRouter()
+router = APIRouter(prefix="/events", tags=["events"])
 
-class EventCreate(BaseModel):
-    type: str
-    frameNumber: int
-    timestamp: float
-    playerId: Optional[int] = None
-    teamId: Optional[int] = None
-    targetPlayerId: Optional[int] = None
-    startX: Optional[float] = None
-    startY: Optional[float] = None
-    endX: Optional[float] = None
-    endY: Optional[float] = None
-    success: Optional[bool] = None
-    confidence: Optional[float] = None
-    metadata: Optional[Any] = None
 
-class EventsCreateRequest(BaseModel):
-    analysisId: int
-    events: List[EventCreate]
+async def _verify_analysis_owner(analysis_id: int, user: User, db: AsyncSession) -> Analysis:
+    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
+    analysis = result.scalar_one_or_none()
+    if not analysis or analysis.userId != user.id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return analysis
+
 
 @router.get("/{analysis_id}")
-async def list_events(analysis_id: int):
-    """List all events for an analysis"""
-    analysis = get_analysis_by_id(analysis_id)
-    if not analysis:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-    # Events would be loaded from analytics JSON
-    return []
+async def list_events(analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await _verify_analysis_owner(analysis_id, user, db)
+    result = await db.execute(
+        select(Event).where(Event.analysisId == analysis_id).order_by(Event.frameNumber)
+    )
+    return [_row_to_dict(r) for r in result.scalars().all()]
+
 
 @router.get("/{analysis_id}/by-type/{event_type}")
-async def list_events_by_type(analysis_id: int, event_type: str):
-    """List events of a specific type"""
-    analysis = get_analysis_by_id(analysis_id)
-    if not analysis:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-    return []
+async def list_events_by_type(analysis_id: int, event_type: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await _verify_analysis_owner(analysis_id, user, db)
+    result = await db.execute(
+        select(Event)
+        .where(and_(Event.analysisId == analysis_id, Event.type == event_type))
+        .order_by(Event.frameNumber)
+    )
+    return [_row_to_dict(r) for r in result.scalars().all()]
+
 
 @router.post("")
-async def create_new_events(data: EventsCreateRequest):
-    """Create multiple events"""
-    analysis = get_analysis_by_id(data.analysisId)
-    if not analysis:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-    # Events are stored in analytics JSON, not separate table
-    return {"success": True, "count": len(data.events)}
+async def create_events(body: EventsCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await _verify_analysis_owner(body.analysisId, user, db)
+
+    for e in body.events:
+        event = Event(
+            analysisId=body.analysisId,
+            type=e.type,
+            frameNumber=e.frameNumber,
+            timestamp=e.timestamp,
+            playerId=e.playerId,
+            teamId=e.teamId,
+            targetPlayerId=e.targetPlayerId,
+            startX=e.startX,
+            startY=e.startY,
+            endX=e.endX,
+            endY=e.endY,
+            success=e.success,
+            confidence=e.confidence,
+            event_metadata=e.metadata,
+        )
+        db.add(event)
+
+    await db.commit()
+    return {"success": True, "count": len(body.events)}

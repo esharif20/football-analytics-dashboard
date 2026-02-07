@@ -1,112 +1,239 @@
-# Football Analysis Dashboard
+# Football Analytics Dashboard
 
-A full-stack application for analyzing football match footage using computer vision and AI. Upload tactical wide-shot videos and get real-time player tracking, team classification, heatmaps, pass networks, and AI-generated tactical commentary.
+Full-stack sports analytics platform — upload football match footage, get real-time player tracking, team classification, heatmaps, pass networks, and AI tactical commentary.
+
+Built with React + FastAPI + MySQL + a Python CV pipeline running on a cloud GPU.
 
 ---
 
-## Quick Start (Docker)
+## How It Works
 
-**Easiest way - just need Docker installed:**
+```
+    LOCAL MACHINE                                 CLOUD GPU (RunPod)
+   ──────────────                                ──────────────────
+
+   ┌────────────────────────┐
+   │    Docker MySQL 8.0    │
+   │    localhost:3307       │
+   └───────────┬────────────┘
+               │
+               ▼
+   ┌────────────────────────┐        ngrok tunnel        ┌──────────────────────────┐
+   │  FastAPI    :8000      │ ◄──────────────────────── │  worker.py               │
+   │  Vite Dev   :5173      │  https://xxx.ngrok.dev     │                          │
+   │                         │ ────────────────────────► │  Polls /api/worker/      │
+   │  ┌───────┐ ┌─────────┐ │                            │  pending every 5s        │
+   │  │React  │ │ FastAPI  │ │   1. GET  pending jobs     │                          │
+   │  │Front- │ │ REST API │ │   2. Downloads video       │  ┌──────────────────┐   │
+   │  │end    │ │ + WS     │ │   3. POST progress         │  │ CV Pipeline      │   │
+   │  │       │ │         │ │   4. POST results          │  │                  │   │
+   │  └───────┘ └─────────┘ │                            │  │ YOLOv8 detect    │   │
+   │                         │                            │  │ ByteTrack track  │   │
+   │  Uploads → ./uploads/   │                            │  │ SigLIP teams     │   │
+   └────────────────────────┘                            │  │ Homography map   │   │
+                                                          │  │ Analytics stats  │   │
+         Browser                                          │  └──────────────────┘   │
+     http://localhost:5173                                └──────────────────────────┘
+```
+
+**The flow:**
+
+1. You upload a video in the browser
+2. FastAPI saves it to `./uploads/` and writes a `pending` analysis row in MySQL
+3. The worker (on RunPod) polls `/api/worker/pending` through the ngrok tunnel
+4. Worker downloads the video, runs detection + tracking + team classification + analytics
+5. Worker uploads annotated video and results back through the tunnel
+6. Frontend displays the analysis (pitch visualizations, stats, heatmaps)
+
+---
+
+## Tech Stack
+
+| | |
+|---|---|
+| **Frontend** | React 19, Vite 6, TypeScript, Tailwind CSS 4, Recharts, shadcn/ui, Wouter |
+| **Backend** | FastAPI, SQLAlchemy (async), Pydantic, Uvicorn |
+| **Database** | MySQL 8.0 via Docker (port 3307) |
+| **Pipeline** | Python 3.11+, PyTorch, YOLOv8 (Ultralytics), ByteTrack, SigLIP, OpenCV |
+| **Infra** | Docker, ngrok, RunPod |
+
+---
+
+## Prerequisites
+
+- **Python 3.11+** — for the FastAPI backend
+- **Node.js 18+** and **pnpm** — for the frontend
+- **Docker Desktop** — for running MySQL
+- **ngrok** — `brew install ngrok` + [free account](https://ngrok.com)
+- **RunPod account** (or any cloud GPU) — for the CV pipeline worker
+
+---
+
+## Local Development
+
+### Quick start
 
 ```bash
-# Clone the repository
+# 1. Clone
 git clone https://github.com/esharif20/football-analytics-dashboard.git
 cd football-analytics-dashboard
 
-# Run (builds and starts everything)
-docker compose up
+# 2. Copy environment config
+cp env.example .env
+
+# 3. Start MySQL (Docker)
+docker compose up db -d
+
+# 4. Install Python backend dependencies
+cd backend && pip install -r api/requirements.txt && cd ..
+
+# 5. Install frontend dependencies
+cd frontend && pnpm install && cd ..
+
+# 6. Start FastAPI backend (terminal 1)
+cd backend && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 7. Start frontend dev server (terminal 2)
+cd frontend && pnpm dev
 ```
 
-Open **http://localhost:8000** in your browser. That's it.
+Open **http://localhost:5173** — you're auto-logged in as "Local Developer" (no auth needed).
 
-**No authentication required** - just upload a video and start analyzing.
+### What runs where
 
----
+| Process | Port | What it does |
+|---------|------|-------------|
+| FastAPI (uvicorn) | 8000 | REST API, WebSocket, static file serving |
+| Vite dev server | 5173 | React frontend with hot-reload, proxies `/api` + `/uploads` + `/ws` to :8000 |
+| MySQL (Docker) | 3307 | Database |
 
-## Alternative: Manual Setup
+### MySQL credentials
 
-If you don't have Docker, you can run locally:
+| | |
+|---|---|
+| Host | `localhost` |
+| Port | `3307` |
+| User | `root` |
+| Password | `football123` |
+| Database | `football_dashboard` |
+
+Data persists in a Docker volume (`mysql_data`). To connect manually:
 
 ```bash
-make setup   # Install dependencies (one time)
-make run     # Start the app
+docker exec -it football-db mysql -u root -pfootball123 football_dashboard
 ```
 
-Requires: Python 3.9+, Node.js 18+, pnpm
+### Start ngrok
+
+In a separate terminal:
+
+```bash
+ngrok http 8000
+```
+
+Copy the HTTPS forwarding URL — the worker needs this.
+
+> Free-tier ngrok URLs change on every restart. Update the worker's `DASHBOARD_URL` accordingly.
+
+### Terminal summary
+
+| Terminal | Command | What it does |
+|----------|---------|-------------|
+| 1 | `docker compose up db -d` | Starts MySQL (run once, stays up) |
+| 2 | `cd backend && uvicorn api.main:app --port 8000 --reload` | FastAPI backend on :8000 |
+| 3 | `cd frontend && pnpm dev` | React frontend on :5173 |
+| 4 | `ngrok http 8000` | Public tunnel for the worker |
 
 ---
 
-## System Architecture
+## GPU Worker (RunPod)
 
-![System Architecture](https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/qnWaZAlvezOpVSiR.png)
+The CV pipeline requires a GPU. It runs as a background service on a cloud GPU instance.
 
-### Architecture Overview
+### Setup on RunPod
 
-The system uses a **FastAPI backend** for local development:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Your Browser                              │
-│                    http://localhost:8000                         │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend (Python)                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │   REST API   │  │  WebSocket   │  │ Static Files │          │
-│  │  /api/*      │  │  Real-time   │  │  (React UI)  │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
-│                              │                                   │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                    CV Pipeline                            │  │
-│  │  Detection → Tracking → Team Assignment → Analytics       │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     SQLite Database                              │
-│              backend/data/football.db                            │
-└─────────────────────────────────────────────────────────────────┘
+```bash
+# SSH into your RunPod instance, then:
+git clone https://github.com/esharif20/football-analytics-dashboard.git
+cd football-analytics-dashboard/backend/pipeline
+pip install -r requirements.txt
+pip install requests
 ```
 
-### Data Flow
-
+Or one-liner:
+```bash
+curl -sSL https://raw.githubusercontent.com/esharif20/football-analytics-dashboard/main/scripts/setup-cloud-gpu.sh | bash
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Upload    │────▶│   Local     │────▶│   Worker    │
-│   Video     │     │   Storage   │     │   Queue     │
-└─────────────┘     └─────────────┘     └─────────────┘
-                                               │
-                    ┌──────────────────────────┼──────────────────────────┐
-                    ▼                          ▼                          ▼
-             ┌─────────────┐           ┌─────────────┐           ┌─────────────┐
-             │   Player    │           │    Ball     │           │   Pitch     │
-             │  Detection  │           │  Detection  │           │  Keypoints  │
-             │  (YOLOv8)   │           │   (SAHI)    │           │  (Custom)   │
-             └──────┬──────┘           └──────┬──────┘           └──────┬──────┘
-                    │                         │                         │
-                    ▼                         ▼                         ▼
-             ┌─────────────┐           ┌─────────────┐           ┌─────────────┐
-             │  ByteTrack  │           │   Ball      │           │ Homography  │
-             │ Persistence │           │Interpolation│           │  Transform  │
-             └──────┬──────┘           └──────┬──────┘           └──────┬──────┘
-                    │                         │                         │
-                    └─────────────────────────┼─────────────────────────┘
-                                              ▼
-                                    ┌─────────────────┐
-                                    │ Team Assignment │
-                                    │ SigLIP + UMAP   │
-                                    │    + KMeans     │
-                                    └────────┬────────┘
-                                             │
-                    ┌────────────────────────┼────────────────────────┐
-                    ▼                        ▼                        ▼
-             ┌─────────────┐          ┌─────────────┐          ┌─────────────┐
-             │  Annotated  │          │   Radar     │          │  Analytics  │
-             │   Video     │          │    View     │          │    JSON     │
-             └─────────────┘          └─────────────┘          └─────────────┘
+
+### Run the worker
+
+```bash
+cd /workspace/football-analytics-dashboard/backend/pipeline
+export DASHBOARD_URL=https://<your-ngrok-url>.ngrok-free.dev
+export ROBOFLOW_API_KEY=<your-key>    # optional
+python worker.py
+```
+
+On first run it downloads ~400MB of ML models (`player_detection.pt`, `ball_detection.pt`, `pitch_detection.pt`) from CDN.
+
+### Background mode
+
+```bash
+nohup python worker.py > worker.log 2>&1 &
+tail -f worker.log      # watch
+pkill -f worker.py      # stop
+```
+
+---
+
+## Environment Variables
+
+### `.env` (project root)
+
+```bash
+# Required for local dev
+LOCAL_DEV_MODE=true
+DATABASE_URL=mysql://root:football123@localhost:3307/football_dashboard
+LOCAL_STORAGE_DIR=./uploads
+OWNER_OPEN_ID=local-dev-user
+
+# Optional
+OPENAI_API_KEY=                  # AI commentary
+ROBOFLOW_API_KEY=                # pitch detection
+```
+
+### Worker env vars (on RunPod)
+
+```bash
+DASHBOARD_URL=https://xxx.ngrok-free.dev   # your ngrok URL
+ROBOFLOW_API_KEY=<key>                     # optional
+POLL_INTERVAL=5                            # seconds between polls
+```
+
+---
+
+## Database
+
+**ORM**: SQLAlchemy (async, MySQL via aiomysql) — models in `backend/api/models.py`.
+
+| Table | Purpose |
+|-------|---------|
+| `users` | User accounts (auto-created in local mode) |
+| `videos` | Uploaded video metadata |
+| `analyses` | Pipeline jobs — status, progress, output URLs |
+| `events` | Detected match events (passes, shots, etc.) |
+| `tracks` | Per-frame tracking data (player positions, ball, formations) |
+| `statistics` | Aggregated stats (possession, pass accuracy, heatmaps) |
+| `commentary` | AI-generated tactical analysis |
+
+Tables are auto-created by SQLAlchemy on first startup if they don't exist.
+
+### Reset database
+
+```bash
+docker compose down -v
+docker compose up db -d
+# Tables are auto-created on next FastAPI startup
 ```
 
 ---
@@ -114,290 +241,190 @@ The system uses a **FastAPI backend** for local development:
 ## Project Structure
 
 ```
-football-dashboard/
-├── frontend/                    # React Dashboard
-│   ├── src/
-│   │   ├── pages/               # Home, Upload, Dashboard, Analysis
-│   │   ├── components/          # UI components (shadcn/ui)
-│   │   ├── hooks/               # Custom React hooks (useWebSocket)
-│   │   └── lib/                 # Utilities, API client
-│   ├── public/                  # Static assets
-│   └── package.json
+football-analytics-dashboard/
+│
+├── frontend/                         # React 19 + Vite + TypeScript
+│   └── src/
+│       ├── pages/                    # Home, Upload, Dashboard, Analysis
+│       ├── components/               # shadcn/ui components
+│       ├── lib/api-local.ts          # REST client (all API calls)
+│       ├── hooks/useWebSocket.ts     # WebSocket for live progress
+│       └── shared/                   # Shared types & constants
 │
 ├── backend/
-│   ├── api/                     # FastAPI Backend (Local Mode)
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── routers/             # API endpoints
-│   │   │   ├── auth.py          # Authentication
-│   │   │   ├── videos.py        # Video management
-│   │   │   ├── analysis.py      # Analysis processing
-│   │   │   ├── events.py        # Match events
-│   │   │   ├── tracks.py        # Tracking data
-│   │   │   └── statistics.py    # Match statistics
-│   │   ├── services/            # Business logic
-│   │   │   ├── database.py      # SQLite database
-│   │   │   └── websocket_manager.py
-│   │   └── requirements.txt
+│   ├── api/                          # FastAPI backend
+│   │   ├── main.py                   # App entry point, routers, middleware
+│   │   ├── models.py                 # SQLAlchemy models (7 tables)
+│   │   ├── schemas.py                # Pydantic request/response models
+│   │   ├── database.py               # Async engine + session
+│   │   ├── deps.py                   # Dependencies (get_db, get_current_user)
+│   │   ├── auth.py                   # Auto-login middleware (dev mode)
+│   │   ├── storage.py                # Local file storage + H.264 re-encoding
+│   │   ├── ws.py                     # WebSocket for analysis progress
+│   │   └── routers/
+│   │       ├── videos.py             # Video CRUD + upload
+│   │       ├── analyses.py           # Analysis CRUD + modes/stages/eta
+│   │       ├── events.py             # Event queries
+│   │       ├── tracks.py             # Track queries
+│   │       ├── stats.py              # Statistics queries
+│   │       ├── commentary.py         # Commentary queries + generation
+│   │       ├── worker.py             # Worker endpoints (poll, status, complete)
+│   │       └── system.py             # Health check
 │   │
-│   ├── pipeline/                # Python CV Pipeline
-│   │   ├── src/
-│   │   │   ├── trackers/        # Detection & tracking
-│   │   │   ├── team_assigner/   # Team classification
-│   │   │   ├── pitch/           # Homography & pitch mapping
-│   │   │   └── analytics/       # Statistics computation
-│   │   ├── models/              # ML model files (.pt)
-│   │   ├── main.py              # CLI entry point
-│   │   └── requirements.txt
+│   ├── pipeline/                     # Python CV pipeline
+│   │   ├── worker.py                 # GPU worker (polls API)
+│   │   ├── requirements.txt
+│   │   └── src/
+│   │       ├── main.py               # CLI entry point
+│   │       ├── pipeline.py           # Orchestrator
+│   │       ├── trackers/             # YOLOv8 + ByteTrack
+│   │       ├── team_assigner/        # SigLIP + KMeans
+│   │       ├── pitch/                # Homography transform
+│   │       └── analytics/            # Stats computation
 │   │
-│   ├── server/                  # Node.js API (Manus Mode)
-│   ├── drizzle/                 # Database schema
-│   └── shared/                  # Shared types
+│   ├── uploads/                      # Local file storage (gitignored)
+│   └── .env                          # Backend environment config
 │
-├── docs/                        # Documentation
-├── docker/                      # Docker configuration
-├── Makefile                     # Simple commands
-├── run-local.sh                 # Local development script
-└── README.md
+├── docker-compose.yml                # MySQL container
+├── Dockerfile.worker                 # Worker Docker image
+├── .env                              # Root environment config
+└── env.example                       # Config template
 ```
 
 ---
 
-## Installation
+## API Endpoints
 
-### Prerequisites
+### REST (frontend <-> backend) — `/api/*`
 
-- **Python 3.10+** - `brew install python@3.11`
-- **Node.js 18+** - `brew install node` (for building frontend)
-- **pnpm** - `npm install -g pnpm`
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/user/me` | GET | Current user session |
+| `/api/videos` | GET | List videos |
+| `/api/videos/{id}` | GET/DELETE | Get or delete video |
+| `/api/upload/video` | POST | Upload video (multipart) |
+| `/api/analyses` | GET/POST | List or create analyses |
+| `/api/analyses/{id}` | GET | Get analysis details |
+| `/api/analyses/{id}/status` | PATCH | Update analysis status |
+| `/api/analyses/modes` | GET | Available pipeline modes |
+| `/api/analyses/stages` | GET | Processing stage definitions |
+| `/api/events/{analysisId}` | GET | Events for an analysis |
+| `/api/tracks/{analysisId}` | GET | Tracks for an analysis |
+| `/api/statistics/{analysisId}` | GET | Statistics for an analysis |
+| `/api/commentary/{analysisId}` | GET/POST | Commentary list or generate |
 
-### Setup
+### Worker endpoints — `/api/worker/*`
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/esharif20/football-analytics-dashboard.git
-cd football-analytics-dashboard
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/worker/pending` | GET | List pending analyses |
+| `/api/worker/analysis/{id}/status` | POST | Update progress |
+| `/api/worker/analysis/{id}/complete` | POST | Submit results |
+| `/api/worker/upload-video` | POST | Upload processed video |
 
-# 2. Setup (installs Python + Node dependencies, builds frontend)
-make setup
+### WebSocket — `/ws/{analysis_id}`
 
-# 3. Run the application
-make run
-```
-
-Open http://localhost:8000 in your browser.
-
----
-
-## Available Commands
-
-```bash
-make setup    # Install all dependencies
-make run      # Start dashboard at http://localhost:8000
-make check    # Check system requirements
-make clean    # Remove all dependencies
-
-# Process video directly via CLI
-make process VIDEO=/path/to/video.mp4
-```
+Real-time progress updates during pipeline processing.
 
 ---
 
 ## Pipeline Modes
 
-| Mode | Description | Output | Speed |
-|------|-------------|--------|-------|
-| `all` | Complete analysis pipeline | Annotated video, radar, analytics | Slowest |
-| `radar` | 2D pitch visualization only | Radar video, tracking data | Fast |
-| `team` | Team classification | Annotated video with team colors | Medium |
-| `track` | Object tracking only | Tracking data JSON | Fast |
-| `players` | Player detection only | Annotated video | Fastest |
-| `ball` | Ball detection + interpolation | Ball trajectory data | Fast |
-| `pitch` | Pitch keypoint detection | Homography matrix | Fast |
-
-### Running the Pipeline
-
-```bash
-# Via Makefile
-make process VIDEO=/path/to/match.mp4
-
-# Via Python directly
-cd backend/pipeline
-source venv/bin/activate
-python main.py --source-video-path /path/to/video.mp4 --mode all
-```
+| Mode | Value | Output |
+|------|-------|--------|
+| Full analysis | `all` | Annotated video + radar + analytics JSON |
+| Radar view | `radar` | 2D pitch visualization |
+| Team classification | `team` | Video with team colors |
+| Player tracking | `track` | Tracking data JSON |
+| Player detection | `players` | Annotated video |
+| Ball detection | `ball` | Ball trajectory data |
+| Pitch detection | `pitch` | Homography matrix |
 
 ---
 
-## Cloud GPU Worker (Recommended for Production)
+## Pipeline Architecture
 
-Run the worker on a cloud GPU to process videos from your deployed site:
+The CV pipeline has three layers:
 
-### Quick Setup (RunPod, Lambda Labs, Vast.ai)
+**Layer 1 — Perception** (runs on GPU)
 
-**1. Rent a GPU instance** (~$0.20-0.50/hr for RTX 3090/4090)
+| Stage | Model / Method | Detail |
+|-------|---------------|--------|
+| Object Detection | YOLOv8x fine-tuned | Player 99.4%, GK 94.2%, Referee 98.2%, Ball 92.5% mAP@50 |
+| Multi-Object Tracking | ByteTrack | Two-stage association + TrackStabiliser (majority voting) |
+| Team Classification | SigLIP + UMAP + KMeans | 768-dim embeddings, k=2 clustering |
+| Coordinate Transform | Homography | Pitch keypoints -> real-world metres |
+| Data Export | Structured JSON | Per-frame positions, teams, ball |
 
-**2. SSH into your instance and run:**
+**Layer 2 — Analytics** (derived from tracking data)
+Possession, territorial dominance, distance/speed per player, formation compactness, defensive line height, pressing intensity, passes, shots, pass accuracy.
 
-```bash
-# One-line setup
-curl -sSL https://raw.githubusercontent.com/esharif20/football-analytics-dashboard/main/scripts/setup-cloud-gpu.sh | bash
-
-# Start the worker
-cd football-analytics-dashboard/backend/pipeline
-source venv/bin/activate
-DASHBOARD_URL=https://aifootball.manus.space python worker.py
-```
-
-**3. That's it!** The worker will:
-- Download ML models automatically (~400MB)
-- Poll your deployed site for pending analyses
-- Process videos using GPU
-- Upload results back to the dashboard
-
-### Run in Background
-
-```bash
-# Start worker in background
-nohup python worker.py > worker.log 2>&1 &
-
-# Check logs
-tail -f worker.log
-
-# Stop worker
-pkill -f worker.py
-```
-
-### Recommended GPU Providers
-
-| Provider | Price | Best For |
-|----------|-------|----------|
-| [RunPod](https://runpod.io) | $0.20-0.50/hr | Cheapest, easy setup |
-| [Lambda Labs](https://lambdalabs.com) | $0.50-1.00/hr | Reliable, good support |
-| [Vast.ai](https://vast.ai) | $0.15-0.40/hr | Cheapest, variable quality |
-| [Google Colab Pro](https://colab.google) | $10/month | Easy, limited hours |
+**Layer 3 — VLM Reasoning** (planned)
+Grounded tactical commentary using structured tracking data as context.
 
 ---
 
-## GPU Acceleration
+## API Keys
 
-### Apple Silicon (M1/M2/M3/M4)
+Both keys are **optional** — the pipeline works fully without them.
 
-The pipeline automatically uses **MPS (Metal Performance Shaders)**:
+| Key | Used for | Get it at |
+|-----|----------|-----------|
+| `OPENAI_API_KEY` | AI tactical commentary | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `ROBOFLOW_API_KEY` | Pitch detection fallback | [app.roboflow.com/settings/api](https://app.roboflow.com/settings/api) |
 
-```python
-# Automatic detection
-if torch.backends.mps.is_available():
-    device = "mps"  # Uses Apple GPU
-```
-
-### NVIDIA GPU (Linux/Windows)
-
-```bash
-# Install CUDA-enabled PyTorch
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-```
-
-### Check GPU Support
-
-```bash
-make check
-```
+Set them in `.env` or pass as env vars to the worker.
 
 ---
 
-## API Reference (FastAPI)
+## GPU Options
 
-### REST Endpoints
+The worker needs a GPU. Rough costs for a BSc-budget setup:
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
+| Platform | $/hr | Best for |
+|----------|------|----------|
+| **RunPod** (recommended) | ~$0.20 (RTX 3090) | Best value, Docker support |
+| **Google Colab Pro** | ~$10/month flat | Easiest if you already have it |
+| **Vast.ai** | ~$0.10-0.30 | Cheapest, community GPUs |
 
-| `/api/videos` | GET | List videos |
-| `/api/videos` | POST | Upload video |
-| `/api/videos/{id}` | GET | Get video |
-| `/api/videos/{id}` | DELETE | Delete video |
-| `/api/analysis` | GET | List analyses |
-| `/api/analysis` | POST | Start analysis |
-| `/api/analysis/{id}` | GET | Get analysis |
-| `/api/analysis/{id}/status` | PUT | Update status |
-| `/api/analysis/modes` | GET | Get pipeline modes |
-| `/api/events/{analysis_id}` | GET | Get events |
-| `/api/tracks/{analysis_id}` | GET | Get tracks |
-| `/api/statistics/{analysis_id}` | GET | Get statistics |
+**Estimated processing times (30-second clip):**
 
-### Interactive API Docs
+| GPU | Total |
+|-----|-------|
+| RTX 3090 / A100 | ~1-2 min |
+| Apple M1/M2 (MPS) | ~5-7 min |
+| CPU only | ~10+ min |
 
-Open http://localhost:8000/docs for Swagger UI documentation.
-
----
-
-## WebSocket Events
-
-Real-time progress updates via WebSocket:
-
-```javascript
-// Connect to WebSocket
-const ws = new WebSocket('ws://localhost:8000/ws/123');
-
-// Receive progress updates
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  // { type: 'progress', analysisId: 123, progress: 45, currentStage: 'tracking' }
-};
-```
-
----
-
-## Development
-
-### Frontend Development
-
-```bash
-cd frontend
-pnpm dev      # Start dev server with hot reload
-pnpm build    # Build for production
-```
-
-### Pipeline Development
-
-```bash
-cd backend/pipeline
-source venv/bin/activate
-python main.py --video test.mp4 --mode all --verbose
-```
+For local testing on Apple Silicon the pipeline auto-detects MPS — no config needed.
 
 ---
 
 ## Troubleshooting
 
-### "Module not found" errors
-
+**MySQL won't connect** — make sure the container is running:
 ```bash
-# Reinstall dependencies
-make clean
-make setup-local
+docker compose up db -d && docker ps
 ```
 
-### GPU not detected
+**Worker can't reach dashboard** — check that ngrok is running and `DASHBOARD_URL` matches the forwarding URL exactly. Free-tier URLs change on restart.
 
+**Port 8000 in use** — `lsof -i :8000` then `kill <PID>`.
+
+**Video won't play in browser** — the pipeline outputs mp4v codec which browsers can't play. The FastAPI server auto-re-encodes to H.264 on upload if `ffmpeg` is installed locally (`brew install ffmpeg`).
+
+**Pipeline module errors on RunPod** — `pip install -r requirements.txt && pip install requests`
+
+**Models fail to download** — if CDN URLs become unavailable, download the `.pt` files manually into `backend/pipeline/models/`. The worker skips downloading if files already exist.
+
+**Full reset:**
 ```bash
-# Check GPU support
-make check
-
-# For Apple Silicon, ensure PyTorch is installed correctly
-pip install torch torchvision
-```
-
-### Port already in use
-
-```bash
-# Kill existing process
-lsof -i :8000
-kill -9 <PID>
+docker compose down -v && rm -rf backend/uploads/*
+docker compose up db -d
+# Restart FastAPI — tables auto-create
 ```
 
 ---
 
 ## License
 
-MIT License
+MIT

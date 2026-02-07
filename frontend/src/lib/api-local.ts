@@ -1,46 +1,46 @@
 /**
- * API Client for Local FastAPI Backend
- * This replaces tRPC when running locally with FastAPI
+ * API Client for FastAPI Backend
+ * All endpoints are relative — the Vite dev proxy forwards /api to the FastAPI server.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   body?: any;
   headers?: Record<string, string>;
 }
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options;
-  
+
   const config: RequestInit = {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...headers,
     },
-    credentials: 'include', // Include cookies for session
+    credentials: 'include',
   };
-  
+
   if (body) {
     config.body = JSON.stringify(body);
   }
-  
+
   const response = await fetch(`${API_BASE}${endpoint}`, config);
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
     throw new Error(error.detail || `HTTP ${response.status}`);
   }
-  
+
   return response.json();
 }
 
 // Auth API
 export const authApi = {
   me: () => request<any>('/auth/me'),
-  login: (email: string, password?: string) => 
+  login: (email: string, password?: string) =>
     request<any>('/auth/login', { method: 'POST', body: { email, password } }),
   logout: () => request<any>('/auth/logout', { method: 'POST' }),
   autoLogin: () => request<any>('/auth/auto-login', { method: 'POST' }),
@@ -95,11 +95,19 @@ export const statisticsApi = {
   create: (data: any) => request<any>('/statistics', { method: 'POST', body: data }),
 };
 
+// Commentary API
+export const commentaryApi = {
+  list: (analysisId: number) => request<any[]>(`/commentary/${analysisId}`),
+  generate: (analysisId: number, data: { type: string; context?: any }) =>
+    request<any>(`/commentary/${analysisId}`, { method: 'POST', body: data }),
+};
+
 // WebSocket for real-time updates
 export function createWebSocket(analysisId: number, onMessage: (data: any) => void): WebSocket {
-  const wsUrl = (import.meta.env.VITE_WS_URL || 'ws://localhost:8000') + `/ws/${analysisId}`;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws/${analysisId}`;
   const ws = new WebSocket(wsUrl);
-  
+
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
@@ -108,10 +116,10 @@ export function createWebSocket(analysisId: number, onMessage: (data: any) => vo
       console.error('WebSocket message parse error:', e);
     }
   };
-  
+
   ws.onerror = (error) => {
     console.error('WebSocket error:', error);
   };
-  
+
   return ws;
 }

@@ -6,7 +6,38 @@ from typing import Iterator, List, Optional
 import cv2
 import numpy as np
 import os
+import shutil
+import subprocess
 import supervision as sv
+
+
+def _reencode_to_h264(video_path: str) -> None:
+    """Re-encode video to H.264 so browsers can play it.
+
+    OpenCV writes mp4v (MPEG-4 Part 2) which HTML5 <video> can't play.
+    This converts in-place to H.264 using ffmpeg if available.
+    """
+    if not shutil.which("ffmpeg"):
+        print("[WARNING] ffmpeg not found — video may not play in browser")
+        return
+
+    tmp = video_path + ".tmp.mp4"
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", video_path,
+                "-c:v", "libx264", "-preset", "fast",
+                "-crf", "23", "-movflags", "+faststart",
+                "-an", tmp,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        os.replace(tmp, video_path)
+    except subprocess.CalledProcessError as e:
+        print(f"[WARNING] ffmpeg re-encode failed: {e.stderr.decode()[-200:]}")
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 class FrameIterator:
@@ -198,6 +229,7 @@ def save_video(frames, output_video_path: str, fps: int = 24):
             frame = frame.astype(np.uint8)
         out.write(frame)
     out.release()
+    _reencode_to_h264(output_video_path)
 
 
 def write_video(
@@ -218,3 +250,4 @@ def write_video(
     with sv.VideoSink(target_video_path, video_info) as sink:
         for frame in frame_generator:
             sink.write_frame(frame)
+    _reencode_to_h264(target_video_path)
