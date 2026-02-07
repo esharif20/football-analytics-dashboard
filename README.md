@@ -2,41 +2,57 @@
 
 Full-stack sports analytics platform — upload football match footage, get real-time player tracking, team classification, heatmaps, pass networks, and AI tactical commentary.
 
-Built with React + FastAPI + MySQL + a Python CV pipeline running on a cloud GPU.
+Built with **React + FastAPI + MySQL** and a **Python CV pipeline** running on a cloud GPU.
 
 ---
 
-## How It Works
+## System Architecture
 
+```mermaid
+graph TB
+    subgraph LOCAL["LOCAL MACHINE"]
+        subgraph DB["Database"]
+            MySQL["MySQL 8.0<br/>localhost:3307"]
+        end
+
+        subgraph APP["Application"]
+            FastAPI["FastAPI :8000<br/>REST API + WebSocket"]
+            Vite["Vite Dev :5173<br/>React Frontend"]
+            Storage["Local Storage<br/>./uploads/"]
+        end
+
+        Browser["Browser<br/>http://localhost:5173"]
+    end
+
+    subgraph CLOUD["CLOUD GPU (RunPod)"]
+        Worker["worker.py"]
+        subgraph PIPELINE["CV Pipeline"]
+            YOLO["YOLOv8 Detection"]
+            ByteTrack["ByteTrack Tracking"]
+            SigLIP["SigLIP Teams"]
+            Homography["Homography Map"]
+            Analytics["Analytics Engine"]
+        end
+    end
+
+    Browser -->|"User interactions"| Vite
+    Vite -->|"/api proxy"| FastAPI
+    FastAPI --> MySQL
+    FastAPI --> Storage
+
+    Worker -->|"ngrok tunnel<br/>GET /api/worker/pending<br/>POST progress & results"| FastAPI
+    FastAPI -.->|"WebSocket<br/>live progress"| Browser
+
+    Worker --> YOLO --> ByteTrack --> SigLIP --> Homography --> Analytics
+
+    style LOCAL fill:#0d1117,stroke:#30363d,color:#f0f6fc
+    style CLOUD fill:#0d1117,stroke:#30363d,color:#f0f6fc
+    style DB fill:#161b22,stroke:#10b981,color:#f0f6fc
+    style APP fill:#161b22,stroke:#10b981,color:#f0f6fc
+    style PIPELINE fill:#161b22,stroke:#10b981,color:#f0f6fc
 ```
-    LOCAL MACHINE                                 CLOUD GPU (RunPod)
-   ──────────────                                ──────────────────
 
-   ┌────────────────────────┐
-   │    Docker MySQL 8.0    │
-   │    localhost:3307       │
-   └───────────┬────────────┘
-               │
-               ▼
-   ┌────────────────────────┐        ngrok tunnel        ┌──────────────────────────┐
-   │  FastAPI    :8000      │ ◄──────────────────────── │  worker.py               │
-   │  Vite Dev   :5173      │  https://xxx.ngrok.dev     │                          │
-   │                         │ ────────────────────────► │  Polls /api/worker/      │
-   │  ┌───────┐ ┌─────────┐ │                            │  pending every 5s        │
-   │  │React  │ │ FastAPI  │ │   1. GET  pending jobs     │                          │
-   │  │Front- │ │ REST API │ │   2. Downloads video       │  ┌──────────────────┐   │
-   │  │end    │ │ + WS     │ │   3. POST progress         │  │ CV Pipeline      │   │
-   │  │       │ │         │ │   4. POST results          │  │                  │   │
-   │  └───────┘ └─────────┘ │                            │  │ YOLOv8 detect    │   │
-   │                         │                            │  │ ByteTrack track  │   │
-   │  Uploads → ./uploads/   │                            │  │ SigLIP teams     │   │
-   └────────────────────────┘                            │  │ Homography map   │   │
-                                                          │  │ Analytics stats  │   │
-         Browser                                          │  └──────────────────┘   │
-     http://localhost:5173                                └──────────────────────────┘
-```
-
-**The flow:**
+### The Flow
 
 1. You upload a video in the browser
 2. FastAPI saves it to `./uploads/` and writes a `pending` analysis row in MySQL
@@ -47,15 +63,107 @@ Built with React + FastAPI + MySQL + a Python CV pipeline running on a cloud GPU
 
 ---
 
+## Pipeline Flow
+
+```mermaid
+graph TD
+    Input["Video File"] --> Frames["Frame Loading"]
+    Frames --> Detection{"Detection Stage"}
+
+    Detection --> Players["Player Detection<br/><i>YOLOv8x fine-tuned</i>"]
+    Detection --> Ball["Ball Detection<br/><i>YOLOv8 + SAHI Slicer</i>"]
+    Detection --> Pitch["Pitch Detection<br/><i>YOLOv8 Keypoints</i>"]
+
+    Players --> Tracking["People Tracking<br/><i>ByteTrack</i>"]
+    Tracking --> Stabiliser["Role Stabiliser<br/><i>Lock GK/Ref labels</i>"]
+    Stabiliser --> Teams["Team Classification<br/><i>SigLIP + UMAP + KMeans</i>"]
+
+    Ball --> BallTrack["Ball Tracking<br/><i>8-Stage Filter + Kalman</i>"]
+
+    Pitch --> Homography["View Transformer<br/><i>Homography</i>"]
+    Homography --> Radar["Radar View<br/><i>2D Pitch Diagram</i>"]
+
+    Teams --> Annotation["Annotation"]
+    BallTrack --> Annotation
+    Annotation --> OutputVideo["Output Video"]
+
+    Teams --> AnalyticsEngine["Analytics Engine"]
+    BallTrack --> AnalyticsEngine
+    Homography --> AnalyticsEngine
+
+    AnalyticsEngine --> Stats["Match Statistics<br/><i>Possession, passes, shots,<br/>distance, speed, heatmaps</i>"]
+
+    style Input fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Detection fill:#1f2937,stroke:#f59e0b,color:#f0f6fc
+    style Players fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Ball fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Pitch fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Tracking fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Stabiliser fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Teams fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style BallTrack fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Homography fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Radar fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Annotation fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style OutputVideo fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style AnalyticsEngine fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Stats fill:#1f2937,stroke:#10b981,color:#f0f6fc
+    style Frames fill:#1f2937,stroke:#10b981,color:#f0f6fc
+```
+
+### Core Components
+
+| Stage | Model / Method | Performance |
+|-------|---------------|-------------|
+| Object Detection | YOLOv8x fine-tuned | Player 99.4%, GK 94.2%, Referee 98.2%, Ball 92.5% mAP@50 |
+| Multi-Object Tracking | ByteTrack | Two-stage association + TrackStabiliser (majority voting) |
+| Team Classification | SigLIP + UMAP + KMeans | 768-dim embeddings, k=2 clustering |
+| Coordinate Transform | Homography | Pitch keypoints to real-world metres |
+| Ball Tracking | 8-stage filter + Kalman | Interpolation across occlusions |
+| Analytics | Custom engine | Possession, passes, shots, distance, speed, heatmaps |
+
+---
+
 ## Tech Stack
 
-| | |
-|---|---|
-| **Frontend** | React 19, Vite 6, TypeScript, Tailwind CSS 4, Recharts, shadcn/ui, Wouter |
-| **Backend** | FastAPI, SQLAlchemy (async), Pydantic, Uvicorn |
-| **Database** | MySQL 8.0 via Docker (port 3307) |
-| **Pipeline** | Python 3.11+, PyTorch, YOLOv8 (Ultralytics), ByteTrack, SigLIP, OpenCV |
-| **Infra** | Docker, ngrok, RunPod |
+```mermaid
+graph LR
+    subgraph Frontend
+        React["React 19"]
+        Vite2["Vite 6"]
+        TS["TypeScript"]
+        TW["Tailwind CSS 4"]
+        RQ["React Query"]
+        Recharts["Recharts"]
+        Shadcn["shadcn/ui"]
+    end
+
+    subgraph Backend
+        FA["FastAPI"]
+        SA["SQLAlchemy<br/><i>async</i>"]
+        Pydantic["Pydantic"]
+        Uvicorn["Uvicorn"]
+    end
+
+    subgraph Pipeline2["Pipeline"]
+        PyTorch["PyTorch"]
+        YOLO2["Ultralytics<br/>YOLOv8"]
+        CV2["OpenCV"]
+        SV["Supervision"]
+    end
+
+    subgraph Infra
+        MySQL2["MySQL 8.0"]
+        Docker["Docker"]
+        Ngrok["ngrok"]
+        RunPod["RunPod"]
+    end
+
+    style Frontend fill:#161b22,stroke:#3b82f6,color:#f0f6fc
+    style Backend fill:#161b22,stroke:#10b981,color:#f0f6fc
+    style Pipeline2 fill:#161b22,stroke:#f59e0b,color:#f0f6fc
+    style Infra fill:#161b22,stroke:#8b5cf6,color:#f0f6fc
+```
 
 ---
 
@@ -69,9 +177,7 @@ Built with React + FastAPI + MySQL + a Python CV pipeline running on a cloud GPU
 
 ---
 
-## Local Development
-
-### Quick start
+## Quick Start
 
 ```bash
 # 1. Clone
@@ -81,100 +187,57 @@ cd football-analytics-dashboard
 # 2. Copy environment config
 cp env.example .env
 
-# 3. Start MySQL (Docker)
+# 3. Start MySQL
 docker compose up db -d
 
-# 4. Install Python backend dependencies
+# 4. Install Python backend deps
 cd backend && pip install -r api/requirements.txt && cd ..
 
-# 5. Install frontend dependencies
+# 5. Install frontend deps
 cd frontend && pnpm install && cd ..
 
-# 6. Start FastAPI backend (terminal 1)
+# 6. Start FastAPI (terminal 1)
 cd backend && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 7. Start frontend dev server (terminal 2)
+# 7. Start frontend (terminal 2)
 cd frontend && pnpm dev
 ```
 
-Open **http://localhost:5173** — you're auto-logged in as "Local Developer" (no auth needed).
+Open **http://localhost:5173** — auto-logged in, no auth needed.
 
-### What runs where
-
-| Process | Port | What it does |
-|---------|------|-------------|
-| FastAPI (uvicorn) | 8000 | REST API, WebSocket, static file serving |
-| Vite dev server | 5173 | React frontend with hot-reload, proxies `/api` + `/uploads` + `/ws` to :8000 |
-| MySQL (Docker) | 3307 | Database |
-
-### MySQL credentials
-
-| | |
-|---|---|
-| Host | `localhost` |
-| Port | `3307` |
-| User | `root` |
-| Password | `football123` |
-| Database | `football_dashboard` |
-
-Data persists in a Docker volume (`mysql_data`). To connect manually:
-
-```bash
-docker exec -it football-db mysql -u root -pfootball123 football_dashboard
-```
-
-### Start ngrok
-
-In a separate terminal:
-
-```bash
-ngrok http 8000
-```
-
-Copy the HTTPS forwarding URL — the worker needs this.
-
-> Free-tier ngrok URLs change on every restart. Update the worker's `DASHBOARD_URL` accordingly.
-
-### Terminal summary
+### Terminal Layout
 
 | Terminal | Command | What it does |
 |----------|---------|-------------|
-| 1 | `docker compose up db -d` | Starts MySQL (run once, stays up) |
-| 2 | `cd backend && uvicorn api.main:app --port 8000 --reload` | FastAPI backend on :8000 |
+| 1 | `docker compose up db -d` | MySQL (run once, stays up) |
+| 2 | `cd backend && uvicorn api.main:app --port 8000 --reload` | FastAPI on :8000 |
 | 3 | `cd frontend && pnpm dev` | React frontend on :5173 |
-| 4 | `ngrok http 8000` | Public tunnel for the worker |
+| 4 | `ngrok http 8000` | Public tunnel for the GPU worker |
 
 ---
 
 ## GPU Worker (RunPod)
 
-The CV pipeline requires a GPU. It runs as a background service on a cloud GPU instance.
+The CV pipeline requires a GPU. It runs as a polling worker on a cloud GPU instance.
 
-### Setup on RunPod
+### Setup
 
 ```bash
-# SSH into your RunPod instance, then:
+# SSH into RunPod, then:
 git clone https://github.com/esharif20/football-analytics-dashboard.git
 cd football-analytics-dashboard/backend/pipeline
 pip install -r requirements.txt
 pip install requests
 ```
 
-Or one-liner:
-```bash
-curl -sSL https://raw.githubusercontent.com/esharif20/football-analytics-dashboard/main/scripts/setup-cloud-gpu.sh | bash
-```
-
-### Run the worker
+### Run
 
 ```bash
-cd /workspace/football-analytics-dashboard/backend/pipeline
 export DASHBOARD_URL=https://<your-ngrok-url>.ngrok-free.dev
-export ROBOFLOW_API_KEY=<your-key>    # optional
 python worker.py
 ```
 
-On first run it downloads ~400MB of ML models (`player_detection.pt`, `ball_detection.pt`, `pitch_detection.pt`) from CDN.
+First run downloads ~400MB of ML models from CDN.
 
 ### Background mode
 
@@ -186,143 +249,76 @@ pkill -f worker.py      # stop
 
 ---
 
-## Environment Variables
-
-### `.env` (project root)
-
-```bash
-# Required for local dev
-LOCAL_DEV_MODE=true
-DATABASE_URL=mysql://root:football123@localhost:3307/football_dashboard
-LOCAL_STORAGE_DIR=./uploads
-OWNER_OPEN_ID=local-dev-user
-
-# Optional
-OPENAI_API_KEY=                  # AI commentary
-ROBOFLOW_API_KEY=                # pitch detection
-```
-
-### Worker env vars (on RunPod)
-
-```bash
-DASHBOARD_URL=https://xxx.ngrok-free.dev   # your ngrok URL
-ROBOFLOW_API_KEY=<key>                     # optional
-POLL_INTERVAL=5                            # seconds between polls
-```
-
----
-
-## Database
-
-**ORM**: SQLAlchemy (async, MySQL via aiomysql) — models in `backend/api/models.py`.
-
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts (auto-created in local mode) |
-| `videos` | Uploaded video metadata |
-| `analyses` | Pipeline jobs — status, progress, output URLs |
-| `events` | Detected match events (passes, shots, etc.) |
-| `tracks` | Per-frame tracking data (player positions, ball, formations) |
-| `statistics` | Aggregated stats (possession, pass accuracy, heatmaps) |
-| `commentary` | AI-generated tactical analysis |
-
-Tables are auto-created by SQLAlchemy on first startup if they don't exist.
-
-### Reset database
-
-```bash
-docker compose down -v
-docker compose up db -d
-# Tables are auto-created on next FastAPI startup
-```
-
----
-
 ## Project Structure
 
 ```
 football-analytics-dashboard/
-│
-├── frontend/                         # React 19 + Vite + TypeScript
+├── frontend/                          React 19 + Vite + TypeScript
 │   └── src/
-│       ├── pages/                    # Home, Upload, Dashboard, Analysis
-│       ├── components/               # shadcn/ui components
-│       ├── lib/api-local.ts          # REST client (all API calls)
-│       ├── hooks/useWebSocket.ts     # WebSocket for live progress
-│       └── shared/                   # Shared types & constants
+│       ├── pages/                     Home, Upload, Dashboard, Analysis
+│       ├── components/                shadcn/ui components
+│       ├── lib/api-local.ts           REST client (all API calls)
+│       ├── hooks/useWebSocket.ts      WebSocket for live progress
+│       └── shared/                    Shared types & constants
 │
 ├── backend/
-│   ├── api/                          # FastAPI backend
-│   │   ├── main.py                   # App entry point, routers, middleware
-│   │   ├── models.py                 # SQLAlchemy models (7 tables)
-│   │   ├── schemas.py                # Pydantic request/response models
-│   │   ├── database.py               # Async engine + session
-│   │   ├── deps.py                   # Dependencies (get_db, get_current_user)
-│   │   ├── auth.py                   # Auto-login middleware (dev mode)
-│   │   ├── storage.py                # Local file storage + H.264 re-encoding
-│   │   ├── ws.py                     # WebSocket for analysis progress
-│   │   └── routers/
-│   │       ├── videos.py             # Video CRUD + upload
-│   │       ├── analyses.py           # Analysis CRUD + modes/stages/eta
-│   │       ├── events.py             # Event queries
-│   │       ├── tracks.py             # Track queries
-│   │       ├── stats.py              # Statistics queries
-│   │       ├── commentary.py         # Commentary queries + generation
-│   │       ├── worker.py             # Worker endpoints (poll, status, complete)
-│   │       └── system.py             # Health check
+│   ├── api/                           FastAPI backend
+│   │   ├── main.py                    App entry, routers, middleware
+│   │   ├── models.py                  SQLAlchemy models (7 tables)
+│   │   ├── schemas.py                 Pydantic request/response models
+│   │   ├── database.py                Async engine + session
+│   │   ├── storage.py                 File storage + H.264 re-encoding
+│   │   ├── ws.py                      WebSocket for analysis progress
+│   │   └── routers/                   API route handlers
 │   │
-│   ├── pipeline/                     # Python CV pipeline
-│   │   ├── worker.py                 # GPU worker (polls API)
+│   ├── pipeline/                      Python CV pipeline
+│   │   ├── worker.py                  GPU worker (polls API)
 │   │   ├── requirements.txt
-│   │   └── src/
-│   │       ├── main.py               # CLI entry point
-│   │       ├── pipeline.py           # Orchestrator
-│   │       ├── trackers/             # YOLOv8 + ByteTrack
-│   │       ├── team_assigner/        # SigLIP + KMeans
-│   │       ├── pitch/                # Homography transform
-│   │       └── analytics/            # Stats computation
+│   │   └── src/                       Detection, tracking, analytics
 │   │
-│   ├── uploads/                      # Local file storage (gitignored)
-│   └── .env                          # Backend environment config
+│   └── uploads/                       Local file storage
 │
-├── docker-compose.yml                # MySQL container
-├── Dockerfile.worker                 # Worker Docker image
-├── .env                              # Root environment config
-└── env.example                       # Config template
+├── docker-compose.yml                 MySQL container
+├── Dockerfile.worker                  Worker Docker image
+└── .github/workflows/ci.yml          CI pipeline
 ```
 
 ---
 
-## API Endpoints
+## API Reference
 
-### REST (frontend <-> backend) — `/api/*`
+### REST Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/user/me` | GET | Current user session |
+| `/api/health` | GET | Health check |
+| `/api/auth/me` | GET | Current user session |
 | `/api/videos` | GET | List videos |
-| `/api/videos/{id}` | GET/DELETE | Get or delete video |
+| `/api/videos/{id}` | GET / DELETE | Get or delete video |
 | `/api/upload/video` | POST | Upload video (multipart) |
-| `/api/analyses` | GET/POST | List or create analyses |
+| `/api/analyses` | GET / POST | List or create analyses |
 | `/api/analyses/{id}` | GET | Get analysis details |
-| `/api/analyses/{id}/status` | PATCH | Update analysis status |
 | `/api/analyses/modes` | GET | Available pipeline modes |
 | `/api/analyses/stages` | GET | Processing stage definitions |
-| `/api/events/{analysisId}` | GET | Events for an analysis |
-| `/api/tracks/{analysisId}` | GET | Tracks for an analysis |
-| `/api/statistics/{analysisId}` | GET | Statistics for an analysis |
-| `/api/commentary/{analysisId}` | GET/POST | Commentary list or generate |
+| `/api/events/{id}` | GET | Events for an analysis |
+| `/api/tracks/{id}` | GET | Tracks for an analysis |
+| `/api/statistics/{id}` | GET | Statistics for an analysis |
+| `/api/commentary/{id}` | GET / POST | Commentary list or generate |
 
-### Worker endpoints — `/api/worker/*`
+### Worker Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/worker/pending` | GET | List pending analyses |
-| `/api/worker/analysis/{id}/status` | POST | Update progress |
-| `/api/worker/analysis/{id}/complete` | POST | Submit results |
+| `/api/worker/pending` | GET | Poll for pending analyses |
+| `/api/worker/analysis/{id}/status` | POST | Push progress updates |
+| `/api/worker/analysis/{id}/complete` | POST | Submit final results |
 | `/api/worker/upload-video` | POST | Upload processed video |
 
-### WebSocket — `/ws/{analysis_id}`
+### WebSocket
+
+```
+ws://localhost:8000/ws/{analysis_id}
+```
 
 Real-time progress updates during pipeline processing.
 
@@ -332,91 +328,97 @@ Real-time progress updates during pipeline processing.
 
 | Mode | Value | Output |
 |------|-------|--------|
-| Full analysis | `all` | Annotated video + radar + analytics JSON |
-| Radar view | `radar` | 2D pitch visualization |
-| Team classification | `team` | Video with team colors |
-| Player tracking | `track` | Tracking data JSON |
-| Player detection | `players` | Annotated video |
-| Ball detection | `ball` | Ball trajectory data |
-| Pitch detection | `pitch` | Homography matrix |
+| Full Analysis | `all` | Annotated video + radar + analytics |
+| Radar View | `radar` | 2D pitch visualization |
+| Team Classification | `team` | Video with team colors |
+| Player Tracking | `track` | Tracking data JSON |
+| Player Detection | `players` | Annotated video |
+| Ball Detection | `ball` | Ball trajectory data |
+| Pitch Detection | `pitch` | Homography matrix |
 
 ---
 
-## Pipeline Architecture
+## Database
 
-The CV pipeline has three layers:
+**ORM**: SQLAlchemy async (MySQL via aiomysql)
 
-**Layer 1 — Perception** (runs on GPU)
+| Table | Purpose |
+|-------|---------|
+| `users` | User accounts (auto-created in local dev) |
+| `videos` | Uploaded video metadata |
+| `analyses` | Pipeline jobs — status, progress, output URLs |
+| `events` | Detected match events (passes, shots, etc.) |
+| `tracks` | Per-frame tracking data (positions, ball, formations) |
+| `statistics` | Aggregated stats (possession, heatmaps, pass networks) |
+| `commentary` | AI-generated tactical analysis |
 
-| Stage | Model / Method | Detail |
-|-------|---------------|--------|
-| Object Detection | YOLOv8x fine-tuned | Player 99.4%, GK 94.2%, Referee 98.2%, Ball 92.5% mAP@50 |
-| Multi-Object Tracking | ByteTrack | Two-stage association + TrackStabiliser (majority voting) |
-| Team Classification | SigLIP + UMAP + KMeans | 768-dim embeddings, k=2 clustering |
-| Coordinate Transform | Homography | Pitch keypoints -> real-world metres |
-| Data Export | Structured JSON | Per-frame positions, teams, ball |
+Tables auto-create on first FastAPI startup.
 
-**Layer 2 — Analytics** (derived from tracking data)
-Possession, territorial dominance, distance/speed per player, formation compactness, defensive line height, pressing intensity, passes, shots, pass accuracy.
-
-**Layer 3 — VLM Reasoning** (planned)
-Grounded tactical commentary using structured tracking data as context.
+| | |
+|---|---|
+| Host | `localhost:3307` |
+| User | `root` |
+| Password | `football123` |
+| Database | `football_dashboard` |
 
 ---
 
-## API Keys
+## Environment Variables
 
-Both keys are **optional** — the pipeline works fully without them.
+### `.env` (project root)
 
-| Key | Used for | Get it at |
-|-----|----------|-----------|
-| `OPENAI_API_KEY` | AI tactical commentary | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| `ROBOFLOW_API_KEY` | Pitch detection fallback | [app.roboflow.com/settings/api](https://app.roboflow.com/settings/api) |
+```bash
+LOCAL_DEV_MODE=true
+DATABASE_URL=mysql://root:football123@localhost:3307/football_dashboard
+LOCAL_STORAGE_DIR=./uploads
+OWNER_OPEN_ID=local-dev-user
 
-Set them in `.env` or pass as env vars to the worker.
+# Optional
+OPENAI_API_KEY=          # AI commentary
+ROBOFLOW_API_KEY=        # pitch detection
+```
+
+### Worker (on RunPod)
+
+```bash
+DASHBOARD_URL=https://xxx.ngrok-free.dev
+ROBOFLOW_API_KEY=<key>   # optional
+POLL_INTERVAL=5           # seconds
+```
 
 ---
 
 ## GPU Options
 
-The worker needs a GPU. Rough costs for a BSc-budget setup:
-
 | Platform | $/hr | Best for |
 |----------|------|----------|
-| **RunPod** (recommended) | ~$0.20 (RTX 3090) | Best value, Docker support |
-| **Google Colab Pro** | ~$10/month flat | Easiest if you already have it |
+| **RunPod** | ~$0.20 (RTX 3090) | Best value, Docker support |
+| **Google Colab Pro** | ~$10/mo flat | Easiest setup |
 | **Vast.ai** | ~$0.10-0.30 | Cheapest, community GPUs |
 
-**Estimated processing times (30-second clip):**
+**Processing times (30s clip):**
 
-| GPU | Total |
-|-----|-------|
+| GPU | Time |
+|-----|------|
 | RTX 3090 / A100 | ~1-2 min |
 | Apple M1/M2 (MPS) | ~5-7 min |
 | CPU only | ~10+ min |
-
-For local testing on Apple Silicon the pipeline auto-detects MPS — no config needed.
 
 ---
 
 ## Troubleshooting
 
-**MySQL won't connect** — make sure the container is running:
-```bash
-docker compose up db -d && docker ps
-```
+| Problem | Fix |
+|---------|-----|
+| MySQL won't connect | `docker compose up db -d && docker ps` |
+| Worker can't reach dashboard | Check ngrok is running, `DASHBOARD_URL` matches exactly |
+| Video won't play in browser | Install `ffmpeg` locally — `brew install ffmpeg` |
+| Port 8000 in use | `lsof -i :8000` then `kill <PID>` |
+| Pipeline module errors | `pip install -r requirements.txt && pip install requests` |
+| Models fail to download | Download `.pt` files manually into `backend/pipeline/models/` |
 
-**Worker can't reach dashboard** — check that ngrok is running and `DASHBOARD_URL` matches the forwarding URL exactly. Free-tier URLs change on restart.
+### Full Reset
 
-**Port 8000 in use** — `lsof -i :8000` then `kill <PID>`.
-
-**Video won't play in browser** — the pipeline outputs mp4v codec which browsers can't play. The FastAPI server auto-re-encodes to H.264 on upload if `ffmpeg` is installed locally (`brew install ffmpeg`).
-
-**Pipeline module errors on RunPod** — `pip install -r requirements.txt && pip install requests`
-
-**Models fail to download** — if CDN URLs become unavailable, download the `.pt` files manually into `backend/pipeline/models/`. The worker skips downloading if files already exist.
-
-**Full reset:**
 ```bash
 docker compose down -v && rm -rf backend/uploads/*
 docker compose up db -d
