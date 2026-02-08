@@ -118,8 +118,17 @@ def setup_logging(
         "ultralytics",
         "PIL",
         "matplotlib",
+        "inference",
+        "onnxruntime",
+        "torch",
     ]:
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
+    # Suppress Python-level warnings from third-party libs (SAM, Gaze, OpenVINO, etc.)
+    import warnings
+    warnings.filterwarnings("ignore", message=".*ModelDependencyMissing.*")
+    warnings.filterwarnings("ignore", message=".*Specified provider.*not in available.*")
+    warnings.filterwarnings("ignore", message=".*is out of date.*")
 
     _logging_configured = True
 

@@ -259,15 +259,14 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     
     # Map dashboard mode to pipeline mode
     pipeline_mode = MODE_MAPPING.get(mode, mode.upper())
-    log(f"Mode mapping: {mode} -> {pipeline_mode}")
-    
+
     # Build command - use run_pipeline.py wrapper for correct imports
     pipeline_dir = Path(__file__).parent
     run_script = pipeline_dir / "run_pipeline.py"
-    
+
     # Detect GPU
     device = "cuda" if os.path.exists("/dev/nvidia0") or os.path.exists("/dev/nvidia-uvm") else "cpu"
-    
+
     cmd = [
         sys.executable, str(run_script),
         "--source-video-path", str(video_path),
@@ -276,33 +275,34 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
         "--device", device,
         "--analytics",
     ]
-    
+
     # Always use custom models when they exist (fine-tuned models are better)
-    # Note: --player-model and --pitch-model expect 'custom' or 'yolov8'/'roboflow', not file paths
-    # The pipeline uses config.py to find the actual model files
+    models_used = []
     player_model = MODELS_DIR / "player_detection.pt"
     if player_model.exists():
         cmd.extend(["--player-model", "custom"])
-        log(f"Using custom player model: {player_model}")
-    
+        models_used.append("player")
+
     ball_model = MODELS_DIR / "ball_detection.pt"
     if ball_model.exists():
         cmd.extend(["--ball-model-source", "custom"])
-        log(f"Using custom ball model: {ball_model}")
-    
+        models_used.append("ball")
+
     pitch_model = MODELS_DIR / "pitch_detection.pt"
     if pitch_model.exists():
         cmd.extend(["--pitch-model", "custom"])
-        log(f"Using custom pitch model: {pitch_model}")
+        models_used.append("pitch")
 
     # Pitch stride — reduces API calls, optical flow interpolates between keyframes
     cmd.extend(["--pitch-stride", str(PITCH_STRIDE)])
 
     if skip_cache:
         cmd.append("--fresh")
-        log("Fresh run requested — skipping stubs cache")
 
-    log(f"Running pipeline: {' '.join(cmd)}")
+    # Print clean run summary instead of the raw command
+    log(f"Mode: {mode} → {pipeline_mode}  |  Device: {device}  |  Models: {', '.join(models_used) or 'pretrained'}")
+    if skip_cache:
+        log("Fresh run — skipping stubs cache")
     
     # Set up environment - ensure src/ is on PYTHONPATH for subprocess
     env = os.environ.copy()
@@ -325,29 +325,34 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
         stages = ["detecting", "tracking", "classifying", "mapping", "computing", "rendering"]
         stage_weights = [30, 20, 15, 10, 10, 15]  # Approximate time weights per stage
         current_stage_idx = 0
-        
+
         for line in process.stdout:
-            line = line.strip()
-            if line:
-                log(f"Pipeline: {line}")
-                
-                # Detect stage changes from output
-                for i, stage in enumerate(stages):
-                    if stage.lower() in line.lower():
-                        current_stage_idx = i
-                        # Calculate weighted progress
-                        progress = sum(stage_weights[:i]) + stage_weights[i] // 2
-                        progress = min(progress, 95)  # Cap at 95% until complete
-                        
-                        # Calculate ETA based on elapsed time and progress
-                        eta = None
-                        if _processing_start_time and progress > 0:
-                            elapsed = time.time() - _processing_start_time
-                            estimated_total = elapsed / (progress / 100)
-                            eta = int(estimated_total - elapsed)
-                        
-                        update_analysis_status(analysis_id, "processing", stage, progress, eta=eta)
-                        break
+            line = line.rstrip("\n\r")
+            if not line.strip():
+                continue
+
+            # Pass through pipeline output directly — it already has its own
+            # timestamps + formatting.  Wrapping with log() was double-prefixing.
+            print(line, flush=True)
+
+            # Detect stage changes for dashboard progress updates
+            line_lower = line.lower()
+            for i, stage in enumerate(stages):
+                if stage in line_lower:
+                    current_stage_idx = i
+                    # Calculate weighted progress
+                    progress = sum(stage_weights[:i]) + stage_weights[i] // 2
+                    progress = min(progress, 95)  # Cap at 95% until complete
+
+                    # Calculate ETA based on elapsed time and progress
+                    eta = None
+                    if _processing_start_time and progress > 0:
+                        elapsed = time.time() - _processing_start_time
+                        estimated_total = elapsed / (progress / 100)
+                        eta = int(estimated_total - elapsed)
+
+                    update_analysis_status(analysis_id, "processing", stage, progress, eta=eta)
+                    break
         
         process.wait()
         
@@ -423,7 +428,8 @@ def process_pending_analysis(analysis: Dict) -> bool:
     model_config = analysis.get("modelConfig", {})
     skip_cache = analysis.get("skipCache", False)
 
-    log(f"Processing analysis {analysis_id} (mode: {mode}, fresh: {skip_cache})")
+    log_banner(f"Processing Analysis #{analysis_id}")
+    log(f"Mode: {mode}  |  Fresh: {skip_cache}")
 
     # Update status to processing
     update_analysis_status(analysis_id, "processing", "downloading", 5)
@@ -474,16 +480,18 @@ def process_pending_analysis(analysis: Dict) -> bool:
 
         # Post results to dashboard (sets status to completed + saves URLs)
         complete_resp = api_request(f"/worker/analysis/{analysis_id}/complete", "POST", results)
+        elapsed_total = time.time() - _processing_start_time if _processing_start_time else 0
         if complete_resp and complete_resp.get("success"):
-            log(f"Analysis {analysis_id} completed successfully")
+            m, s = divmod(int(elapsed_total), 60)
+            log(f"✓ Analysis #{analysis_id} completed in {m}m {s}s")
         else:
-            log(f"Warning: /complete returned {complete_resp} — video URL may not be saved", "WARN")
+            log(f"/complete returned {complete_resp} — video URL may not be saved", "WARN")
             # Fallback: at least mark status as completed
             update_analysis_status(analysis_id, "completed", "done", 100)
         return True
     else:
         update_analysis_status(analysis_id, "failed", error=results.get("error", "Unknown error"))
-        log(f"Analysis {analysis_id} failed: {results.get('error')}", "ERROR")
+        log(f"✗ Analysis #{analysis_id} failed: {results.get('error')}", "ERROR")
         return False
 
 
