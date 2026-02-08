@@ -100,7 +100,8 @@ class DetectionEngine:
 
         iterator = range(0, total, batch_size)
         if show_progress:
-            iterator = tqdm(iterator, desc="Detecting frames", unit="batch")
+            _bar_fmt = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+            iterator = tqdm(iterator, desc="  Detecting frames", unit="batch", bar_format=_bar_fmt)
 
         for i in iterator:
             batch = frames[i : i + batch_size]

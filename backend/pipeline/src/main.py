@@ -20,6 +20,9 @@ from utils.cache import stub_paths_for_mode, clear_stubs
 
 def main() -> None:
     """Main entry point for the football analysis pipeline."""
+    from utils.logging_config import setup_logging
+    setup_logging(level="INFO", use_colors=True)
+
     args = parse_args()
 
     # Parse ball tile grid
@@ -60,8 +63,13 @@ def main() -> None:
         clear_stubs(stubs)
 
     # Get frame generator for the requested mode
-    print(f"Running mode: {args.mode.value}")
-    print(f"Device: {args.device}")
+    from utils.pipeline_logger import banner, config_table
+    banner("Football Analytics Pipeline")
+    config_table("Configuration", {
+        "Mode": args.mode.value,
+        "Device": args.device,
+        "Source": args.source_video_path,
+    })
 
     frame_generator = get_frame_generator(
         mode=args.mode,

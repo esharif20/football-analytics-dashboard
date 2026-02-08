@@ -5,6 +5,10 @@ from typing import List, TYPE_CHECKING
 
 import numpy as np
 
+from utils.logging_config import get_logger
+
+logger = get_logger("base")
+
 from config import (
     PLAYER_DETECTION_MODEL_PATH,
     BALL_DETECTION_MODEL_PATH,
@@ -37,9 +41,9 @@ def load_frames(source_video_path: str) -> List[np.ndarray]:
     Returns:
         List of video frames
     """
-    print(f"Loading video: {source_video_path}")
+    logger.info(f"Loading video: {source_video_path}")
     frames = read_video(source_video_path)
-    print(f"Loaded {len(frames)} frames")
+    logger.info(f"Loaded {len(frames)} frames")
     return frames
 
 
@@ -66,33 +70,23 @@ def build_tracker(
     Returns:
         Configured Tracker instance
     """
-    # Debug: print model path info
-    print(f"DEBUG: PLAYER_DETECTION_MODEL_PATH = {PLAYER_DETECTION_MODEL_PATH}")
-    print(f"DEBUG: PLAYER_DETECTION_MODEL_PATH.exists() = {PLAYER_DETECTION_MODEL_PATH.exists()}")
-    print(f"DEBUG: player_model_source arg = {player_model_source}")
-    print(f"DEBUG: PLAYER_MODEL_SOURCE config = {PLAYER_MODEL_SOURCE}")
-    
-    # Determine player model path based on source
+    # Determine player model path based on source (prefer TensorRT .engine)
     p_source = player_model_source or PLAYER_MODEL_SOURCE
     if p_source == "custom" and PLAYER_DETECTION_MODEL_PATH.exists():
-        player_model_path = str(PLAYER_DETECTION_MODEL_PATH)
-        print(f"Player model: custom ({player_model_path})")
+        engine_path = PLAYER_DETECTION_MODEL_PATH.with_suffix('.engine')
+        player_model_path = str(engine_path) if engine_path.exists() else str(PLAYER_DETECTION_MODEL_PATH)
     else:
         player_model_path = YOLOV8_PLAYER_MODEL
-        print(f"Player model: YOLOv8 pretrained ({player_model_path})")
-        print(f"DEBUG: Reason - p_source={p_source}, exists={PLAYER_DETECTION_MODEL_PATH.exists()}")
 
-    # Determine ball model path based on source
+    # Determine ball model path based on source (prefer TensorRT .engine)
     b_source = ball_model_source or BALL_MODEL_SOURCE
     ball_model_path = None
     if use_ball_model and use_ball_model_weights:
         if b_source == "custom" and BALL_DETECTION_MODEL_PATH.exists():
-            ball_model_path = str(BALL_DETECTION_MODEL_PATH)
-            print(f"Ball model: custom ({ball_model_path})")
+            engine_path = BALL_DETECTION_MODEL_PATH.with_suffix('.engine')
+            ball_model_path = str(engine_path) if engine_path.exists() else str(BALL_DETECTION_MODEL_PATH)
         elif b_source == "yolov8":
-            # Use pretrained YOLOv8 for ball detection (less accurate)
             ball_model_path = None  # Falls back to multi-class detection
-            print("Ball model: fallback to multi-class model")
 
     config = TrackerConfig(
         det_batch_size=det_batch_size,
@@ -110,9 +104,9 @@ def build_tracker(
 
     if use_ball_model:
         if ball_model_path is None:
-            print("Ball model: fallback to multi-class model")
+            logger.info("Ball model: fallback to multi-class model")
         else:
-            print(f"Ball model: {ball_model_path}")
-            print(f"Ball conf: {ball_config.conf}")
+            logger.info(f"Ball model: {ball_model_path}")
+            logger.info(f"Ball conf: {ball_config.conf}")
 
     return tracker

@@ -15,27 +15,39 @@ def _reencode_to_h264(video_path: str) -> None:
     """Re-encode video to H.264 so browsers can play it.
 
     OpenCV writes mp4v (MPEG-4 Part 2) which HTML5 <video> can't play.
-    This converts in-place to H.264 using ffmpeg if available.
+    Tries NVENC hardware encoding first, falls back to libx264.
     """
     if not shutil.which("ffmpeg"):
-        print("[WARNING] ffmpeg not found — video may not play in browser")
         return
 
     tmp = video_path + ".tmp.mp4"
+
+    # Try NVENC first (GPU-accelerated)
+    nvenc_cmd = [
+        "ffmpeg", "-y", "-i", video_path,
+        "-c:v", "h264_nvenc", "-preset", "p4",
+        "-cq", "23", "-movflags", "+faststart",
+        "-an", tmp,
+    ]
     try:
-        subprocess.run(
-            [
-                "ffmpeg", "-y", "-i", video_path,
-                "-c:v", "libx264", "-preset", "fast",
-                "-crf", "23", "-movflags", "+faststart",
-                "-an", tmp,
-            ],
-            check=True,
-            capture_output=True,
-        )
+        subprocess.run(nvenc_cmd, check=True, capture_output=True)
         os.replace(tmp, video_path)
-    except subprocess.CalledProcessError as e:
-        print(f"[WARNING] ffmpeg re-encode failed: {e.stderr.decode()[-200:]}")
+        return
+    except subprocess.CalledProcessError:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+    # Fallback to libx264 (CPU)
+    libx264_cmd = [
+        "ffmpeg", "-y", "-i", video_path,
+        "-c:v", "libx264", "-preset", "fast",
+        "-crf", "23", "-movflags", "+faststart",
+        "-an", tmp,
+    ]
+    try:
+        subprocess.run(libx264_cmd, check=True, capture_output=True)
+        os.replace(tmp, video_path)
+    except subprocess.CalledProcessError:
         if os.path.exists(tmp):
             os.remove(tmp)
 
@@ -246,7 +258,8 @@ def write_video(
     """
     Path(target_video_path).parent.mkdir(parents=True, exist_ok=True)
     video_info = sv.VideoInfo.from_video_path(source_video_path)
-    print(f"Writing output video: {target_video_path}")
+    from utils.logging_config import get_logger
+    get_logger("video").info(f"Writing output video: {target_video_path}")
     with sv.VideoSink(target_video_path, video_info) as sink:
         for frame in frame_generator:
             sink.write_frame(frame)

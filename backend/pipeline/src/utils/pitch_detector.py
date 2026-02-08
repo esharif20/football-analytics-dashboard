@@ -83,12 +83,18 @@ class PitchDetector:
                     f"Pitch detection model not found at: {PITCH_DETECTION_MODEL_PATH}\n"
                     "Run ./src/setup.sh to download the model."
                 )
-            self.model = YOLO(str(PITCH_DETECTION_MODEL_PATH))
+            # Prefer TensorRT engine if available
+            engine_path = PITCH_DETECTION_MODEL_PATH.with_suffix('.engine')
+            model_path = engine_path if engine_path.exists() else PITCH_DETECTION_MODEL_PATH
+            self.model = YOLO(str(model_path))
         else:
             raise ValueError(
                 f"Unknown pitch backend '{self.backend}'. "
                 "Use 'inference' or 'ultralytics'."
             )
+
+        # FP16 inference on CUDA for speed
+        self._use_half = self.backend == "ultralytics" and self.device.startswith("cuda")
 
     def _prepare_frame(self, frame: np.ndarray) -> tuple[np.ndarray, float, float]:
         """Resize frame if stretching is enabled, returning scale factors."""
@@ -143,6 +149,7 @@ class PitchDetector:
                 device=self.device,
                 conf=self.conf_threshold,
                 imgsz=self.imgsz,
+                half=self._use_half,
                 verbose=False,
             )
 
@@ -227,6 +234,7 @@ class PitchDetector:
             device=self.device,
             conf=self.conf_threshold,
             imgsz=self.imgsz,
+            half=self._use_half,
             verbose=False,
             stream=True,
         )
