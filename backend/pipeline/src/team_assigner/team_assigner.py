@@ -16,8 +16,8 @@ import supervision as sv
 import torch
 import umap
 from sklearn.cluster import KMeans
-from tqdm import tqdm
 from transformers import AutoProcessor, SiglipVisionModel
+from utils.pipeline_logger import progress
 
 V = TypeVar("V")
 
@@ -69,8 +69,7 @@ class TeamClassifier:
         batches = create_batches(crops, self.batch_size)
         data = []
         with torch.no_grad():
-            _bar_fmt = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
-            for batch in tqdm(batches, desc="  Embedding extraction", bar_format=_bar_fmt):
+            for batch in progress(batches, desc="  Embedding extraction"):
                 inputs = self.processor(images=batch, return_tensors="pt").to(self.device)
                 outputs = self.features_model(**inputs)
                 embeddings = torch.mean(outputs.last_hidden_state, dim=1).cpu().numpy()

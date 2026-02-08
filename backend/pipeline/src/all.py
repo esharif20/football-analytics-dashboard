@@ -5,7 +5,6 @@ from typing import Iterator, TYPE_CHECKING
 
 import numpy as np
 import supervision as sv
-from tqdm import tqdm
 
 from config import (
     BALL_DETECTION_MODEL_PATH,
@@ -26,6 +25,7 @@ from config import (
 from utils.drawing import draw_keypoints
 from utils.pitch_detector import PitchDetector
 from utils.camera_motion import estimate_camera_motions, warp_keypoints
+from utils.pipeline_logger import progress
 from trackers.track_stabiliser import stabilise_tracks
 from team_assigner import TeamAssigner, TeamAssignerConfig
 from utils.metrics import compute_ball_metrics, print_ball_metrics
@@ -137,8 +137,7 @@ def _precompute_pitch_keypoints(
 
     # Detect on keyframes only
     keyframe_results: dict[int, dict] = {}
-    _bar_fmt = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
-    for idx in tqdm(keyframe_indices, desc="  Pitch keypoints", unit="frame", bar_format=_bar_fmt):
+    for idx in progress(keyframe_indices, desc="  Pitch keypoints", unit="frame"):
         keyframe_results[idx] = _detect_single_frame(
             frames[idx], pitch_detector, pitch_vertices, num_vertices,
         )
@@ -146,7 +145,7 @@ def _precompute_pitch_keypoints(
     # Estimate camera motions for optical flow interpolation
     camera_motions = None
     if use_optical_flow and stride > 1:
-        _logger.info("Estimating camera motion via optical flow...")
+        _logger.info(f"Estimating camera motion via optical flow ({len(frames)-1} frame pairs)...")
         camera_motions = estimate_camera_motions(frames, downscale=0.5)
 
     # Fill every frame

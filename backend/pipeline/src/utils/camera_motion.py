@@ -5,6 +5,7 @@ from typing import List
 import cv2
 import numpy as np
 import numpy.typing as npt
+from utils.pipeline_logger import progress
 
 
 def estimate_camera_motions(
@@ -51,7 +52,7 @@ def estimate_camera_motions(
         criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01),
     )
 
-    for j in range(len(frames) - 1):
+    for j in progress(range(len(frames) - 1), desc="  Camera motion", unit="frame"):
         curr_gray = cv2.cvtColor(frames[j + 1], cv2.COLOR_BGR2GRAY)
         if downscale != 1.0:
             curr_gray = cv2.resize(

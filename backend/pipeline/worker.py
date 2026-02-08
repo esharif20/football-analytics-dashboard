@@ -471,11 +471,15 @@ def process_pending_analysis(analysis: Dict) -> bool:
         
         # Save to cache
         save_to_cache(cache_key, results)
-        
-        # Post results to dashboard
-        update_analysis_status(analysis_id, "completed", "done", 100)
-        api_request(f"/worker/analysis/{analysis_id}/complete", "POST", results)
-        log(f"Analysis {analysis_id} completed successfully")
+
+        # Post results to dashboard (sets status to completed + saves URLs)
+        complete_resp = api_request(f"/worker/analysis/{analysis_id}/complete", "POST", results)
+        if complete_resp and complete_resp.get("success"):
+            log(f"Analysis {analysis_id} completed successfully")
+        else:
+            log(f"Warning: /complete returned {complete_resp} — video URL may not be saved", "WARN")
+            # Fallback: at least mark status as completed
+            update_analysis_status(analysis_id, "completed", "done", 100)
         return True
     else:
         update_analysis_status(analysis_id, "failed", error=results.get("error", "Unknown error"))
