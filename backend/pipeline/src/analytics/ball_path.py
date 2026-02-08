@@ -7,9 +7,11 @@ import numpy as np
 try:
     from pitch import ViewTransformer, SoccerPitchConfiguration, draw_pitch, draw_paths_on_pitch
     from utils.bbox_utils import get_center_of_bbox, measure_distance
+    from utils.trajectory_cleanup import mad_threshold
 except ImportError:
     from src.pitch import ViewTransformer, SoccerPitchConfiguration, draw_pitch, draw_paths_on_pitch
     from src.utils.bbox_utils import get_center_of_bbox, measure_distance
+    from src.utils.trajectory_cleanup import mad_threshold
 from .types import FramePosition, BallPath
 
 
@@ -113,11 +115,19 @@ class BallPathTracker:
     def filter_outliers(
         self,
         max_jump_m: float = 20.0,
+        mad_k: float = 4.0,
     ) -> List[FramePosition]:
-        """Filter out physically impossible position jumps.
+        """Filter out physically impossible position jumps using MAD.
+
+        Uses Median Absolute Deviation to compute an adaptive threshold
+        instead of a single hard-coded constant.  The ``max_jump_m``
+        parameter is kept as an absolute safety cap (ball can travel
+        ~130 km/h on goal kicks).  ``mad_k=4`` is generous to
+        accommodate the ball's high-variance movement.
 
         Args:
-            max_jump_m: Maximum realistic ball movement per frame (meters).
+            max_jump_m: Absolute maximum ball movement per frame (meters, safety cap).
+            mad_k: MAD multiplier for adaptive threshold.
 
         Returns:
             Filtered list of positions.
@@ -125,6 +135,24 @@ class BallPathTracker:
         if len(self.positions) < 2:
             return self.positions.copy()
 
+        # First pass: collect per-frame speeds for MAD calculation
+        speeds: List[float] = []
+        for i in range(1, len(self.positions)):
+            prev = self.positions[i - 1]
+            curr = self.positions[i]
+            if prev.pitch_pos and curr.pitch_pos:
+                dist_cm = measure_distance(prev.pitch_pos, curr.pitch_pos)
+                frame_gap = max(1, curr.frame_idx - prev.frame_idx)
+                speeds.append(dist_cm / frame_gap)
+
+        # Compute adaptive threshold (or fall back to hard cap)
+        if len(speeds) >= 5:
+            threshold = mad_threshold(np.asarray(speeds, dtype=np.float64), k=mad_k)
+            threshold = min(threshold, max_jump_m * 100)  # never exceed hard cap
+        else:
+            threshold = max_jump_m * 100  # cm per frame
+
+        # Second pass: filter using the threshold
         filtered = [self.positions[0]]
 
         for i in range(1, len(self.positions)):
@@ -136,8 +164,7 @@ class BallPathTracker:
                 frame_gap = max(1, curr.frame_idx - prev.frame_idx)
                 dist_per_frame = dist_cm / frame_gap
 
-                # Skip if movement is impossibly fast (> max_jump per frame)
-                if dist_per_frame > max_jump_m * 100:  # convert m to cm
+                if dist_per_frame > threshold:
                     continue
 
             filtered.append(curr)

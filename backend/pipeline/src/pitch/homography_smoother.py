@@ -1,7 +1,7 @@
 """Homography smoothing for stable radar overlays."""
 
 from collections import deque
-from typing import Dict, Optional, Set, TYPE_CHECKING
+from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -9,8 +9,17 @@ import numpy.typing as npt
 if TYPE_CHECKING:
     from .view_transformer import ViewTransformer
 
-# Maximum position jump threshold (cm) - reject teleportation artifacts
-MAX_DISTANCE_THRESHOLD = 500.0  # 5 meters
+try:
+    from utils.trajectory_cleanup import mad_threshold
+except ImportError:
+    from src.utils.trajectory_cleanup import mad_threshold
+
+# Fallback hard-cap: world-class sprint ≈ 36 km/h → ~40 km/h safety net
+# At 25 fps that's ~44 cm/frame.  We use 500 cm/frame as an absolute ceiling.
+MAX_DISTANCE_HARD_CAP = 500.0  # cm per frame — never exceed regardless of MAD
+
+# Minimum history before MAD kicks in (use hard cap until then)
+_MIN_MAD_SAMPLES = 10
 
 
 class HomographySmoother:
@@ -55,6 +64,9 @@ class HomographySmoother:
         self._last_good_matrix: Optional[npt.NDArray[np.float64]] = None
         self._position_history: Dict[int, npt.NDArray[np.float32]] = {}
         self._last_good_frame_idx: Optional[int] = None
+
+        # Per-track displacement history for MAD-based adaptive thresholds
+        self._displacement_history: Dict[int, List[float]] = {}
 
     def update_homography(
         self,
@@ -134,7 +146,10 @@ class HomographySmoother:
         pitch_length: float = 10500.0,
         pitch_width: float = 6800.0,
     ) -> npt.NDArray[np.float32]:
-        """Apply EMA smoothing with boundary clamping and outlier filtering.
+        """Apply EMA smoothing with boundary clamping and MAD outlier filtering.
+
+        Uses per-track Median Absolute Deviation to compute an adaptive
+        displacement threshold instead of a hard-coded constant.
 
         Args:
             track_id: Unique identifier for the tracked object
@@ -151,14 +166,25 @@ class HomographySmoother:
         # 2. First position for this track
         if track_id not in self._position_history:
             self._position_history[track_id] = position.copy()
+            self._displacement_history[track_id] = []
             return position
 
         prev = self._position_history[track_id]
+        distance = float(np.linalg.norm(position - prev))
 
-        # 3. Outlier filtering - reject impossible jumps (> 5 meters)
-        distance = np.linalg.norm(position - prev)
-        if distance > MAX_DISTANCE_THRESHOLD:
-            return prev  # Use previous position
+        # 3. Adaptive outlier threshold via MAD (or hard cap while warming up)
+        history = self._displacement_history[track_id]
+        if len(history) >= _MIN_MAD_SAMPLES:
+            threshold = mad_threshold(np.asarray(history, dtype=np.float64), k=3.0)
+            threshold = min(threshold, MAX_DISTANCE_HARD_CAP)
+        else:
+            threshold = MAX_DISTANCE_HARD_CAP
+
+        if distance > threshold:
+            return prev  # Reject outlier, keep previous position
+
+        # Record this displacement for future MAD computation
+        history.append(distance)
 
         # 4. Apply EMA smoothing
         smoothed = self.position_alpha * position + (1 - self.position_alpha) * prev
@@ -177,12 +203,14 @@ class HomographySmoother:
         stale = set(self._position_history.keys()) - active_ids
         for track_id in stale:
             del self._position_history[track_id]
+            self._displacement_history.pop(track_id, None)
 
     def reset(self) -> None:
         """Reset all state (e.g., on scene change)."""
         self._buffer.clear()
         self._last_good_matrix = None
         self._position_history.clear()
+        self._displacement_history.clear()
         self._last_good_frame_idx = None
 
     @property

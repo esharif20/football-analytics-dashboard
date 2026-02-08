@@ -18,11 +18,14 @@ from .types import (
     PossessionStats,
     KinematicStats,
     BallPath,
+    FootballEvent,
     AnalyticsResult,
 )
 from .possession import PossessionCalculator, compute_possession_stats
 from .kinematics import KinematicsCalculator, compute_kinematics
 from .ball_path import BallPathTracker, draw_ball_path_on_pitch
+from .events import EventDetector
+from .interaction_graph import compute_interaction_graphs
 
 
 class AnalyticsEngine:
@@ -55,6 +58,7 @@ class AnalyticsEngine:
             pitch_config=self.pitch_config,
         )
         self.ball_path_tracker = BallPathTracker(fps=fps)
+        self.event_detector = EventDetector(fps=fps)
 
     def compute(
         self,
@@ -92,6 +96,30 @@ class AnalyticsEngine:
         )
         ball_path = self.ball_path_tracker.get_ball_path()
 
+        # Event detection (passes, shots, tackles)
+        events = self.event_detector.detect(
+            possession_events, tracks,
+            per_frame_transformers=per_frame_transformers,
+        )
+        _logger.info("Detected %d events (%s)",
+                      len(events),
+                      ", ".join(f"{t}:{c}" for t, c in
+                                sorted(EventDetector.count_by_team_and_type(events).items())))
+
+        # Interaction graphs (proximity + pass weighted)
+        ig_team1, ig_team2 = compute_interaction_graphs(
+            tracks, events,
+            per_frame_transformers=per_frame_transformers,
+            player_kinematics=player_kinematics,
+            fps=self.fps,
+        )
+        if ig_team1 or ig_team2:
+            _logger.info("Interaction graphs: team1=%d nodes/%d edges, team2=%d nodes/%d edges",
+                          len(ig_team1["nodes"]) if ig_team1 else 0,
+                          len(ig_team1["edges"]) if ig_team1 else 0,
+                          len(ig_team2["nodes"]) if ig_team2 else 0,
+                          len(ig_team2["edges"]) if ig_team2 else 0)
+
         return AnalyticsResult(
             possession=possession_stats,
             player_kinematics=player_kinematics,
@@ -100,6 +128,9 @@ class AnalyticsEngine:
             fps=self.fps,
             homography_available=(transformer is not None or bool(per_frame_transformers)),
             ball_metrics=ball_metrics,
+            events=events,
+            interaction_graph_team1=ig_team1,
+            interaction_graph_team2=ig_team2,
         )
 
 
@@ -135,6 +166,15 @@ def print_analytics_summary(result: AnalyticsResult) -> None:
 
     bp = result.ball_path
     metric("Direction changes", bp.direction_changes)
+
+    # Events summary
+    if result.events:
+        counts = EventDetector.count_by_team_and_type(result.events)
+        divider()
+        _logger.info("  Events detected: %d total", len(result.events))
+        for etype, team_counts in sorted(counts.items()):
+            parts = [f"Team {t}: {c}" for t, c in sorted(team_counts.items())]
+            metric(f"  {etype.capitalize()}", ", ".join(parts))
 
     # Top 5 players by distance
     if result.player_kinematics:
@@ -215,10 +255,13 @@ __all__ = [
     "PossessionStats",
     "KinematicStats",
     "BallPath",
+    "FootballEvent",
     "AnalyticsResult",
 
     # Sub-modules
     "PossessionCalculator",
     "KinematicsCalculator",
     "BallPathTracker",
+    "EventDetector",
+    "compute_interaction_graphs",
 ]

@@ -45,10 +45,13 @@ export default defineConfig({
       "/ws": {
         target: "ws://localhost:8000",
         ws: true,
-        // Suppress noisy "socket ended" errors when backend restarts
-        // or connection drops during long pipeline runs
         configure: (proxy) => {
+          // Suppress noisy ECONNRESET / "socket ended" errors when
+          // backend restarts or connection drops during pipeline runs
           proxy.on("error", () => {});
+          proxy.on("proxyReqWs", (_proxyReq, _req, socket) => {
+            socket.on("error", () => {});
+          });
         },
       },
     },

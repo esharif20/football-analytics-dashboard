@@ -75,6 +75,21 @@ class BallPath:
 
 
 @dataclass
+class FootballEvent:
+    """A detected football event (pass, shot, tackle, etc.)."""
+    event_type: str  # "pass", "shot", "challenge", "cross", etc.
+    frame_idx: int
+    timestamp_sec: float
+    team_id: Optional[int] = None  # 1 or 2 (0 = contested)
+    player_track_id: Optional[int] = None
+    target_player_track_id: Optional[int] = None
+    confidence: Optional[float] = None  # 0.0–1.0
+    success: Optional[bool] = None
+    pitch_start: Optional[Tuple[float, float]] = None  # (x, y) in cm
+    pitch_end: Optional[Tuple[float, float]] = None    # (x, y) in cm
+
+
+@dataclass
 class AnalyticsResult:
     """Complete analytics output."""
     possession: PossessionStats
@@ -84,3 +99,6 @@ class AnalyticsResult:
     fps: float
     homography_available: bool
     ball_metrics: Optional[Dict] = None  # Ball tracking quality metrics
+    events: List[FootballEvent] = field(default_factory=list)
+    interaction_graph_team1: Optional[Dict] = None
+    interaction_graph_team2: Optional[Dict] = None
