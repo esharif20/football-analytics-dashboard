@@ -502,10 +502,6 @@ def main():
     log_banner("Downloading Models")
     download_models()
 
-    # Export TensorRT engines (one-time, cached)
-    log_banner("TensorRT Export")
-    export_tensorrt_models()
-
     # Check for models
     models = list(MODELS_DIR.glob("*.pt"))
     if models:
