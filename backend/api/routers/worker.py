@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import get_db
-from ..models import Analysis, Video, Statistic
+from ..models import Analysis, Video, Statistic, Event
 from ..schemas import WorkerStatusUpdate, WorkerCompleteRequest, WorkerUploadVideo, _row_to_dict
 from ..storage import storage_put, reencode_to_h264
 from ..ws import broadcast_progress, broadcast_complete, broadcast_error
@@ -100,11 +100,23 @@ def _strip_analytics_for_storage(analytics: dict) -> dict:
                 if k not in ("speeds_px_per_frame", "speeds_m_per_sec")
             }
         elif key == "ball_path" and isinstance(val, dict):
-            # Keep summary, drop per-frame positions
-            out[key] = {
-                k: v for k, v in val.items()
-                if k not in ("positions", "pitch_positions")
-            }
+            # Keep summary + downsampled pitch_positions, drop pixel positions
+            stripped = {k: v for k, v in val.items() if k != "positions"}
+            pitch_pos = val.get("pitch_positions", [])
+            if len(pitch_pos) > 200:
+                step = len(pitch_pos) / 200
+                pitch_pos = [pitch_pos[int(i * step)] for i in range(200)]
+            stripped["pitch_positions"] = pitch_pos
+            out[key] = stripped
+        elif key in ("interaction_graph_team1", "interaction_graph_team2"):
+            # Stored in Statistic.passNetworkTeam1/Team2 instead
+            continue
+        elif key == "events" and isinstance(val, list):
+            # Keep event summary only — full events are stored in the events table
+            out[key] = [
+                {k: v for k, v in e.items() if k not in ("pitch_start", "pitch_end")}
+                for e in val if isinstance(e, dict)
+            ]
         else:
             out[key] = val
     return out
@@ -184,10 +196,21 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
         bk = a.get("ball_kinematics", {})
         bp = a.get("ball_path", {})
 
+        # Count passes and shots per team from detected events
+        events_list = a.get("events", [])
+        passes_t1 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "pass" and e.get("team_id") == 1)
+        passes_t2 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "pass" and e.get("team_id") == 2)
+        shots_t1 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "shot" and e.get("team_id") == 1)
+        shots_t2 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "shot" and e.get("team_id") == 2)
+
         stat = Statistic(
             analysisId=analysis_id,
             possessionTeam1=round(poss.get("team_1_percentage", 50), 1),
             possessionTeam2=round(poss.get("team_2_percentage", 50), 1),
+            passesTeam1=passes_t1 or None,
+            passesTeam2=passes_t2 or None,
+            shotsTeam1=shots_t1 or None,
+            shotsTeam2=shots_t2 or None,
             distanceCoveredTeam1=_sum_to_km(team_distances[0]),
             distanceCoveredTeam2=_sum_to_km(team_distances[1]),
             avgSpeedTeam1=_avg_to_kmh(team_avg_speeds[0]),
@@ -199,8 +222,36 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
             ballAvgSpeed=round(bk.get("avg_speed_m_per_sec", 0) * 3.6, 1) if bk.get("avg_speed_m_per_sec") else None,
             ballMaxSpeed=round(bk.get("max_speed_m_per_sec", 0) * 3.6, 1) if bk.get("max_speed_m_per_sec") else None,
             directionChanges=bp.get("direction_changes"),
+            passNetworkTeam1=a.get("interaction_graph_team1"),
+            passNetworkTeam2=a.get("interaction_graph_team2"),
         )
         db.add(stat)
+
+        # Store detected events in the events table
+        if events_list:
+            # Delete existing events for re-run case
+            existing_events = await db.execute(select(Event).where(Event.analysisId == analysis_id))
+            for old_ev in existing_events.scalars().all():
+                await db.delete(old_ev)
+
+            for ev in events_list:
+                if not isinstance(ev, dict):
+                    continue
+                db.add(Event(
+                    analysisId=analysis_id,
+                    type=ev.get("event_type", "unknown"),
+                    frameNumber=ev.get("frame_idx", 0),
+                    timestamp=ev.get("timestamp_sec", 0.0),
+                    playerId=ev.get("player_track_id"),
+                    teamId=ev.get("team_id"),
+                    targetPlayerId=ev.get("target_player_track_id"),
+                    startX=ev.get("pitch_start", [None, None])[0] if ev.get("pitch_start") else None,
+                    startY=ev.get("pitch_start", [None, None])[1] if ev.get("pitch_start") else None,
+                    endX=ev.get("pitch_end", [None, None])[0] if ev.get("pitch_end") else None,
+                    endY=ev.get("pitch_end", [None, None])[1] if ev.get("pitch_end") else None,
+                    success=ev.get("success"),
+                    confidence=ev.get("confidence"),
+                ))
 
     try:
         await db.commit()

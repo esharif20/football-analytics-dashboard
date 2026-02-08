@@ -264,11 +264,33 @@ export default function Analysis() {
     }));
   }, [events]);
 
+  // Parse real ball trajectory from analytics JSON
+  const ballTrajectoryPoints = useMemo(() => {
+    if (!analysis?.analyticsDataUrl) return undefined;
+    try {
+      const analytics = typeof analysis.analyticsDataUrl === "string"
+        ? JSON.parse(analysis.analyticsDataUrl)
+        : analysis.analyticsDataUrl;
+      const pitchPositions = analytics?.ball_path?.pitch_positions;
+      if (!Array.isArray(pitchPositions) || pitchPositions.length < 2) return undefined;
+      return pitchPositions.map((p: [number, number] | number[]) => ({
+        x: p[0] / 100,  // cm → m (SVG viewBox is 105×68)
+        y: p[1] / 100,
+      }));
+    } catch {
+      return undefined;
+    }
+  }, [analysis?.analyticsDataUrl]);
+
   const demoStats = useMemo(() => {
     if (statistics)
       return {
         possessionTeam1: statistics.possessionTeam1 ?? 50,
         possessionTeam2: statistics.possessionTeam2 ?? 50,
+        passesTeam1: statistics.passesTeam1 ?? 0,
+        passesTeam2: statistics.passesTeam2 ?? 0,
+        shotsTeam1: statistics.shotsTeam1 ?? 0,
+        shotsTeam2: statistics.shotsTeam2 ?? 0,
         distanceCoveredTeam1: statistics.distanceCoveredTeam1 ?? 0,
         distanceCoveredTeam2: statistics.distanceCoveredTeam2 ?? 0,
         avgSpeedTeam1: statistics.avgSpeedTeam1 ?? 0,
@@ -283,6 +305,8 @@ export default function Analysis() {
       };
     return {
       possessionTeam1: 52, possessionTeam2: 48,
+      passesTeam1: 0, passesTeam2: 0,
+      shotsTeam1: 0, shotsTeam2: 0,
       distanceCoveredTeam1: 42.5, distanceCoveredTeam2: 41.2,
       avgSpeedTeam1: 7.2, avgSpeedTeam2: 6.9,
       maxSpeedTeam1: 28.5, maxSpeedTeam2: 27.1,
@@ -582,6 +606,8 @@ export default function Analysis() {
                   </CardHeader>
                   <CardContent className="p-4 space-y-4">
                     <StatRow label="POSSESSION (%)" team1={demoStats.possessionTeam1} team2={demoStats.possessionTeam2} suffix="%" />
+                    <StatRow label="PASSES" team1={demoStats.passesTeam1} team2={demoStats.passesTeam2} />
+                    <StatRow label="SHOTS" team1={demoStats.shotsTeam1} team2={demoStats.shotsTeam2} />
                     <StatRow label="DISTANCE (KM)" team1={demoStats.distanceCoveredTeam1} team2={demoStats.distanceCoveredTeam2} />
                     <StatRow label="AVG SPEED (KM/H)" team1={demoStats.avgSpeedTeam1} team2={demoStats.avgSpeedTeam2} />
                     <StatRow label="MAX SPEED (KM/H)" team1={demoStats.maxSpeedTeam1} team2={demoStats.maxSpeedTeam2} />
@@ -658,10 +684,14 @@ export default function Analysis() {
             {/* Row 5: Ball Trajectory + Player Interaction Network */}
             <div className="grid lg:grid-cols-2 gap-6">
               <AnimatedSection delay={50}>
-                <BallTrajectoryDiagram />
+                <BallTrajectoryDiagram ballTrajectoryPoints={ballTrajectoryPoints} />
               </AnimatedSection>
               <AnimatedSection delay={100}>
-                <PlayerInteractionGraph filterTeam={filterTeam} />
+                <PlayerInteractionGraph
+                  filterTeam={filterTeam}
+                  interactionTeam1={statistics?.passNetworkTeam1}
+                  interactionTeam2={statistics?.passNetworkTeam2}
+                />
               </AnimatedSection>
             </div>
 
@@ -845,8 +875,11 @@ function EmptyCommentaryState({
 }
 
 // ==================== Ball Trajectory Diagram ====================
-function BallTrajectoryDiagram() {
+function BallTrajectoryDiagram({ ballTrajectoryPoints }: { ballTrajectoryPoints?: { x: number; y: number }[] }) {
+  const hasRealData = !!ballTrajectoryPoints && ballTrajectoryPoints.length >= 2;
+
   const trajectoryPoints = useMemo(() => {
+    if (hasRealData) return ballTrajectoryPoints!;
     const pts: { x: number; y: number }[] = [];
     let cx = 52.5, cy = 34;
     for (let i = 0; i < 60; i++) {
@@ -857,7 +890,7 @@ function BallTrajectoryDiagram() {
       pts.push({ x: cx, y: cy });
     }
     return pts;
-  }, []);
+  }, [hasRealData, ballTrajectoryPoints]);
 
   const pathD = useMemo(() => {
     if (trajectoryPoints.length < 2) return "";
@@ -886,7 +919,7 @@ function BallTrajectoryDiagram() {
               <CardDescription className="text-xs mt-0.5">Movement path across the pitch</CardDescription>
             </div>
           </div>
-          <Badge variant="outline" className="text-[10px] border-amber-400/20 text-amber-400/70 bg-amber-500/5">Placeholder</Badge>
+          {!hasRealData && <Badge variant="outline" className="text-[10px] border-amber-400/20 text-amber-400/70 bg-amber-500/5">Placeholder</Badge>}
         </div>
       </CardHeader>
       <CardContent className="p-4">
@@ -933,36 +966,106 @@ function BallTrajectoryDiagram() {
 }
 
 // ==================== Player Interaction Graph ====================
-function PlayerInteractionGraph({ filterTeam }: { filterTeam: "all" | "team1" | "team2" }) {
-  const nodes = useMemo(() => [
-    { id: 1, teamId: 1, x: 15, y: 34, passes: 45 },
-    { id: 2, teamId: 1, x: 28, y: 14, passes: 38 },
-    { id: 3, teamId: 1, x: 28, y: 54, passes: 42 },
-    { id: 4, teamId: 1, x: 42, y: 24, passes: 52 },
-    { id: 5, teamId: 1, x: 42, y: 44, passes: 48 },
-    { id: 6, teamId: 1, x: 50, y: 34, passes: 35 },
-    { id: 12, teamId: 2, x: 58, y: 34, passes: 40 },
-    { id: 13, teamId: 2, x: 70, y: 14, passes: 36 },
-    { id: 14, teamId: 2, x: 70, y: 54, passes: 44 },
-    { id: 15, teamId: 2, x: 82, y: 24, passes: 50 },
-    { id: 16, teamId: 2, x: 82, y: 44, passes: 46 },
-    { id: 17, teamId: 2, x: 92, y: 34, passes: 32 },
-  ], []);
+interface InteractionNode { playerId: number; teamId: number; avgX: number; avgY: number; avgSpeed: number; isBall?: boolean }
+interface InteractionEdge { from: number; to: number; weight: number; isBallEdge?: boolean }
+interface InteractionGraphData { nodes: InteractionNode[]; edges: InteractionEdge[] }
+const BALL_HEX = "#fbbf24"; // amber-400
 
-  const edges = useMemo(() => [
-    { from: 1, to: 2, count: 14 }, { from: 1, to: 3, count: 16 },
-    { from: 2, to: 4, count: 20 }, { from: 3, to: 5, count: 15 },
-    { from: 4, to: 6, count: 12 }, { from: 5, to: 6, count: 10 },
-    { from: 4, to: 5, count: 8 }, { from: 2, to: 3, count: 6 },
-    { from: 12, to: 13, count: 13 }, { from: 12, to: 14, count: 17 },
-    { from: 13, to: 15, count: 18 }, { from: 14, to: 16, count: 14 },
-    { from: 15, to: 17, count: 11 }, { from: 16, to: 17, count: 9 },
-    { from: 15, to: 16, count: 7 },
-  ], []);
+function PlayerInteractionGraph({
+  filterTeam,
+  interactionTeam1,
+  interactionTeam2,
+}: {
+  filterTeam: "all" | "team1" | "team2";
+  interactionTeam1?: InteractionGraphData | null;
+  interactionTeam2?: InteractionGraphData | null;
+}) {
+  const hasRealData = !!(interactionTeam1?.nodes?.length || interactionTeam2?.nodes?.length);
 
-  const filteredNodes = filterTeam === "all" ? nodes : nodes.filter((n) => (filterTeam === "team1" ? n.teamId === 1 : n.teamId === 2));
-  const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
-  const filteredEdges = edges.filter((e) => filteredNodeIds.has(e.from) && filteredNodeIds.has(e.to));
+  // Merge both teams' data or fall back to demo
+  const { allNodes, allEdges } = useMemo(() => {
+    if (hasRealData) {
+      const nodes: { id: number; teamId: number; x: number; y: number; speed: number; isBall?: boolean }[] = [];
+      const edges: { from: number; to: number; weight: number; teamId: number; isBallEdge?: boolean }[] = [];
+      const seenIds = new Set<number>();
+
+      for (const graph of [interactionTeam1, interactionTeam2]) {
+        if (!graph) continue;
+        for (const n of graph.nodes) {
+          // Deduplicate ball node (appears in both team graphs)
+          if (seenIds.has(n.playerId)) continue;
+          seenIds.add(n.playerId);
+          nodes.push({
+            id: n.playerId,
+            teamId: n.teamId,
+            x: n.avgX / 100,  // cm → m
+            y: n.avgY / 100,
+            speed: n.avgSpeed,
+            isBall: !!(n as any).isBall,
+          });
+        }
+        for (const e of graph.edges) {
+          const fromNode = graph.nodes.find(n => n.playerId === e.from);
+          edges.push({
+            from: e.from,
+            to: e.to,
+            weight: e.weight,
+            teamId: fromNode?.teamId ?? 1,
+            isBallEdge: !!e.isBallEdge,
+          });
+        }
+      }
+      return { allNodes: nodes, allEdges: edges };
+    }
+
+    // Demo data fallback
+    const demoNodes: { id: number; teamId: number; x: number; y: number; speed: number; isBall?: boolean }[] = [
+      { id: 1, teamId: 1, x: 15, y: 34, speed: 7.2 },
+      { id: 2, teamId: 1, x: 28, y: 14, speed: 8.1 },
+      { id: 3, teamId: 1, x: 28, y: 54, speed: 7.8 },
+      { id: 4, teamId: 1, x: 42, y: 24, speed: 9.3 },
+      { id: 5, teamId: 1, x: 42, y: 44, speed: 8.5 },
+      { id: 6, teamId: 1, x: 50, y: 34, speed: 6.9 },
+      { id: 12, teamId: 2, x: 58, y: 34, speed: 7.5 },
+      { id: 13, teamId: 2, x: 70, y: 14, speed: 8.0 },
+      { id: 14, teamId: 2, x: 70, y: 54, speed: 7.4 },
+      { id: 15, teamId: 2, x: 82, y: 24, speed: 9.1 },
+      { id: 16, teamId: 2, x: 82, y: 44, speed: 8.8 },
+      { id: 17, teamId: 2, x: 92, y: 34, speed: 6.5 },
+      { id: -1, teamId: 0, x: 52.5, y: 34, speed: 0, isBall: true },
+    ];
+    const demoEdges: { from: number; to: number; weight: number; teamId: number; isBallEdge?: boolean }[] = [
+      { from: 1, to: 2, weight: 0.7, teamId: 1 }, { from: 1, to: 3, weight: 0.8, teamId: 1 },
+      { from: 2, to: 4, weight: 1.0, teamId: 1 }, { from: 3, to: 5, weight: 0.75, teamId: 1 },
+      { from: 4, to: 6, weight: 0.6, teamId: 1 }, { from: 5, to: 6, weight: 0.5, teamId: 1 },
+      { from: 4, to: 5, weight: 0.4, teamId: 1 }, { from: 2, to: 3, weight: 0.3, teamId: 1 },
+      { from: 12, to: 13, weight: 0.65, teamId: 2 }, { from: 12, to: 14, weight: 0.85, teamId: 2 },
+      { from: 13, to: 15, weight: 0.9, teamId: 2 }, { from: 14, to: 16, weight: 0.7, teamId: 2 },
+      { from: 15, to: 17, weight: 0.55, teamId: 2 }, { from: 16, to: 17, weight: 0.45, teamId: 2 },
+      { from: 15, to: 16, weight: 0.35, teamId: 2 },
+      // Demo ball-player edges
+      { from: -1, to: 6, weight: 0.9, teamId: 1, isBallEdge: true },
+      { from: -1, to: 4, weight: 0.6, teamId: 1, isBallEdge: true },
+      { from: -1, to: 12, weight: 0.85, teamId: 2, isBallEdge: true },
+      { from: -1, to: 15, weight: 0.5, teamId: 2, isBallEdge: true },
+    ];
+    return { allNodes: demoNodes, allEdges: demoEdges };
+  }, [hasRealData, interactionTeam1, interactionTeam2]);
+
+  const isNodeVisible = (node: { teamId: number; isBall?: boolean }) =>
+    node.isBall || filterTeam === "all" || (filterTeam === "team1" ? node.teamId === 1 : node.teamId === 2);
+
+  const isEdgeVisible = (edge: { from: number; to: number; isBallEdge?: boolean }) => {
+    const fromNode = allNodes.find(n => n.id === edge.from);
+    const toNode = allNodes.find(n => n.id === edge.to);
+    if (!fromNode || !toNode) return false;
+    // Ball edges: visible if the player end is visible
+    if (edge.isBallEdge) {
+      const playerNode = fromNode.isBall ? toNode : fromNode;
+      return isNodeVisible(playerNode);
+    }
+    return isNodeVisible(fromNode) && isNodeVisible(toNode);
+  };
 
   return (
     <div className="glass-card overflow-hidden hover-lift group">
@@ -975,10 +1078,10 @@ function PlayerInteractionGraph({ filterTeam }: { filterTeam: "all" | "team1" | 
             </div>
             <div>
               <CardTitle className="text-sm font-semibold">Player Interaction Network</CardTitle>
-              <CardDescription className="text-xs mt-0.5">Pass connections between players</CardDescription>
+              <CardDescription className="text-xs mt-0.5">Spatial proximity &amp; pass connections</CardDescription>
             </div>
           </div>
-          <Badge variant="outline" className="text-[10px] border-cyan-400/20 text-cyan-400/70 bg-cyan-500/5">Placeholder</Badge>
+          {!hasRealData && <Badge variant="outline" className="text-[10px] border-cyan-400/20 text-cyan-400/70 bg-cyan-500/5">Placeholder</Badge>}
         </div>
       </CardHeader>
       <CardContent className="p-4">
@@ -987,9 +1090,6 @@ function PlayerInteractionGraph({ filterTeam }: { filterTeam: "all" | "team1" | 
             <defs>
               <filter id="netLineGlow"><feGaussianBlur stdDeviation="0.3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               <filter id="netEdgeGlow"><feGaussianBlur stdDeviation="0.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-              <marker id="netArrow" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-                <polygon points="0 0, 6 2, 0 4" fill="rgba(255,255,255,0.4)" />
-              </marker>
             </defs>
             {/* Pitch lines */}
             <g filter="url(#netLineGlow)" stroke="rgba(52,211,153,0.25)" strokeWidth="0.25" fill="none">
@@ -999,36 +1099,72 @@ function PlayerInteractionGraph({ filterTeam }: { filterTeam: "all" | "team1" | 
               <rect x="0.5" y="13.84" width="16.5" height="40.32" />
               <rect x="88" y="13.84" width="16.5" height="40.32" />
             </g>
-            {/* Edges */}
+            {/* Edges — render all, animate visibility */}
             <g filter="url(#netEdgeGlow)">
-              {filteredEdges.map((edge, i) => {
-                const from = filteredNodes.find((n) => n.id === edge.from)!;
-                const to = filteredNodes.find((n) => n.id === edge.to)!;
+              {allEdges.map((edge) => {
+                const from = allNodes.find((n) => n.id === edge.from);
+                const to = allNodes.find((n) => n.id === edge.to);
                 if (!from || !to) return null;
-                const color = from.teamId === 1 ? TEAM1_HEX : TEAM2_HEX;
+                const color = edge.isBallEdge ? BALL_HEX : (edge.teamId === 1 ? TEAM1_HEX : TEAM2_HEX);
+                const visible = isEdgeVisible(edge);
                 return (
-                  <line key={i} x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                    stroke={color} strokeWidth={Math.max(0.3, edge.count / 8)}
-                    strokeOpacity={0.4 + (edge.count / 40)} markerEnd="url(#netArrow)"
+                  <line key={`${edge.from}-${edge.to}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                    className="interaction-edge"
+                    stroke={color}
+                    strokeWidth={edge.isBallEdge ? Math.max(0.2, edge.weight * 1.5) : Math.max(0.3, edge.weight * 2.5)}
+                    strokeOpacity={visible ? (edge.isBallEdge ? 0.2 + edge.weight * 0.5 : 0.3 + edge.weight * 0.6) : 0}
+                    strokeDasharray={edge.isBallEdge ? "1.5 0.8" : undefined}
                   />
                 );
               })}
             </g>
           </svg>
-          {/* Player nodes */}
-          {filteredNodes.map((node) => (
-            <div
-              key={node.id}
-              className="player-node-interaction"
-              style={{
-                left: `${(node.x / PITCH_WIDTH) * 100}%`,
-                top: `${(node.y / PITCH_HEIGHT) * 100}%`,
-                "--node-color": node.teamId === 1 ? TEAM1_HEX : TEAM2_HEX,
-              } as React.CSSProperties}
-            >
-              <span className="text-[9px] font-bold text-white drop-shadow-md">{node.id}</span>
-            </div>
-          ))}
+          {/* Player + ball nodes — render all, animate visibility */}
+          {allNodes.map((node) => {
+            const visible = isNodeVisible(node);
+            if (node.isBall) {
+              return (
+                <div
+                  key="ball"
+                  className="player-node-interaction"
+                  style={{
+                    left: `${(node.x / PITCH_WIDTH) * 100}%`,
+                    top: `${(node.y / PITCH_HEIGHT) * 100}%`,
+                    "--node-color": BALL_HEX,
+                    opacity: visible ? 1 : 0,
+                    transform: `translate(-50%, -50%) scale(${visible ? 1 : 0.5})`,
+                    pointerEvents: visible ? "auto" : "none",
+                    width: 20,
+                    height: 20,
+                    border: "2px solid rgba(255,255,255,0.9)",
+                  } as React.CSSProperties}
+                >
+                  <span className="text-[8px] font-black text-white drop-shadow-md leading-none">B</span>
+                </div>
+              );
+            }
+            return (
+              <div
+                key={node.id}
+                className="player-node-interaction"
+                style={{
+                  left: `${(node.x / PITCH_WIDTH) * 100}%`,
+                  top: `${(node.y / PITCH_HEIGHT) * 100}%`,
+                  "--node-color": node.teamId === 1 ? TEAM1_HEX : TEAM2_HEX,
+                  opacity: visible ? 1 : 0,
+                  transform: `translate(-50%, -50%) scale(${visible ? 1 : 0.5})`,
+                  pointerEvents: visible ? "auto" : "none",
+                } as React.CSSProperties}
+              >
+                <span className="text-[9px] font-bold text-white drop-shadow-md leading-none">{node.id}</span>
+                {hasRealData && (
+                  <span className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 text-[7px] text-white/70 whitespace-nowrap font-mono drop-shadow-md">
+                    {node.speed.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </div>
@@ -1895,13 +2031,14 @@ function VoronoiView({ data }: { data: any }) {
 }
 
 function EventTimeline({ events }: { events: any[] }) {
+  const maxTimestamp = Math.max(...events.map(e => e.timestamp || 0), 1);
   return (
     <div className="space-y-4">
       <div className="relative h-12 bg-secondary/30 rounded-xl overflow-hidden border border-border/20">
         {events.map((event, i) => {
-          const position = (event.timestamp / 90) * 100;
+          const position = (event.timestamp / maxTimestamp) * 100;
           const eventConfig = EVENT_TYPES[event.type as keyof typeof EVENT_TYPES];
-          return <div key={i} className="event-marker" style={{ left: `${Math.min(position, 98)}%`, backgroundColor: eventConfig?.color || "#666" }} title={`${event.type} at ${event.timestamp}s`} />;
+          return <div key={i} className="event-marker" style={{ left: `${Math.min(position, 98)}%`, backgroundColor: eventConfig?.color || "#666" }} title={`${event.type} at ${event.timestamp.toFixed(1)}s`} />;
         })}
       </div>
       <ScrollArea className="h-48">

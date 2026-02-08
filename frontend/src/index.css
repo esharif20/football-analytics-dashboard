@@ -769,18 +769,24 @@
     justify-content: center;
     z-index: 10;
     cursor: pointer;
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.3s ease,
+                opacity 0.4s ease;
     box-shadow:
       0 2px 8px color-mix(in oklch, var(--node-color) 50%, transparent),
       0 0 15px color-mix(in oklch, var(--node-color) 15%, transparent);
   }
 
   .player-node-interaction:hover {
-    transform: translate(-50%, -50%) scale(1.4);
+    transform: translate(-50%, -50%) scale(1.4) !important;
     z-index: 25;
     box-shadow:
       0 4px 16px color-mix(in oklch, var(--node-color) 65%, transparent),
       0 0 30px color-mix(in oklch, var(--node-color) 30%, transparent);
+  }
+
+  .interaction-edge {
+    transition: stroke-opacity 0.4s ease, stroke-width 0.3s ease;
   }
 
   /* =============================================
