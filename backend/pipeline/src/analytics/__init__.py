@@ -176,7 +176,7 @@ def export_analytics_json(result: AnalyticsResult, filepath: str) -> None:
         elif isinstance(obj, dict):
             return {str(k): serialize(v) for k, v in obj.items()}
         elif isinstance(obj, tuple):
-            return list(obj)
+            return [serialize(v) for v in obj]
         elif isinstance(obj, float):
             # inf/nan are not JSON-compliant — replace with None
             return obj if math.isfinite(obj) else None
