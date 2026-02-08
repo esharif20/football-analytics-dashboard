@@ -96,16 +96,19 @@ class BallPathTracker:
         self,
         tracks: Dict[str, List[Dict]],
         transformer: Optional[ViewTransformer] = None,
+        per_frame_transformers: Optional[Dict[int, ViewTransformer]] = None,
     ):
         """Accumulate all ball positions from tracks.
 
         Args:
             tracks: Full track dictionary.
             transformer: ViewTransformer for pitch coordinates.
+            per_frame_transformers: Per-frame ViewTransformers (preferred).
         """
         self.reset()
         for frame_idx, ball_frame in enumerate(tracks.get("ball", [])):
-            self.add_frame(frame_idx, ball_frame, transformer)
+            frame_t = (per_frame_transformers or {}).get(frame_idx) or transformer
+            self.add_frame(frame_idx, ball_frame, frame_t)
 
     def filter_outliers(
         self,

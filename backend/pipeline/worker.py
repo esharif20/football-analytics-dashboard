@@ -461,25 +461,14 @@ def process_pending_analysis(analysis: Dict) -> bool:
 
     update_analysis_status(analysis_id, "processing", "loading", 10)
 
-    # Check cache (skip if fresh run requested)
-    video_hash = compute_video_hash(video_path)
-    cache_key = get_cache_key(video_hash, mode, model_config)
-
-    if not skip_cache:
-        cached_results = check_cache(cache_key)
-        if cached_results:
-            log(f"Cache hit! Using cached results for {cache_key}")
-            # Post cached results
-            api_request(f"/worker/analysis/{analysis_id}/complete", "POST", cached_results)
-            return True
-
-    # Run pipeline
+    # Run pipeline (pipeline stubs cache handles tracklet caching internally;
+    # skip_cache=True passes --fresh which clears stubs too)
     results = run_pipeline(video_path, analysis_id, mode, model_config, skip_cache=skip_cache)
-    
+
     if results.get("success"):
         # Upload annotated video to S3
         update_analysis_status(analysis_id, "processing", "uploading", 95)
-        
+
         annotated_video_path = results.get("annotatedVideo")
         if annotated_video_path:
             annotated_url = upload_video_to_s3(Path(annotated_video_path), analysis_id)
@@ -487,15 +476,12 @@ def process_pending_analysis(analysis: Dict) -> bool:
                 results["annotatedVideo"] = annotated_url
             else:
                 log("Failed to upload annotated video", "WARN")
-        
+
         radar_video_path = results.get("radarVideo")
         if radar_video_path:
             radar_url = upload_video_to_s3(Path(radar_video_path), f"{analysis_id}_radar")
             if radar_url:
                 results["radarVideo"] = radar_url
-        
-        # Save to cache
-        save_to_cache(cache_key, results)
 
         # Post results to dashboard (sets status to completed + saves URLs)
         complete_resp = api_request(f"/worker/analysis/{analysis_id}/complete", "POST", results)

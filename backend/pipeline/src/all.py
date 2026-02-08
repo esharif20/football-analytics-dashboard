@@ -648,7 +648,11 @@ def run(
     # After all frames processed, compute and export analytics
     if show_analytics and analytics_engine is not None:
         _all_logger.info("Computing analytics...")
-        result = analytics_engine.compute(tracks, transformer=None, ball_metrics=ball_metrics)
+        result = analytics_engine.compute(
+            tracks, transformer=None,
+            per_frame_transformers=per_frame_transformers or None,
+            ball_metrics=ball_metrics,
+        )
         print_analytics_summary(result)
 
         # Export analytics (including ball_metrics) to JSON in output directory

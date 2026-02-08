@@ -284,6 +284,7 @@ class KinematicsCalculator:
         track_id: int,
         entity_type: str,
         team_id: Optional[int] = None,
+        use_adaptive: bool = False,
     ) -> KinematicStats:
         """Compute full kinematic statistics for an entity.
 
@@ -292,6 +293,7 @@ class KinematicsCalculator:
             track_id: Entity track ID.
             entity_type: "player", "goalkeeper", or "ball".
             team_id: Team ID for players (optional).
+            use_adaptive: Use adaptive distance/speed computation (for per-frame transformers).
 
         Returns:
             KinematicStats with all metrics.
@@ -309,6 +311,26 @@ class KinematicsCalculator:
                 avg_speed_m_per_sec=None,
                 max_speed_px=0.0,
                 max_speed_m_per_sec=None,
+            )
+
+        if use_adaptive:
+            dist_px, speeds_px, dist_m_opt, speeds_m_opt = self.compute_distances_and_speeds_adaptive(positions)
+            # Filter None values and clamp unrealistic speeds (noisy homographies)
+            max_speed_m_s = MAX_PLAYER_SPEED_KMH / 3.6  # ~11.1 m/s
+            dist_m_valid = [d for d in dist_m_opt if d is not None]
+            speeds_m_valid = [min(s, max_speed_m_s) for s in speeds_m_opt if s is not None]
+            return KinematicStats(
+                track_id=track_id,
+                entity_type=entity_type,
+                team_id=team_id,
+                total_distance_px=sum(dist_px) if dist_px else 0.0,
+                total_distance_m=sum(dist_m_valid) if dist_m_valid else None,
+                speeds_px_per_frame=speeds_px,
+                speeds_m_per_sec=speeds_m_valid if speeds_m_valid else None,
+                avg_speed_px=float(np.mean(speeds_px)) if speeds_px else 0.0,
+                avg_speed_m_per_sec=float(np.mean(speeds_m_valid)) if speeds_m_valid else None,
+                max_speed_px=float(max(speeds_px)) if speeds_px else 0.0,
+                max_speed_m_per_sec=float(max(speeds_m_valid)) if speeds_m_valid else None,
             )
 
         dist_px, speeds_px, dist_m, speeds_m = self.compute_distances_and_speeds(positions)
@@ -331,12 +353,14 @@ class KinematicsCalculator:
         self,
         tracks: Dict[str, List[Dict]],
         transformer: Optional[ViewTransformer] = None,
+        per_frame_transformers: Optional[Dict[int, ViewTransformer]] = None,
     ) -> Dict[int, KinematicStats]:
         """Compute kinematics for all players and goalkeepers.
 
         Args:
             tracks: Full track dictionary.
             transformer: ViewTransformer for real-world coordinates.
+            per_frame_transformers: Per-frame ViewTransformers (preferred).
 
         Returns:
             Dictionary mapping track_id to KinematicStats.
@@ -354,7 +378,10 @@ class KinematicsCalculator:
             for entity_type in ["players", "goalkeepers"]:
                 positions = self.extract_positions(tracks, entity_type, track_id)
                 if positions:
-                    positions = self.transform_to_pitch_coords(positions, transformer)
+                    if per_frame_transformers:
+                        positions = self.transform_to_pitch_coords_per_frame(positions, per_frame_transformers)
+                    else:
+                        positions = self.transform_to_pitch_coords(positions, transformer)
 
                     # Get team_id from first available frame
                     team_id = None
@@ -365,7 +392,8 @@ class KinematicsCalculator:
                                 break
 
                     stats = self.compute_stats(
-                        positions, track_id, entity_type.rstrip("s"), team_id
+                        positions, track_id, entity_type.rstrip("s"), team_id,
+                        use_adaptive=bool(per_frame_transformers),
                     )
                     all_stats[track_id] = stats
                     break
@@ -376,19 +404,27 @@ class KinematicsCalculator:
         self,
         tracks: Dict[str, List[Dict]],
         transformer: Optional[ViewTransformer] = None,
+        per_frame_transformers: Optional[Dict[int, ViewTransformer]] = None,
     ) -> KinematicStats:
         """Compute kinematics for the ball.
 
         Args:
             tracks: Full track dictionary.
             transformer: ViewTransformer for real-world coordinates.
+            per_frame_transformers: Per-frame ViewTransformers (preferred).
 
         Returns:
             KinematicStats for the ball.
         """
         positions = self.extract_positions(tracks, "ball")
-        positions = self.transform_to_pitch_coords(positions, transformer)
-        return self.compute_stats(positions, track_id=1, entity_type="ball")
+        if per_frame_transformers:
+            positions = self.transform_to_pitch_coords_per_frame(positions, per_frame_transformers)
+        else:
+            positions = self.transform_to_pitch_coords(positions, transformer)
+        return self.compute_stats(
+            positions, track_id=1, entity_type="ball",
+            use_adaptive=bool(per_frame_transformers),
+        )
 
 
     def build_per_frame_lookup(
