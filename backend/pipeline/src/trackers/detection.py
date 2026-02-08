@@ -3,8 +3,8 @@
 from typing import Dict, List, Optional
 
 import numpy as np
-from tqdm import tqdm
 from ultralytics import YOLO
+from utils.pipeline_logger import progress
 
 
 class DetectionEngine:
@@ -100,8 +100,7 @@ class DetectionEngine:
 
         iterator = range(0, total, batch_size)
         if show_progress:
-            _bar_fmt = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
-            iterator = tqdm(iterator, desc="  Detecting frames", unit="batch", bar_format=_bar_fmt)
+            iterator = progress(iterator, desc="  Detecting frames", unit="batch")
 
         for i in iterator:
             batch = frames[i : i + batch_size]

@@ -1,5 +1,6 @@
 """Professional pipeline output formatting."""
 
+from tqdm import tqdm as _tqdm
 from utils.logging_config import get_logger, LogContext
 
 # ANSI escape codes for styling
@@ -13,6 +14,30 @@ MAGENTA = "\033[35m"
 WHITE = "\033[97m"
 
 logger = get_logger("pipeline")
+
+# Shared progress bar format — used across all pipeline stages
+BAR_FORMAT = (
+    "{desc}: {percentage:3.0f}%"
+    f"{DIM}|{RESET}{{bar:30}}{DIM}|{RESET} "
+    "{n_fmt}/{total_fmt} "
+    f"{DIM}[{{elapsed}}<{{remaining}}, {{rate_fmt}}]{RESET}"
+)
+
+
+def progress(iterable=None, *, desc="  Processing", unit="it", total=None, **kwargs):
+    """Create a styled tqdm progress bar with consistent formatting.
+
+    Delays display by 0.5s to suppress the initial '?' state.
+    """
+    return _tqdm(
+        iterable,
+        desc=desc,
+        unit=unit,
+        total=total,
+        bar_format=BAR_FORMAT,
+        delay=0.5,
+        **kwargs,
+    )
 
 
 def banner(title: str) -> None:

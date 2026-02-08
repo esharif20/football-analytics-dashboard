@@ -21,8 +21,8 @@ from typing import Dict, List, Optional
 import cv2
 import numpy as np
 import supervision as sv
-from tqdm import tqdm
 from ultralytics import YOLO
+from utils.pipeline_logger import progress
 
 # Local modules
 from utils.bbox_utils import get_center_of_bbox, get_bbox_width
@@ -267,8 +267,7 @@ class Tracker:
         detections = []
         total = len(frames)
 
-        _bar_fmt = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
-        for i in tqdm(range(0, total, batch_size), desc="  Detecting players", unit="batch", bar_format=_bar_fmt):
+        for i in progress(range(0, total, batch_size), desc="  Detecting players", unit="batch"):
             batch = frames[i:i + batch_size]
             detections_batch = self.model.predict(
                 batch,
@@ -341,8 +340,7 @@ class Tracker:
         self.ball_area_ratios.clear()
 
         if self.ball_model is not None and self.ball_slicer is not None:
-            _bar_fmt2 = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
-            frame_iter = tqdm(range(len(detections)), desc="  Ball detection", unit="frame", bar_format=_bar_fmt2)
+            frame_iter = progress(range(len(detections)), desc="  Ball detection", unit="frame")
         else:
             frame_iter = range(len(detections))
 
@@ -388,8 +386,7 @@ class Tracker:
         self.ball_area_ratios.clear()
 
         start = time.perf_counter()
-        _bar_fmt3 = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
-        with tqdm(total=len(frames), desc="  Ball frames", unit="frame", bar_format=_bar_fmt3) as pbar:
+        with progress(total=len(frames), desc="  Ball frames", unit="frame") as pbar:
             for frame_num, frame in enumerate(frames):
                 tracks["ball"].append({})
                 self._extract_ball(None, frame, tracks, frame_num, None)
