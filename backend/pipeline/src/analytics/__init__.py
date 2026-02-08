@@ -60,6 +60,7 @@ class AnalyticsEngine:
         self,
         tracks: Dict[str, List[Dict]],
         transformer: Optional[ViewTransformer] = None,
+        per_frame_transformers: Optional[Dict[int, ViewTransformer]] = None,
         ball_metrics: Optional[Dict] = None,
     ) -> AnalyticsResult:
         """Compute all analytics from tracks.
@@ -67,6 +68,7 @@ class AnalyticsEngine:
         Args:
             tracks: Full track dictionary with ball, players, goalkeepers, referees.
             transformer: ViewTransformer for real-world coordinates.
+            per_frame_transformers: Per-frame ViewTransformers (preferred over single transformer).
             ball_metrics: Optional ball tracking quality metrics from compute_ball_metrics().
 
         Returns:
@@ -76,16 +78,18 @@ class AnalyticsEngine:
         possession_events = self.possession_calc.calculate_all_frames(tracks)
         possession_stats = self.possession_calc.aggregate_stats(possession_events)
 
-        # Kinematics
+        # Kinematics — prefer per-frame transformers
         player_kinematics = self.kinematics_calc.compute_all_player_stats(
-            tracks, transformer
+            tracks, transformer, per_frame_transformers=per_frame_transformers
         )
         ball_kinematics = self.kinematics_calc.compute_ball_stats(
-            tracks, transformer
+            tracks, transformer, per_frame_transformers=per_frame_transformers
         )
 
-        # Ball path
-        self.ball_path_tracker.accumulate_from_tracks(tracks, transformer)
+        # Ball path — use per-frame transformers
+        self.ball_path_tracker.accumulate_from_tracks(
+            tracks, transformer, per_frame_transformers=per_frame_transformers
+        )
         ball_path = self.ball_path_tracker.get_ball_path()
 
         return AnalyticsResult(
@@ -94,7 +98,7 @@ class AnalyticsEngine:
             ball_kinematics=ball_kinematics,
             ball_path=ball_path,
             fps=self.fps,
-            homography_available=transformer is not None,
+            homography_available=(transformer is not None or bool(per_frame_transformers)),
             ball_metrics=ball_metrics,
         )
 

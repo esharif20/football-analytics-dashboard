@@ -62,7 +62,7 @@ export const analysisApi = {
   byVideo: (videoId: number) => request<any[]>(`/analysis/by-video/${videoId}`),
   modes: () => request<any[]>('/analysis/modes'),
   stages: () => request<any[]>('/analysis/stages'),
-  create: (data: { videoId: number; mode: string }) =>
+  create: (data: { videoId: number; mode: string; fresh?: boolean }) =>
     request<any>('/analysis', { method: 'POST', body: data }),
   updateStatus: (id: number, data: { status: string; progress: number; currentStage?: string; errorMessage?: string }) =>
     request<any>(`/analysis/${id}/status`, { method: 'PUT', body: data }),

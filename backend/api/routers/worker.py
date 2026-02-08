@@ -138,15 +138,67 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
     analysis.currentStage = "done"
     analysis.completedAt = datetime.utcnow()
 
+    # Delete any existing statistics for this analysis (re-run case)
+    existing_stats = await db.execute(select(Statistic).where(Statistic.analysisId == analysis_id))
+    for old_stat in existing_stats.scalars().all():
+        await db.delete(old_stat)
+
     # Create statistics record from analytics data
     # Analytics structure from pipeline: {possession: {team_1_percentage, ...}, player_kinematics: {...}, ...}
     if body.analytics and isinstance(body.analytics, dict):
         a = body.analytics
         poss = a.get("possession", {})
+
+        # Aggregate player kinematics by team
+        pk = a.get("player_kinematics", {})
+        team_distances: dict[int, list[float]] = {0: [], 1: []}
+        team_avg_speeds: dict[int, list[float]] = {0: [], 1: []}
+        team_max_speeds: dict[int, list[float]] = {0: [], 1: []}
+
+        for _pid, pdata in pk.items():
+            if not isinstance(pdata, dict):
+                continue
+            tid = pdata.get("team_id")
+            if tid not in (0, 1):
+                continue
+            d = pdata.get("total_distance_m")
+            if d is not None:
+                team_distances[tid].append(d)
+            avg_s = pdata.get("avg_speed_m_per_sec")
+            if avg_s is not None:
+                team_avg_speeds[tid].append(avg_s)
+            max_s = pdata.get("max_speed_m_per_sec")
+            if max_s is not None:
+                team_max_speeds[tid].append(max_s)
+
+        def _sum_to_km(vals: list[float]) -> float | None:
+            return round(sum(vals) / 1000, 2) if vals else None
+
+        def _avg_to_kmh(vals: list[float]) -> float | None:
+            return round(sum(vals) / len(vals) * 3.6, 1) if vals else None
+
+        def _max_to_kmh(vals: list[float]) -> float | None:
+            return round(max(vals) * 3.6, 1) if vals else None
+
+        # Ball kinematics
+        bk = a.get("ball_kinematics", {})
+        bp = a.get("ball_path", {})
+
         stat = Statistic(
             analysisId=analysis_id,
-            possessionTeam1=poss.get("team_1_percentage", 50),
-            possessionTeam2=poss.get("team_2_percentage", 50),
+            possessionTeam1=round(poss.get("team_1_percentage", 50), 1),
+            possessionTeam2=round(poss.get("team_2_percentage", 50), 1),
+            distanceCoveredTeam1=_sum_to_km(team_distances[0]),
+            distanceCoveredTeam2=_sum_to_km(team_distances[1]),
+            avgSpeedTeam1=_avg_to_kmh(team_avg_speeds[0]),
+            avgSpeedTeam2=_avg_to_kmh(team_avg_speeds[1]),
+            maxSpeedTeam1=_max_to_kmh(team_max_speeds[0]),
+            maxSpeedTeam2=_max_to_kmh(team_max_speeds[1]),
+            possessionChanges=poss.get("possession_changes"),
+            ballDistance=round(bp.get("total_distance_m", 0) / 1000, 2) if bp.get("total_distance_m") else None,
+            ballAvgSpeed=round(bk.get("avg_speed_m_per_sec", 0) * 3.6, 1) if bk.get("avg_speed_m_per_sec") else None,
+            ballMaxSpeed=round(bk.get("max_speed_m_per_sec", 0) * 3.6, 1) if bk.get("max_speed_m_per_sec") else None,
+            directionChanges=bp.get("direction_changes"),
         )
         db.add(stat)
 

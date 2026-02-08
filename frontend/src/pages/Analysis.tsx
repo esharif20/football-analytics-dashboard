@@ -269,24 +269,28 @@ export default function Analysis() {
       return {
         possessionTeam1: statistics.possessionTeam1 ?? 50,
         possessionTeam2: statistics.possessionTeam2 ?? 50,
-        passesTeam1: statistics.passesTeam1 ?? 0,
-        passesTeam2: statistics.passesTeam2 ?? 0,
-        passAccuracyTeam1: statistics.passAccuracyTeam1 ?? 0,
-        passAccuracyTeam2: statistics.passAccuracyTeam2 ?? 0,
-        shotsTeam1: statistics.shotsTeam1 ?? 0,
-        shotsTeam2: statistics.shotsTeam2 ?? 0,
         distanceCoveredTeam1: statistics.distanceCoveredTeam1 ?? 0,
         distanceCoveredTeam2: statistics.distanceCoveredTeam2 ?? 0,
         avgSpeedTeam1: statistics.avgSpeedTeam1 ?? 0,
         avgSpeedTeam2: statistics.avgSpeedTeam2 ?? 0,
+        maxSpeedTeam1: statistics.maxSpeedTeam1 ?? 0,
+        maxSpeedTeam2: statistics.maxSpeedTeam2 ?? 0,
+        possessionChanges: statistics.possessionChanges ?? 0,
+        ballDistance: statistics.ballDistance ?? 0,
+        ballAvgSpeed: statistics.ballAvgSpeed ?? 0,
+        ballMaxSpeed: statistics.ballMaxSpeed ?? 0,
+        directionChanges: statistics.directionChanges ?? 0,
       };
     return {
       possessionTeam1: 52, possessionTeam2: 48,
-      passesTeam1: 245, passesTeam2: 198,
-      passAccuracyTeam1: 84.5, passAccuracyTeam2: 79.2,
-      shotsTeam1: 8, shotsTeam2: 5,
       distanceCoveredTeam1: 42.5, distanceCoveredTeam2: 41.2,
       avgSpeedTeam1: 7.2, avgSpeedTeam2: 6.9,
+      maxSpeedTeam1: 28.5, maxSpeedTeam2: 27.1,
+      possessionChanges: 23,
+      ballDistance: 8.4,
+      ballAvgSpeed: 15.2,
+      ballMaxSpeed: 85.0,
+      directionChanges: 142,
     };
   }, [statistics]);
 
@@ -577,21 +581,19 @@ export default function Analysis() {
                     </div>
                   </CardHeader>
                   <CardContent className="p-4 space-y-4">
-                    <StatRow label="POSSESSION" team1={demoStats.possessionTeam1} team2={demoStats.possessionTeam2} suffix="%" />
-                    <StatRow label="PASSES" team1={demoStats.passesTeam1} team2={demoStats.passesTeam2} />
-                    <StatRow label="PASS ACCURACY" team1={demoStats.passAccuracyTeam1} team2={demoStats.passAccuracyTeam2} suffix="%" />
-                    <StatRow label="SHOTS" team1={demoStats.shotsTeam1} team2={demoStats.shotsTeam2} />
+                    <StatRow label="POSSESSION (%)" team1={demoStats.possessionTeam1} team2={demoStats.possessionTeam2} suffix="%" />
                     <StatRow label="DISTANCE (KM)" team1={demoStats.distanceCoveredTeam1} team2={demoStats.distanceCoveredTeam2} />
                     <StatRow label="AVG SPEED (KM/H)" team1={demoStats.avgSpeedTeam1} team2={demoStats.avgSpeedTeam2} />
+                    <StatRow label="MAX SPEED (KM/H)" team1={demoStats.maxSpeedTeam1} team2={demoStats.maxSpeedTeam2} />
                   </CardContent>
                 </div>
 
                 {/* Quick Stats Grid */}
                 <div className="grid grid-cols-2 gap-3">
-                  <QuickStat label="Total Events" value={demoEvents.length.toString()} icon={<Zap className="w-4 h-4" />} color="primary" />
-                  <QuickStat label="Pass Rate" value={`${((demoStats.passAccuracyTeam1 + demoStats.passAccuracyTeam2) / 2).toFixed(0)}%`} icon={<Target className="w-4 h-4" />} color="accent" />
-                  <QuickStat label="Total Shots" value={(demoStats.shotsTeam1 + demoStats.shotsTeam2).toString()} icon={<Crosshair className="w-4 h-4" />} color="team1" />
-                  <QuickStat label="Avg Speed" value={`${((demoStats.avgSpeedTeam1 + demoStats.avgSpeedTeam2) / 2).toFixed(1)}`} icon={<Gauge className="w-4 h-4" />} color="team2" />
+                  <QuickStat label="Poss. Changes" value={demoStats.possessionChanges.toString()} icon={<ArrowUpDown className="w-4 h-4" />} color="primary" />
+                  <QuickStat label="Ball Dist (km)" value={demoStats.ballDistance.toFixed(1)} icon={<Move className="w-4 h-4" />} color="accent" />
+                  <QuickStat label="Avg Speed" value={`${((demoStats.avgSpeedTeam1 + demoStats.avgSpeedTeam2) / 2).toFixed(1)}`} icon={<Gauge className="w-4 h-4" />} color="team1" />
+                  <QuickStat label="Ball Top Speed" value={demoStats.ballMaxSpeed.toFixed(1)} icon={<Zap className="w-4 h-4" />} color="team2" />
                 </div>
               </AnimatedSection>
             </div>
@@ -1204,18 +1206,18 @@ function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-3xl font-bold font-mono text-rose-400" style={{ textShadow: "0 0 20px rgba(220,50,50,0.3)" }}>{team1}%</span>
+            <span className="text-3xl font-bold font-mono text-rose-400" style={{ textShadow: "0 0 20px rgba(220,50,50,0.3)" }}>{team1.toFixed(1)}%</span>
             <span className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Team 1</span>
           </div>
         </div>
         <div className="flex justify-center gap-6 mt-3">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full ring-2 ring-rose-400/20" style={{ backgroundColor: TEAM1_HEX }} />
-            <span className="text-xs text-muted-foreground">Team 1 &mdash; <span className="text-rose-400 font-semibold">{team1}%</span></span>
+            <span className="text-xs text-muted-foreground">Team 1 &mdash; <span className="text-rose-400 font-semibold">{team1.toFixed(1)}%</span></span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full ring-2 ring-sky-400/20" style={{ backgroundColor: TEAM2_HEX }} />
-            <span className="text-xs text-muted-foreground">Team 2 &mdash; <span className="text-sky-400 font-semibold">{team2}%</span></span>
+            <span className="text-xs text-muted-foreground">Team 2 &mdash; <span className="text-sky-400 font-semibold">{team2.toFixed(1)}%</span></span>
           </div>
         </div>
       </CardContent>
@@ -1225,12 +1227,10 @@ function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
 
 function TeamPerformanceRadar({ stats }: { stats: any }) {
   const data = [
-    { subject: "Passing", team1: stats.passAccuracyTeam1, team2: stats.passAccuracyTeam2, fullMark: 100 },
-    { subject: "Speed", team1: (stats.avgSpeedTeam1 / 12) * 100, team2: (stats.avgSpeedTeam2 / 12) * 100, fullMark: 100 },
-    { subject: "Shots", team1: (stats.shotsTeam1 / 15) * 100, team2: (stats.shotsTeam2 / 15) * 100, fullMark: 100 },
-    { subject: "Distance", team1: (stats.distanceCoveredTeam1 / 55) * 100, team2: (stats.distanceCoveredTeam2 / 55) * 100, fullMark: 100 },
     { subject: "Possession", team1: stats.possessionTeam1, team2: stats.possessionTeam2, fullMark: 100 },
-    { subject: "Accuracy", team1: stats.passAccuracyTeam1, team2: stats.passAccuracyTeam2, fullMark: 100 },
+    { subject: "Distance", team1: (stats.distanceCoveredTeam1 / 55) * 100, team2: (stats.distanceCoveredTeam2 / 55) * 100, fullMark: 100 },
+    { subject: "Avg Speed", team1: (stats.avgSpeedTeam1 / 12) * 100, team2: (stats.avgSpeedTeam2 / 12) * 100, fullMark: 100 },
+    { subject: "Max Speed", team1: (stats.maxSpeedTeam1 / 40) * 100, team2: (stats.maxSpeedTeam2 / 40) * 100, fullMark: 100 },
   ];
   return (
     <div className="glass-card overflow-hidden hover-lift group">
@@ -1259,10 +1259,10 @@ function TeamPerformanceRadar({ stats }: { stats: any }) {
 
 function StatsComparisonBar({ stats }: { stats: any }) {
   const data = [
-    { name: "Passes", team1: stats.passesTeam1, team2: stats.passesTeam2 },
-    { name: "Shots", team1: stats.shotsTeam1 * 20, team2: stats.shotsTeam2 * 20 },
-    { name: "Dist", team1: stats.distanceCoveredTeam1 * 5, team2: stats.distanceCoveredTeam2 * 5 },
-    { name: "Acc%", team1: stats.passAccuracyTeam1 * 2.5, team2: stats.passAccuracyTeam2 * 2.5 },
+    { name: "Dist (km)", team1: stats.distanceCoveredTeam1 * 5, team2: stats.distanceCoveredTeam2 * 5 },
+    { name: "Avg Spd", team1: stats.avgSpeedTeam1 * 20, team2: stats.avgSpeedTeam2 * 20 },
+    { name: "Max Spd", team1: stats.maxSpeedTeam1 * 5, team2: stats.maxSpeedTeam2 * 5 },
+    { name: "Poss %", team1: stats.possessionTeam1 * 2.5, team2: stats.possessionTeam2 * 2.5 },
   ];
   return (
     <div className="glass-card overflow-hidden hover-lift group">
@@ -1983,11 +1983,11 @@ function StatRow({ label, team1, team2, suffix = "" }: { label: string; team1: n
     <div className="space-y-2 group">
       <div className="flex items-center justify-between">
         <span className="font-mono text-sm font-bold tabular-nums" style={{ color: TEAM1_HEX, textShadow: `0 0 10px ${TEAM1_HEX}40` }}>
-          {team1.toFixed(suffix === "%" ? 1 : 0)}{suffix}
+          {team1.toFixed(1)}{suffix}
         </span>
         <span className="text-[10px] text-muted-foreground font-semibold tracking-[0.15em] uppercase">{label}</span>
         <span className="font-mono text-sm font-bold tabular-nums" style={{ color: TEAM2_HEX, textShadow: `0 0 10px ${TEAM2_HEX}40` }}>
-          {team2.toFixed(suffix === "%" ? 1 : 0)}{suffix}
+          {team2.toFixed(1)}{suffix}
         </span>
       </div>
       <div className="h-2 bg-white/[0.03] rounded-full overflow-hidden flex gap-[2px] group-hover:h-2.5 transition-all duration-300">
