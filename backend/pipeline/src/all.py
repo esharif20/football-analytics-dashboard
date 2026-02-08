@@ -51,6 +51,7 @@ if _src_dir not in sys.path:
 
 from __init__ import Mode
 from base import load_frames, build_tracker, get_stub_path
+from utils.pipeline_logger import banner, stage, config_table, metric, warn
 
 if TYPE_CHECKING:
     from trackers.ball_config import BallConfig
@@ -130,11 +131,14 @@ def _precompute_pitch_keypoints(
     )
 
     keyframe_indices = list(range(0, n_frames, stride))
-    print(f"Detecting pitch keypoints on {len(keyframe_indices)}/{n_frames} keyframes (stride={stride})")
+    from utils.logging_config import get_logger
+    _logger = get_logger("pitch")
+    _logger.info(f"Detecting pitch keypoints on {len(keyframe_indices)}/{n_frames} keyframes (stride={stride})")
 
     # Detect on keyframes only
     keyframe_results: dict[int, dict] = {}
-    for idx in tqdm(keyframe_indices, desc="Pitch keypoints", unit="frame"):
+    _bar_fmt = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+    for idx in tqdm(keyframe_indices, desc="  Pitch keypoints", unit="frame", bar_format=_bar_fmt):
         keyframe_results[idx] = _detect_single_frame(
             frames[idx], pitch_detector, pitch_vertices, num_vertices,
         )
@@ -142,7 +146,7 @@ def _precompute_pitch_keypoints(
     # Estimate camera motions for optical flow interpolation
     camera_motions = None
     if use_optical_flow and stride > 1:
-        print("Estimating camera motion via optical flow...")
+        _logger.info("Estimating camera motion via optical flow...")
         camera_motions = estimate_camera_motions(frames, downscale=0.5)
 
     # Fill every frame
@@ -229,8 +233,6 @@ def run(
     # Load local pitch detection model
     pitch_detector = None
     needs_pitch = show_keypoints or voronoi_overlay or not no_radar
-    if needs_pitch:
-        print("Loading pitch detection model...")
     pitch_detector = PitchDetector(
         device=device,
         conf_threshold=PITCH_MODEL_CONF_THRESHOLD,
@@ -241,8 +243,19 @@ def run(
         api_key_env=ROBOFLOW_API_KEY_ENV,
     )
 
-    print("Tracking players/referees/goalkeepers and ball...")
+    effective_backend = pitch_backend or PITCH_MODEL_BACKEND
+    effective_stride = pitch_stride if pitch_stride is not None else PITCH_KEYFRAME_STRIDE
+
     frames = load_frames(source_video_path)
+
+    banner("Pipeline")
+    config_table("Configuration", {
+        "Device": device,
+        "Frames": len(frames),
+        "Resolution": f"{frames[0].shape[1]}x{frames[0].shape[0]}",
+        "Ball model": "custom" if use_ball_model_weights and BALL_DETECTION_MODEL_PATH.exists() else "multi-class",
+        "Pitch stride": effective_stride,
+    })
 
     tracker = build_tracker(
         device=device,
@@ -259,25 +272,24 @@ def run(
         stub_path=str(get_stub_path(source_video_path, Mode.TEAM_CLASSIFICATION)),
     )
 
-    print("Applying role locking...")
-    tracks, _stable_roles = stabilise_tracks(tracks)
+    with stage("Role Locking"):
+        tracks, _stable_roles = stabilise_tracks(tracks)
 
-    print("Running team classification...")
-    team_cfg = TeamAssignerConfig(
-        stride=TEAM_STRIDE,
-        batch_size=TEAM_BATCH_SIZE,
-        max_crops=TEAM_MAX_CROPS,
-        min_crop_size=TEAM_MIN_CROP_SIZE,
-    )
-    team_assigner = TeamAssigner(device=device, config=team_cfg)
-    team_assigner.fit(frames, tracks)
-    team_assigner.assign_teams(frames, tracks)
+    with stage("Team Classification"):
+        team_cfg = TeamAssignerConfig(
+            stride=TEAM_STRIDE,
+            batch_size=TEAM_BATCH_SIZE,
+            max_crops=TEAM_MAX_CROPS,
+            min_crop_size=TEAM_MIN_CROP_SIZE,
+        )
+        team_assigner = TeamAssigner(device=device, config=team_cfg)
+        team_assigner.fit(frames, tracks)
+        team_assigner.assign_teams(frames, tracks)
 
     team_colors = getattr(team_assigner, "team_colors_bgr", {})
     if team_colors:
         tracker.set_team_palette(team_colors)
 
-    print("Interpolating ball track...")
     tracks["ball"] = tracker.interpolate_ball_tracks(tracks["ball"])
 
     # Determine confidence threshold used for metrics
@@ -285,8 +297,6 @@ def run(
         conf_used = ball_config.conf
     else:
         conf_used = ball_config.conf_multiclass if ball_config.conf_multiclass is not None else CONF_THRESHOLD
-        if ball_config.conf_multiclass is not None:
-            print(f"Ball conf (multi-class): {ball_config.conf_multiclass}")
 
     ball_metrics = compute_ball_metrics(tracks["ball"], tracker.ball_debug, conf_used)
     print_ball_metrics(ball_metrics, label="Ball track")
@@ -321,12 +331,8 @@ def run(
             position_alpha=0.3,  # Lowered for smoother radar positions
         )
 
-    effective_backend = pitch_backend or PITCH_MODEL_BACKEND
-    effective_stride = pitch_stride if pitch_stride is not None else PITCH_KEYFRAME_STRIDE
-
     pitch_data = None
     if pitch_detector is not None:
-        print("Precomputing pitch keypoints...")
         pitch_data = _precompute_pitch_keypoints(
             frames=frames,
             pitch_detector=pitch_detector,
@@ -343,7 +349,6 @@ def run(
     # Build per-frame homographies for speed estimation
     per_frame_transformers: dict[int, ViewTransformer] = {}
     if pitch_data is not None:
-        print("Building per-frame homographies for speed estimation...")
         kin_smoother = HomographySmoother(
             window_size=10,
             decay=0.85,
@@ -368,7 +373,8 @@ def run(
                 except ValueError:
                     pass
 
-    print("Computing per-frame speed data for overlay...")
+    from utils.logging_config import get_logger as _get_logger
+    _all_logger = _get_logger("all")
     kin_calc = KinematicsCalculator(fps=DEFAULT_VIDEO_FPS, pitch_config=pitch_config)
     if per_frame_transformers:
         speed_lookup = kin_calc.build_per_frame_lookup(
@@ -405,7 +411,7 @@ def run(
         # Debug: log keypoint detection stats every 30 frames
         if frame_idx % 30 == 0:
             detected_indices = np.where(conf_mask)[0]
-            print(
+            _all_logger.debug(
                 f"[Frame {frame_idx}] Keypoints: {len(frame_keypoints)}/32 detected "
                 f"(indices: {list(detected_indices)[:10]}{'...' if len(detected_indices) > 10 else ''})"
             )
@@ -642,7 +648,7 @@ def run(
 
     # After all frames processed, compute and export analytics
     if show_analytics and analytics_engine is not None:
-        print("\nComputing analytics...")
+        _all_logger.info("Computing analytics...")
         result = analytics_engine.compute(tracks, transformer=None, ball_metrics=ball_metrics)
         print_analytics_summary(result)
 

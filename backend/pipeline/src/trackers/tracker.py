@@ -26,8 +26,11 @@ from ultralytics import YOLO
 
 # Local modules
 from utils.bbox_utils import get_center_of_bbox, get_bbox_width
+from utils.logging_config import get_logger
 from .ball_tracker import BallAnnotator, BallTracker
 from .ball_config import BallConfig
+
+_logger = get_logger("tracker")
 
 # =============================================================================
 # Tracker Class
@@ -107,6 +110,10 @@ class Tracker:
         self.ball_auto_area_expand_min = float(cfg.ball_auto_area_expand_min)
         self.ball_auto_area_expand_max = float(cfg.ball_auto_area_expand_max)
 
+        # FP16 inference on CUDA for speed (no accuracy loss)
+        _dev = str(getattr(self.model.device, "type", self.model.device))
+        self._use_half = _dev.startswith("cuda")
+
         self.ball_model = None
         self.ball_model_names: Dict[int, str] = {}
         self.ball_model_class_id = None
@@ -114,19 +121,16 @@ class Tracker:
         self._ball_model_lock = None
         if cfg.ball_model_path:
             self.ball_model = YOLO(cfg.ball_model_path)
-            # Keep ball model on CPU when using slicer - many small sequential
-            # calls are faster without GPU transfer overhead
-            if not (self.ball_use_slicer or self.ball_config.tile_grid):
-                self._select_device(self.ball_model, device)
+            self._select_device(self.ball_model, device)
             self.ball_model_names = self._normalize_class_names(self.ball_model.names)
             self.ball_model_class_id = self._resolve_class_id(
                 self.ball_model_names, ["ball", "football"]
             )
             self._ball_model_lock = threading.Lock()
-            print(f"Ball model classes: {self.ball_model_names}")
+            _logger.info(f"Ball model classes: {self.ball_model_names}")
             if self.ball_config.tile_grid:
                 rows, cols = self.ball_config.tile_grid
-                print(f"Ball tiling: {rows}x{cols} -> imgsz {self.ball_config.imgsz}")
+                _logger.info(f"Ball tiling: {rows}x{cols} -> imgsz {self.ball_config.imgsz}")
             elif self.ball_use_slicer:
                 def callback(image_slice: np.ndarray) -> sv.Detections:
                     lock = self._ball_model_lock
@@ -136,6 +140,7 @@ class Tracker:
                             conf=self.ball_config.conf,
                             imgsz=self.ball_config.imgsz,
                             max_det=self.max_det,
+                            half=self._use_half,
                             verbose=False,
                         )[0]
                     else:
@@ -145,6 +150,7 @@ class Tracker:
                                 conf=self.ball_config.conf,
                                 imgsz=self.ball_config.imgsz,
                                 max_det=self.max_det,
+                                half=self._use_half,
                                 verbose=False,
                             )[0]
                     return sv.Detections.from_ultralytics(result)
@@ -191,8 +197,8 @@ class Tracker:
         )
         self.ball_annotator = BallAnnotator(radius=6, buffer_size=10)
 
-        print(f"Model loaded on: {self.model.device}")
-        print(f"Model classes: {self.class_names}")
+        _logger.info(f"Model loaded on: {self.model.device}")
+        _logger.info(f"Model classes: {self.class_names}")
 
     def _select_device(self, model: YOLO, device: Optional[str] = None) -> None:
         try:
@@ -247,7 +253,12 @@ class Tracker:
         else:
             device_type = str(getattr(self.model.device, "type", self.model.device))
             if device_type.startswith("cuda"):
-                batch_size = 64
+                try:
+                    import torch
+                    mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+                    batch_size = 128 if mem_gb >= 40 else 96 if mem_gb >= 24 else 64
+                except Exception:
+                    batch_size = 64
             elif device_type == "mps":
                 batch_size = 1
             else:
@@ -256,13 +267,15 @@ class Tracker:
         detections = []
         total = len(frames)
 
-        for i in tqdm(range(0, total, batch_size), desc="Detecting frames", unit="frame"):
+        _bar_fmt = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+        for i in tqdm(range(0, total, batch_size), desc="  Detecting players", unit="batch", bar_format=_bar_fmt):
             batch = frames[i:i + batch_size]
             detections_batch = self.model.predict(
                 batch,
                 conf=self.conf,
                 imgsz=self.imgsz,
                 max_det=self.max_det,
+                half=self._use_half,
                 verbose=False,
             )
             detections += detections_batch
@@ -305,7 +318,7 @@ class Tracker:
                 tracks["referee"] = tracks["referees"]
 
             if goalkeeper_cls is not None and "goalkeepers" not in tracks:
-                print("Stub missing goalkeepers; recomputing detections.")
+                _logger.info("Stub missing goalkeepers; recomputing detections.")
             else:
                 return tracks
 
@@ -328,10 +341,9 @@ class Tracker:
         self.ball_area_ratios.clear()
 
         if self.ball_model is not None and self.ball_slicer is not None:
-            print("Processing tracks (ball slicing per frame)...")
-            frame_iter = tqdm(range(len(detections)), desc="Processing tracks", unit="frame")
+            _bar_fmt2 = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+            frame_iter = tqdm(range(len(detections)), desc="  Ball detection", unit="frame", bar_format=_bar_fmt2)
         else:
-            print("Processing tracks...")
             frame_iter = range(len(detections))
 
         for frame_num in frame_iter:
@@ -349,7 +361,7 @@ class Tracker:
             self._extract_ball(det, frames[frame_num], tracks, frame_num, ball_cls)
             self._track_people(det, tracks, frame_num, cls_names, player_cls, goalkeeper_cls, referee_cls)
 
-        print("Processing tracks done.")
+        _logger.info("Processing tracks done.")
 
         if stub_path is not None:
             os.makedirs(os.path.dirname(stub_path), exist_ok=True)
@@ -376,7 +388,8 @@ class Tracker:
         self.ball_area_ratios.clear()
 
         start = time.perf_counter()
-        with tqdm(total=len(frames), desc="Ball frames", unit="frame") as pbar:
+        _bar_fmt3 = "{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+        with tqdm(total=len(frames), desc="  Ball frames", unit="frame", bar_format=_bar_fmt3) as pbar:
             for frame_num, frame in enumerate(frames):
                 tracks["ball"].append({})
                 self._extract_ball(None, frame, tracks, frame_num, None)
@@ -425,6 +438,7 @@ class Tracker:
                     conf=self.ball_config.conf,
                     imgsz=self.ball_config.imgsz,
                     max_det=self.max_det,
+                    half=self._use_half,
                     verbose=False,
                 )[0]
                 dets = sv.Detections.from_ultralytics(result)
@@ -729,6 +743,7 @@ class Tracker:
                     conf=self.ball_config.conf,
                     imgsz=self.ball_config.imgsz,
                     max_det=self.max_det,
+                    half=self._use_half,
                     verbose=False,
                 )[0]
                 dets = sv.Detections.from_ultralytics(result)

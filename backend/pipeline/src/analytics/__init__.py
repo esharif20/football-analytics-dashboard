@@ -3,6 +3,10 @@
 import json
 from typing import Dict, List, Optional
 
+from utils.logging_config import get_logger
+
+_logger = get_logger("analytics")
+
 try:
     from pitch import ViewTransformer, SoccerPitchConfiguration
 except ImportError:
@@ -101,40 +105,37 @@ def print_analytics_summary(result: AnalyticsResult) -> None:
     Args:
         result: AnalyticsResult to print.
     """
-    print("\n" + "=" * 60)
-    print("FOOTBALL ANALYTICS SUMMARY")
-    print("=" * 60)
+    from utils.pipeline_logger import banner, config_table, metric, divider
+
+    banner("Analytics Summary")
 
     # Possession
-    print("\n--- POSSESSION ---")
     p = result.possession
-    print(f"Team 1: {p.team_1_percentage:.1f}% ({p.team_1_frames} frames)")
-    print(f"Team 2: {p.team_2_percentage:.1f}% ({p.team_2_frames} frames)")
-    print(f"Contested: {p.contested_frames} frames")
-    print(f"Possession changes: {p.possession_changes}")
-    if result.fps > 0:
-        print(f"Longest Team 1 spell: {p.longest_team_1_spell} frames ({p.longest_team_1_spell / result.fps:.1f}s)")
-        print(f"Longest Team 2 spell: {p.longest_team_2_spell} frames ({p.longest_team_2_spell / result.fps:.1f}s)")
+    config_table("Possession", {
+        "Team 1": f"{p.team_1_percentage:.1f}% ({p.team_1_frames} frames)",
+        "Team 2": f"{p.team_2_percentage:.1f}% ({p.team_2_frames} frames)",
+        "Contested": f"{p.contested_frames} frames",
+        "Changes": str(p.possession_changes),
+    })
 
     # Ball stats
-    print("\n--- BALL ---")
     b = result.ball_kinematics
     if b.total_distance_m is not None:
-        print(f"Total distance: {b.total_distance_m:.1f} m")
+        metric("Ball distance", b.total_distance_m, "m")
         if b.avg_speed_m_per_sec is not None:
-            print(f"Avg speed: {b.avg_speed_m_per_sec:.2f} m/s ({b.avg_speed_m_per_sec * 3.6:.1f} km/h)")
+            metric("Ball avg speed", b.avg_speed_m_per_sec * 3.6, "km/h")
         if b.max_speed_m_per_sec is not None:
-            print(f"Max speed: {b.max_speed_m_per_sec:.2f} m/s ({b.max_speed_m_per_sec * 3.6:.1f} km/h)")
+            metric("Ball max speed", b.max_speed_m_per_sec * 3.6, "km/h")
     else:
-        print(f"Total distance (px): {b.total_distance_px:.0f}")
-        print(f"Avg speed (px/frame): {b.avg_speed_px:.2f}")
+        metric("Ball distance (px)", b.total_distance_px)
 
     bp = result.ball_path
-    print(f"Direction changes: {bp.direction_changes}")
+    metric("Direction changes", bp.direction_changes)
 
     # Top 5 players by distance
     if result.player_kinematics:
-        print("\n--- TOP 5 PLAYERS BY DISTANCE ---")
+        divider()
+        _logger.info("  Top 5 players by distance:")
         sorted_players = sorted(
             result.player_kinematics.values(),
             key=lambda x: x.total_distance_m if x.total_distance_m else x.total_distance_px,
@@ -149,11 +150,9 @@ def print_analytics_summary(result: AnalyticsResult) -> None:
                     speed_str = f", avg {player.avg_speed_m_per_sec:.2f} m/s"
                 if player.max_speed_m_per_sec is not None:
                     speed_str += f", max {player.max_speed_m_per_sec:.2f} m/s"
-                print(f"{i}. Track {player.track_id} ({team_str}): {player.total_distance_m:.0f}m{speed_str}")
+                metric(f"  {i}. Track {player.track_id} ({team_str})", f"{player.total_distance_m:.0f}m{speed_str}")
             else:
-                print(f"{i}. Track {player.track_id} ({team_str}): {player.total_distance_px:.0f}px")
-
-    print("=" * 60)
+                metric(f"  {i}. Track {player.track_id} ({team_str})", f"{player.total_distance_px:.0f}px")
 
 
 def export_analytics_json(result: AnalyticsResult, filepath: str) -> None:
@@ -183,7 +182,7 @@ def export_analytics_json(result: AnalyticsResult, filepath: str) -> None:
     with open(filepath, 'w') as f:
         json.dump(data, f, indent=2)
 
-    print(f"Analytics exported to: {filepath}")
+    _logger.info(f"Analytics exported to: {filepath}")
 
 
 __all__ = [

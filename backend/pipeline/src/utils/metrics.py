@@ -229,70 +229,72 @@ def print_ball_metrics(metrics: dict, label: str = "Ball") -> None:
         metrics: Dictionary of computed metrics
         label: Label prefix for output
     """
-    print("\nBall metrics:")
-    print(
+    from utils.logging_config import get_logger
+    _log = get_logger("metrics")
+
+    _log.info(
         f"{label}: present={metrics['present_frames']}/{metrics['total_frames']}"
         f" ({metrics['present_pct']:.1f}%), observed={metrics['observed_frames']}"
         f" ({metrics['observed_pct']:.1f}%), interpolated={metrics['interpolated_frames']}"
         f" ({metrics['interpolated_pct_of_present']:.1f}% of present)"
     )
-    print(
+    _log.info(
         f"  predicted frames: {metrics['predicted_frames']}"
         f" ({metrics['predicted_pct_of_present']:.1f}% of present)"
     )
     if metrics["observed_segments"]:
-        print(
+        _log.info(
             f"  observed segments: count={metrics['observed_segments']},"
             f" mean_len={metrics['observed_segment_mean']:.1f}"
         )
     if metrics["conf_mean"] is not None:
-        print(f"  conf: mean={metrics['conf_mean']:.3f}, p50={metrics['conf_p50']:.3f}")
+        _log.info(f"  conf: mean={metrics['conf_mean']:.3f}, p50={metrics['conf_p50']:.3f}")
         if metrics["conf_below_rate"] is not None:
-            print(f"  conf below threshold: {metrics['conf_below_rate']:.1f}%")
+            _log.info(f"  conf below threshold: {metrics['conf_below_rate']:.1f}%")
     if metrics["bbox_size_mean"] is not None:
-        print(
+        _log.info(
             f"  bbox size: mean={metrics['bbox_size_mean']:.2f},"
             f" p50={metrics['bbox_size_p50']:.2f}"
         )
         if metrics["bbox_size_cv"] is not None:
-            print(f"  bbox size cv: {metrics['bbox_size_cv']:.3f}")
+            _log.info(f"  bbox size cv: {metrics['bbox_size_cv']:.3f}")
     if metrics["miss_streak_max"]:
-        print(
+        _log.info(
             f"  miss streaks: count={len(metrics['miss_streaks'])},"
             f" max={metrics['miss_streak_max']},"
             f" mean={metrics['miss_streak_mean']:.1f}"
         )
     if metrics["speed_mean"] is not None:
-        print(
+        _log.info(
             f"  speed(px): mean={metrics['speed_mean']:.2f},"
             f" p95={metrics['speed_p95']:.2f}"
         )
         if metrics["accel_p95"] is not None:
-            print(f"  accel p95: {metrics['accel_p95']:.2f}, jerk p95: {metrics['jerk_p95']:.2f}")
+            _log.info(f"  accel p95: {metrics['accel_p95']:.2f}, jerk p95: {metrics['jerk_p95']:.2f}")
         if metrics["turn_p50"] is not None:
-            print(f"  turn angle: p50={metrics['turn_p50']:.1f}, p95={metrics['turn_p95']:.1f}")
+            _log.info(f"  turn angle: p50={metrics['turn_p50']:.1f}, p95={metrics['turn_p95']:.1f}")
     if metrics["candidate_mean"] is not None:
-        print(
+        _log.info(
             f"  candidates: mean={metrics['candidate_mean']:.2f},"
             f" p95={metrics['candidate_p95']:.2f},"
             f" ambiguity={metrics['ambiguity_rate']:.1f}%,"
             f" reject={metrics['reject_rate']:.1f}%"
         )
         if metrics["candidate_post_gate_mean"] is not None:
-            print(
+            _log.info(
                 f"  post-gate candidates: mean={metrics['candidate_post_gate_mean']:.2f},"
                 f" p95={metrics['candidate_post_gate_p95']:.2f},"
                 f" ambiguity={metrics['ambiguity_post_gate_rate']:.1f}%"
             )
         if metrics["reject_conf_rate"] is not None:
-            print(
+            _log.info(
                 f"  gate drop: conf={metrics['reject_conf_rate']:.1f}%,"
                 f" aspect={metrics['reject_aspect_rate']:.1f}%,"
                 f" gate={metrics['reject_gate_rate']:.1f}%,"
                 f" select={metrics['select_rate']:.1f}%"
             )
         if metrics["reject_aspect_total"] is not None:
-            print(
+            _log.info(
                 f"  gate fails (non-exclusive): aspect={metrics['reject_aspect_total']},"
                 f" area={metrics['reject_area_total']},"
                 f" jump={metrics['reject_jump_total']},"

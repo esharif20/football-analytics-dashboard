@@ -10,6 +10,10 @@ from typing import Dict, Tuple
 
 import numpy as np
 
+from utils.logging_config import get_logger
+
+_logger = get_logger("stabiliser")
+
 # Configuration
 MIN_OBSERVATIONS = 10       # Minimum frames before locking role
 GOALKEEPER_MIN = 2          # Minimum GK frames before locking as GK
@@ -116,8 +120,7 @@ def lock_roles(tracks: dict) -> Tuple[dict, Dict[int, str]]:
     player_count = sum(1 for r in stable_roles.values() if r == "player")
     referee_count = sum(1 for r in stable_roles.values() if r == "referee")
     goalkeeper_count = sum(1 for r in stable_roles.values() if r == "goalkeeper")
-    print("\n=== Role Locking (Majority Voting) ===")
-    print(f"Stable roles: {player_count} players, {referee_count} referees, {goalkeeper_count} goalkeepers")
+    _logger.info(f"Stable roles: {player_count} players, {referee_count} referees, {goalkeeper_count} goalkeepers")
 
     # Step 3: Apply corrections frame by frame
     corrections_to_ref = 0
@@ -171,7 +174,7 @@ def lock_roles(tracks: dict) -> Tuple[dict, Dict[int, str]]:
             del tracks["goalkeepers"][frame_idx][tid]
             tracks[refs_key][frame_idx][tid] = data
 
-    print(f"Corrections: {corrections_to_ref} player->referee, {corrections_to_player} referee->player")
+    _logger.info(f"Corrections: {corrections_to_ref} player->referee, {corrections_to_player} referee->player")
 
     return tracks, stable_roles
 

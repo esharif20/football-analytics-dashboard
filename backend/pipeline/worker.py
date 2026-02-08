@@ -49,10 +49,25 @@ for d in [INPUT_DIR, OUTPUT_DIR, STUBS_DIR, CACHE_DIR, MODELS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 
+# ANSI colors for worker output
+_BOLD = "\033[1m"
+_DIM = "\033[2m"
+_RESET = "\033[0m"
+_LOG_COLORS = {"INFO": "\033[32m", "ERROR": "\033[31m", "WARN": "\033[33m", "DEBUG": "\033[36m"}
+
+
 def log(msg: str, level: str = "INFO"):
-    """Simple logging."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [{level}] {msg}")
+    """Colored logging for worker output."""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    color = _LOG_COLORS.get(level, "")
+    print(f"{_DIM}{timestamp}{_RESET} {color}{level:<5}{_RESET} {msg}")
+
+
+def log_banner(title: str):
+    """Print a section banner."""
+    print(f"\n{'━' * 50}")
+    print(f"  {_BOLD}{title}{_RESET}")
+    print(f"{'━' * 50}")
 
 
 def download_models():
@@ -73,6 +88,38 @@ def download_models():
             log(f"Downloaded: {model_name} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
         except Exception as e:
             log(f"Failed to download {model_name}: {e}", "ERROR")
+
+
+def export_tensorrt_models():
+    """Export .pt models to TensorRT .engine if on CUDA and not yet exported."""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return
+    except ImportError:
+        return
+
+    from ultralytics import YOLO
+
+    # (model_name, imgsz) pairs
+    exports = [
+        ("player_detection.pt", 1280),
+        ("ball_detection.pt", 640),
+        ("pitch_detection.pt", 640),
+    ]
+
+    for model_name, imgsz in exports:
+        pt_path = MODELS_DIR / model_name
+        engine_path = pt_path.with_suffix(".engine")
+        if not pt_path.exists() or engine_path.exists():
+            continue
+        log(f"Exporting TensorRT engine: {model_name} (imgsz={imgsz})...")
+        try:
+            model = YOLO(str(pt_path))
+            model.export(format="engine", imgsz=imgsz, half=True, device=0)
+            log(f"TensorRT export complete: {engine_path.name}")
+        except Exception as e:
+            log(f"TensorRT export failed for {model_name}: {e}", "WARN")
 
 
 def api_request(endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
@@ -446,28 +493,28 @@ def poll_for_work():
 
 def main():
     """Main worker loop."""
-    log("=" * 60)
-    log("Football Analysis Worker Service")
-    log("=" * 60)
+    log_banner("Football Analysis Worker")
     log(f"Dashboard URL: {DASHBOARD_URL}")
     log(f"Poll interval: {POLL_INTERVAL}s")
     log(f"Models dir: {MODELS_DIR}")
-    log(f"Cache dir: {CACHE_DIR}")
-    log("")
-    
+
     # Download models if not present
+    log_banner("Downloading Models")
     download_models()
-    
+
+    # Export TensorRT engines (one-time, cached)
+    log_banner("TensorRT Export")
+    export_tensorrt_models()
+
     # Check for models
     models = list(MODELS_DIR.glob("*.pt"))
     if models:
         log(f"Found models: {[m.name for m in models]}")
     else:
         log("No custom models found - will use pretrained models", "WARN")
-    
-    log("")
+
+    log_banner("Worker Loop")
     log("Starting worker loop...")
-    log("")
     
     while True:
         try:
