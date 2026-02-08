@@ -1,5 +1,6 @@
 """Professional pipeline output formatting."""
 
+import os
 import sys
 import time as _time
 
@@ -22,7 +23,8 @@ logger = get_logger("pipeline")
 # In a pipe (worker subprocess), tqdm can't do in-place updates, so every
 # progress tick becomes a new log line (750 lines for ball detection!).
 # Use a sparse log-based reporter instead.
-_IS_TTY = sys.stdout.isatty()
+# The worker sets PIPELINE_SUBPROCESS=1 as a reliable signal.
+_IS_TTY = sys.stdout.isatty() and not os.environ.get("PIPELINE_SUBPROCESS")
 
 # Visual tqdm bar format — only used in interactive terminals
 _TTY_BAR_FORMAT = (

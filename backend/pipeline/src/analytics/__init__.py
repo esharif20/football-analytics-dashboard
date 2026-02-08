@@ -164,6 +164,7 @@ def export_analytics_json(result: AnalyticsResult, filepath: str) -> None:
     """
     def serialize(obj):
         """Recursively serialize objects to JSON-compatible format."""
+        import math
         if hasattr(obj, '__dict__'):
             return {k: serialize(v) for k, v in obj.__dict__.items()}
         elif isinstance(obj, list):
@@ -172,10 +173,18 @@ def export_analytics_json(result: AnalyticsResult, filepath: str) -> None:
             return {str(k): serialize(v) for k, v in obj.items()}
         elif isinstance(obj, tuple):
             return list(obj)
-        elif isinstance(obj, (int, float, str, bool, type(None))):
+        elif isinstance(obj, float):
+            # inf/nan are not JSON-compliant — replace with None
+            return obj if math.isfinite(obj) else None
+        elif isinstance(obj, (int, str, bool, type(None))):
             return obj
         else:
-            return str(obj)
+            # Catch numpy scalar types (np.float64, np.int64, etc.)
+            try:
+                f = float(obj)
+                return f if math.isfinite(f) else None
+            except (TypeError, ValueError):
+                return str(obj)
 
     data = serialize(result)
 

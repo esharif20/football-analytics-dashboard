@@ -122,18 +122,34 @@ def export_tensorrt_models():
             log(f"TensorRT export failed for {model_name}: {e}", "WARN")
 
 
+def _sanitize_for_json(obj):
+    """Recursively replace inf/nan floats with None so json.dumps won't choke."""
+    import math
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    elif isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    return obj
+
+
 def api_request(endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
     """Make HTTP request to dashboard API using requests library."""
     url = f"{DASHBOARD_URL}/api{endpoint}"
-    
+
+    # Sanitize outgoing data — analytics can contain inf/nan from speed calcs
+    if data is not None:
+        data = _sanitize_for_json(data)
+
     try:
         if method == "GET":
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=60)
         elif method == "POST":
-            response = requests.post(url, json=data, timeout=30)
+            response = requests.post(url, json=data, timeout=60)
         else:
-            response = requests.request(method, url, json=data, timeout=30)
-        
+            response = requests.request(method, url, json=data, timeout=60)
+
         response.raise_for_status()
         return response.json()
     except requests.exceptions.HTTPError as e:
@@ -309,6 +325,9 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     src_dir = str(pipeline_dir / "src")
     existing_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{src_dir}:{existing_pythonpath}" if existing_pythonpath else src_dir
+    # Tell the pipeline it's running as a subprocess — use sparse log-based
+    # progress instead of tqdm (which can't do in-place updates over a pipe)
+    env["PIPELINE_SUBPROCESS"] = "1"
     
     try:
         process = subprocess.Popen(
