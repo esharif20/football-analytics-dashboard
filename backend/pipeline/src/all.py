@@ -51,6 +51,7 @@ if _src_dir not in sys.path:
 
 from __init__ import Mode
 from base import load_frames, build_tracker, get_stub_path
+from utils.cache import get_video_hash, STUB_DIR
 from utils.pipeline_logger import banner, stage, config_table, metric, warn
 
 if TYPE_CHECKING:
@@ -330,15 +331,41 @@ def run(
             position_alpha=0.3,  # Lowered for smoother radar positions
         )
 
+    from utils.logging_config import get_logger as _get_logger
+    _all_logger = _get_logger("all")
+
     pitch_data = None
     if pitch_detector is not None:
-        pitch_data = _precompute_pitch_keypoints(
-            frames=frames,
-            pitch_detector=pitch_detector,
-            pitch_config=pitch_config,
-            stride=effective_stride,
-            pitch_backend=effective_backend,
-        )
+        # Try loading cached pitch data from stub
+        import pickle
+        video_hash = get_video_hash(source_video_path)
+        pitch_stub = STUB_DIR / f"{video_hash}_pitch_data.pkl"
+
+        if read_from_stub and pitch_stub.exists():
+            try:
+                with open(pitch_stub, "rb") as f:
+                    pitch_data = pickle.load(f)
+                _all_logger.info(f"Loaded pitch data from stub ({len(pitch_data)} frames)")
+            except Exception as e:
+                _all_logger.warning(f"Failed to load pitch stub: {e}")
+                pitch_data = None
+
+        if pitch_data is None:
+            pitch_data = _precompute_pitch_keypoints(
+                frames=frames,
+                pitch_detector=pitch_detector,
+                pitch_config=pitch_config,
+                stride=effective_stride,
+                pitch_backend=effective_backend,
+            )
+            # Save to stub for future runs
+            try:
+                STUB_DIR.mkdir(parents=True, exist_ok=True)
+                with open(pitch_stub, "wb") as f:
+                    pickle.dump(pitch_data, f)
+                _all_logger.info(f"Saved pitch data stub: {pitch_stub.name}")
+            except Exception as e:
+                _all_logger.warning(f"Failed to save pitch stub: {e}")
 
     # Analytics engine (only initialized if analytics enabled)
     analytics_engine = None
@@ -372,8 +399,6 @@ def run(
                 except ValueError:
                     pass
 
-    from utils.logging_config import get_logger as _get_logger
-    _all_logger = _get_logger("all")
     kin_calc = KinematicsCalculator(fps=DEFAULT_VIDEO_FPS, pitch_config=pitch_config)
     if per_frame_transformers:
         speed_lookup = kin_calc.build_per_frame_lookup(

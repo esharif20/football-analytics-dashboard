@@ -84,16 +84,21 @@ def stub_paths_for_mode(source_video_path: str, mode: "Mode") -> List[Path]:
 
     ball_stub = stub_path(source_video_path, Mode.BALL_DETECTION)
     ball_full_stub = ball_stub.with_name(f"{ball_stub.stem}_full{ball_stub.suffix}")
+    video_hash = get_video_hash(source_video_path)
+    pitch_stub = STUB_DIR / f"{video_hash}_pitch_data.pkl"
     if mode == Mode.ALL:
         return [
             stub_path(source_video_path, Mode.TEAM_CLASSIFICATION),
             ball_stub,
             ball_full_stub,
+            pitch_stub,
         ]
     if mode == Mode.BALL_DETECTION:
         return [ball_stub, ball_full_stub]
     if mode in {Mode.PLAYER_DETECTION, Mode.PLAYER_TRACKING, Mode.TEAM_CLASSIFICATION}:
         return [stub_path(source_video_path, Mode.TEAM_CLASSIFICATION)]
+    if mode == Mode.PITCH_DETECTION:
+        return [pitch_stub]
     return []
 
 
