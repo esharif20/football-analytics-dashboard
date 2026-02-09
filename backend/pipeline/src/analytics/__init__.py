@@ -25,7 +25,7 @@ from .possession import PossessionCalculator, compute_possession_stats
 from .kinematics import KinematicsCalculator, compute_kinematics
 from .ball_path import BallPathTracker, draw_ball_path_on_pitch
 from .events import EventDetector
-from .interaction_graph import compute_interaction_graphs
+from .interaction_graph import compute_interaction_graphs, compute_interaction_graph_timeline
 
 
 class AnalyticsEngine:
@@ -107,11 +107,11 @@ class AnalyticsEngine:
                                 sorted(EventDetector.count_by_team_and_type(events).items())))
 
         # Interaction graphs (proximity + pass weighted)
-        ig_team1, ig_team2 = compute_interaction_graphs(
+        ig_team1, ig_team2 = compute_interaction_graph_timeline(
             tracks, events,
             per_frame_transformers=per_frame_transformers,
             player_kinematics=player_kinematics,
-            fps=self.fps,
+            fps=self.fps, n_segments=5,
         )
         if ig_team1 or ig_team2:
             _logger.info("Interaction graphs: team1=%d nodes/%d edges, team2=%d nodes/%d edges",
@@ -264,4 +264,5 @@ __all__ = [
     "BallPathTracker",
     "EventDetector",
     "compute_interaction_graphs",
+    "compute_interaction_graph_timeline",
 ]

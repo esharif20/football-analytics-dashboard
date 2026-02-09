@@ -290,7 +290,31 @@ def run(
     if team_colors:
         tracker.set_team_palette(team_colors)
 
+    if ball_config.use_dag_solver and hasattr(tracker, 'raw_ball_candidates'):
+        from trackers.ball_dag_solver import optimize_ball_trajectory
+        tracks["ball"] = optimize_ball_trajectory(
+            tracks["ball"], tracker.raw_ball_candidates,
+            max_gap=ball_config.dag_max_gap,
+        )
+
     tracks["ball"] = tracker.interpolate_ball_tracks(tracks["ball"])
+
+    # Pre-compute per-frame cumulative possession for overlay
+    from analytics.possession import PossessionCalculator
+    _poss_calc = PossessionCalculator()
+    _poss_events = _poss_calc.calculate_all_frames(tracks)
+    possession_per_frame: list[tuple[float, float]] = []
+    _t1_count = _t2_count = 0
+    _smooth_pct = 50.0
+    for _ev in _poss_events:
+        if _ev.team_id == 1:
+            _t1_count += 1
+        elif _ev.team_id == 2:
+            _t2_count += 1
+        _total = _t1_count + _t2_count
+        _raw_pct = (_t1_count / _total * 100) if _total > 0 else 50.0
+        _smooth_pct = 0.95 * _smooth_pct + 0.05 * _raw_pct
+        possession_per_frame.append((_smooth_pct, 100.0 - _smooth_pct))
 
     # Determine confidence threshold used for metrics
     if use_ball_model_weights and BALL_DETECTION_MODEL_PATH.exists():
@@ -423,6 +447,11 @@ def run(
                         )
 
         if pitch_data is None:
+            if frame_idx < len(possession_per_frame):
+                t1_pct, t2_pct = possession_per_frame[frame_idx]
+                t1_bgr = team_colors.get(0, (255, 191, 0))
+                t2_bgr = team_colors.get(1, (147, 20, 255))
+                frame = speed_annotator.draw_possession_bar(frame, t1_pct, t1_bgr, t2_bgr)
             yield frame
             continue
 
@@ -538,6 +567,11 @@ def run(
                 smoothed_matrix = smoother.update_homography(transformer, frame_idx)
                 if smoothed_matrix is None:
                     # No valid homography available yet, skip radar this frame
+                    if frame_idx < len(possession_per_frame):
+                        t1_pct, t2_pct = possession_per_frame[frame_idx]
+                        t1_bgr = team_colors.get(0, (255, 191, 0))
+                        t2_bgr = team_colors.get(1, (147, 20, 255))
+                        frame = speed_annotator.draw_possession_bar(frame, t1_pct, t1_bgr, t2_bgr)
                     yield frame
                     continue
                 transformer.matrix = smoothed_matrix
@@ -667,6 +701,13 @@ def run(
                 )
             except ValueError:
                 pass  # Homography failed
+
+        # Possession bar overlay (drawn last, on top of everything)
+        if frame_idx < len(possession_per_frame):
+            t1_pct, t2_pct = possession_per_frame[frame_idx]
+            t1_bgr = team_colors.get(0, (255, 191, 0))
+            t2_bgr = team_colors.get(1, (147, 20, 255))
+            frame = speed_annotator.draw_possession_bar(frame, t1_pct, t1_bgr, t2_bgr)
 
         yield frame
 
