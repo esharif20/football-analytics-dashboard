@@ -146,7 +146,7 @@ class KinematicsCalculator:
 
     @staticmethod
     def _smooth_pitch_positions(
-        positions: List[FramePosition], alpha: float = 0.5,
+        positions: List[FramePosition], alpha: float = 0.25,
     ) -> List[FramePosition]:
         """EMA-smooth pitch positions to reduce homography jitter.
 
@@ -412,7 +412,7 @@ class KinematicsCalculator:
                 if positions:
                     if per_frame_transformers:
                         positions = self.transform_to_pitch_coords_per_frame(positions, per_frame_transformers)
-                        positions = self._smooth_pitch_positions(positions, alpha=0.5)
+                        positions = self._smooth_pitch_positions(positions, alpha=0.25)
                     else:
                         positions = self.transform_to_pitch_coords(positions, transformer)
 
@@ -465,7 +465,7 @@ class KinematicsCalculator:
         tracks: Dict[str, List[Dict]],
         transformer: Optional[ViewTransformer] = None,
         per_frame_transformers: Optional[Dict[int, ViewTransformer]] = None,
-        smooth_window: int = 15,
+        smooth_window: int = 25,
     ) -> Dict[int, Dict[int, Tuple[float, float]]]:
         """Build per-frame speed/distance lookup for video annotation.
 
@@ -498,7 +498,7 @@ class KinematicsCalculator:
                     positions = self.transform_to_pitch_coords_per_frame(
                         positions, per_frame_transformers,
                     )
-                    positions = self._smooth_pitch_positions(positions, alpha=0.5)
+                    positions = self._smooth_pitch_positions(positions, alpha=0.25)
                     dist_px, speeds_px, dist_m_opt, speeds_m_opt = (
                         self.compute_distances_and_speeds_adaptive(positions)
                     )
@@ -526,6 +526,15 @@ class KinematicsCalculator:
                     raw_speeds = speeds_m if use_real else speeds_px
                     raw_dists = dist_m if use_real else dist_px
 
+                # Dead-zone: zero out tiny displacements caused by jitter
+                # (< 5cm/frame = standing still noise for real-world,
+                #  < 1px/frame for pixel fallback)
+                dead_zone = 0.05 if use_real else 1.0
+                for i in range(len(raw_speeds)):
+                    if raw_speeds[i] < dead_zone:
+                        raw_speeds[i] = 0.0
+                        raw_dists[i] = 0.0
+
                 # Smooth speeds over a window (median resists outlier spikes)
                 smoothed = []
                 for i in range(len(raw_speeds)):
@@ -533,9 +542,11 @@ class KinematicsCalculator:
                     end = min(len(raw_speeds), i + smooth_window // 2 + 1)
                     smoothed.append(float(np.median(raw_speeds[start:end])))
 
-                # Build frame-indexed lookup
+                # Build frame-indexed lookup with temporal EMA on final speed
                 per_frame: Dict[int, Tuple[float, float]] = {}
                 cumulative = 0.0
+                ema_speed = 0.0
+                ema_alpha = 0.15  # low = very smooth output
                 for i in range(len(smoothed)):
                     frame_idx = positions[i + 1].frame_idx
                     cumulative += raw_dists[i]
@@ -547,7 +558,9 @@ class KinematicsCalculator:
                         speed_kmh = min(smoothed[i] * self.fps * 0.05, MAX_PLAYER_SPEED_KMH)
                         dist_total = cumulative * 0.05
 
-                    per_frame[frame_idx] = (speed_kmh, dist_total)
+                    # Temporal EMA to prevent frame-to-frame jitter in display
+                    ema_speed = ema_alpha * speed_kmh + (1 - ema_alpha) * ema_speed
+                    per_frame[frame_idx] = (ema_speed, dist_total)
 
                 lookup[track_id] = per_frame
 
