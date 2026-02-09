@@ -111,6 +111,10 @@ def parse_args() -> argparse.Namespace:
                         help="Max area ratio vs last")
     parser.add_argument("--ball-max-jump", type=float, default=BALL_MAX_JUMP_RATIO,
                         help="Max jump ratio vs size")
+    parser.add_argument("--ball-dag-solver", action="store_true",
+                        help="Global DAG trajectory optimization for ball")
+    parser.add_argument("--ball-dag-max-gap", type=int, default=5,
+                        help="Max frame gap for DAG edges (default 5)")
 
     # Radar mode options
     parser.add_argument("--voronoi", action="store_true",

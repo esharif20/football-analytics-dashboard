@@ -144,6 +144,33 @@ class KinematicsCalculator:
                 pos.pitch_pos = None
         return positions
 
+    @staticmethod
+    def _smooth_pitch_positions(
+        positions: List[FramePosition], alpha: float = 0.5,
+    ) -> List[FramePosition]:
+        """EMA-smooth pitch positions to reduce homography jitter.
+
+        Args:
+            positions: List of FramePosition with pitch_pos already set.
+            alpha: Weight for current observation (0→full smoothing, 1→no smoothing).
+
+        Returns:
+            Same list with pitch_pos smoothed in-place.
+        """
+        prev = None
+        for pos in positions:
+            if pos.pitch_pos is None:
+                prev = None
+                continue
+            if prev is None:
+                prev = pos.pitch_pos
+                continue
+            sx = alpha * pos.pitch_pos[0] + (1 - alpha) * prev[0]
+            sy = alpha * pos.pitch_pos[1] + (1 - alpha) * prev[1]
+            pos.pitch_pos = (sx, sy)
+            prev = pos.pitch_pos
+        return positions
+
     def compute_distances_and_speeds_adaptive(
         self,
         positions: List[FramePosition],
@@ -181,8 +208,13 @@ class KinematicsCalculator:
                 d_cm = measure_distance(prev.pitch_pos, curr.pitch_pos)
                 d_m = d_cm * CM_TO_M
                 time_sec = frame_gap / self.fps
+                speed = d_m / time_sec
+                max_speed = MAX_PLAYER_SPEED_KMH / 3.6
+                if speed > max_speed:
+                    speed = max_speed
+                    d_m = max_speed * time_sec
                 distances_m.append(d_m)
-                speeds_m.append(d_m / time_sec)
+                speeds_m.append(speed)
             else:
                 distances_m.append(None)
                 speeds_m.append(None)
@@ -380,6 +412,7 @@ class KinematicsCalculator:
                 if positions:
                     if per_frame_transformers:
                         positions = self.transform_to_pitch_coords_per_frame(positions, per_frame_transformers)
+                        positions = self._smooth_pitch_positions(positions, alpha=0.5)
                     else:
                         positions = self.transform_to_pitch_coords(positions, transformer)
 
@@ -432,7 +465,7 @@ class KinematicsCalculator:
         tracks: Dict[str, List[Dict]],
         transformer: Optional[ViewTransformer] = None,
         per_frame_transformers: Optional[Dict[int, ViewTransformer]] = None,
-        smooth_window: int = 5,
+        smooth_window: int = 15,
     ) -> Dict[int, Dict[int, Tuple[float, float]]]:
         """Build per-frame speed/distance lookup for video annotation.
 
@@ -465,6 +498,7 @@ class KinematicsCalculator:
                     positions = self.transform_to_pitch_coords_per_frame(
                         positions, per_frame_transformers,
                     )
+                    positions = self._smooth_pitch_positions(positions, alpha=0.5)
                     dist_px, speeds_px, dist_m_opt, speeds_m_opt = (
                         self.compute_distances_and_speeds_adaptive(positions)
                     )
@@ -492,12 +526,12 @@ class KinematicsCalculator:
                     raw_speeds = speeds_m if use_real else speeds_px
                     raw_dists = dist_m if use_real else dist_px
 
-                # Smooth speeds over a window
+                # Smooth speeds over a window (median resists outlier spikes)
                 smoothed = []
                 for i in range(len(raw_speeds)):
                     start = max(0, i - smooth_window // 2)
                     end = min(len(raw_speeds), i + smooth_window // 2 + 1)
-                    smoothed.append(float(np.mean(raw_speeds[start:end])))
+                    smoothed.append(float(np.median(raw_speeds[start:end])))
 
                 # Build frame-indexed lookup
                 per_frame: Dict[int, Tuple[float, float]] = {}
@@ -510,7 +544,7 @@ class KinematicsCalculator:
                         speed_kmh = min(smoothed[i] * 3.6, MAX_PLAYER_SPEED_KMH)
                         dist_total = cumulative
                     else:
-                        speed_kmh = smoothed[i] * self.fps * 0.05
+                        speed_kmh = min(smoothed[i] * self.fps * 0.05, MAX_PLAYER_SPEED_KMH)
                         dist_total = cumulative * 0.05
 
                     per_frame[frame_idx] = (speed_kmh, dist_total)

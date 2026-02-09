@@ -69,6 +69,12 @@ class BallConfig:
     max_jump_ratio: float = 8.0
     """Maximum position jump as ratio of ball size (reject teleportation)."""
 
+    use_dag_solver: bool = False
+    """Enable DAG-based global trajectory optimization as post-processing."""
+
+    dag_max_gap: int = 5
+    """Maximum frame gap for DAG edges (higher = more candidate connections)."""
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         self._validate()
@@ -135,6 +141,11 @@ class BallConfig:
                 "max_jump_ratio", self.max_jump_ratio, "must be positive"
             )
 
+        if self.dag_max_gap < 1:
+            raise ConfigurationError(
+                "dag_max_gap", self.dag_max_gap, "must be at least 1"
+            )
+
         if self.tile_grid is not None:
             if len(self.tile_grid) != 2:
                 raise ConfigurationError(
@@ -174,6 +185,8 @@ class BallConfig:
             "ball_area_ratio_min": "area_ratio_min",
             "ball_area_ratio_max": "area_ratio_max",
             "ball_max_jump_ratio": "max_jump_ratio",
+            "ball_dag_solver": "use_dag_solver",
+            "ball_dag_max_gap": "dag_max_gap",
         }
 
         kwargs = {}
@@ -256,6 +269,8 @@ class BallConfig:
             "area_ratio_min": self.area_ratio_min,
             "area_ratio_max": self.area_ratio_max,
             "max_jump_ratio": self.max_jump_ratio,
+            "use_dag_solver": self.use_dag_solver,
+            "dag_max_gap": self.dag_max_gap,
         }
 
     def __repr__(self) -> str:

@@ -233,6 +233,138 @@ class TrackAnnotator:
 
         return frame
 
+    def draw_possession_bar(
+        self,
+        frame: np.ndarray,
+        team1_pct: float,
+        team1_color: Tuple[int, int, int],
+        team2_color: Tuple[int, int, int],
+    ) -> np.ndarray:
+        """Draw a broadcast-style possession bar at the top of the frame.
+
+        Args:
+            frame: Frame to draw on.
+            team1_pct: Team 1 possession percentage (0-100).
+            team1_color: BGR color for team 1.
+            team2_color: BGR color for team 2.
+
+        Returns:
+            Annotated frame.
+        """
+        h, w = frame.shape[:2]
+        margin = 24
+        bar_height = 28
+        y_top = 16
+        bar_left = margin
+        bar_right = w - margin
+        bar_width = bar_right - bar_left
+
+        # Semi-transparent dark background (rounded-rect approximation)
+        overlay = frame.copy()
+        bg_y1 = y_top
+        bg_y2 = y_top + bar_height
+        radius = bar_height // 2
+
+        # Draw rounded rect background using filled rects + circles
+        cv2.rectangle(
+            overlay,
+            (bar_left + radius, bg_y1),
+            (bar_right - radius, bg_y2),
+            (30, 30, 30),
+            cv2.FILLED,
+        )
+        cv2.rectangle(
+            overlay,
+            (bar_left, bg_y1 + radius),
+            (bar_right, bg_y2 - radius),
+            (30, 30, 30),
+            cv2.FILLED,
+        )
+        cv2.circle(overlay, (bar_left + radius, bg_y1 + radius), radius, (30, 30, 30), cv2.FILLED)
+        cv2.circle(overlay, (bar_right - radius, bg_y1 + radius), radius, (30, 30, 30), cv2.FILLED)
+        cv2.circle(overlay, (bar_left + radius, bg_y2 - radius), radius, (30, 30, 30), cv2.FILLED)
+        cv2.circle(overlay, (bar_right - radius, bg_y2 - radius), radius, (30, 30, 30), cv2.FILLED)
+        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+
+        # Inner colored bar (2px inset)
+        inset = 2
+        inner_left = bar_left + inset + radius
+        inner_right = bar_right - inset - radius
+        inner_width = inner_right - inner_left
+        inner_y1 = bg_y1 + inset
+        inner_y2 = bg_y2 - inset
+        inner_radius = (inner_y2 - inner_y1) // 2
+
+        # Split point
+        t1_pct_clamped = max(0.0, min(100.0, team1_pct))
+        split_x = inner_left + int(inner_width * t1_pct_clamped / 100.0)
+
+        # Team 1 segment (left)
+        if split_x > inner_left:
+            cv2.rectangle(
+                frame,
+                (inner_left, inner_y1),
+                (split_x, inner_y2),
+                team1_color,
+                cv2.FILLED,
+            )
+            # Left rounded cap
+            cv2.circle(frame, (inner_left, inner_y1 + inner_radius), inner_radius, team1_color, cv2.FILLED)
+
+        # Team 2 segment (right)
+        if split_x < inner_right:
+            cv2.rectangle(
+                frame,
+                (split_x, inner_y1),
+                (inner_right, inner_y2),
+                team2_color,
+                cv2.FILLED,
+            )
+            # Right rounded cap
+            cv2.circle(frame, (inner_right, inner_y1 + inner_radius), inner_radius, team2_color, cv2.FILLED)
+
+        # Text labels
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.50
+        thickness = 1
+        t2_pct = 100.0 - t1_pct_clamped
+
+        # Team 1: colored square + percentage (left side)
+        sq_size = 8
+        sq_y = bg_y1 + (bar_height - sq_size) // 2
+        cv2.rectangle(
+            frame,
+            (bar_left + radius + 4, sq_y),
+            (bar_left + radius + 4 + sq_size, sq_y + sq_size),
+            team1_color,
+            cv2.FILLED,
+        )
+        t1_label = f"{t1_pct_clamped:.0f}%"
+        cv2.putText(
+            frame, t1_label,
+            (bar_left + radius + 4 + sq_size + 5, sq_y + sq_size),
+            font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA,
+        )
+
+        # Team 2: percentage + colored square (right side)
+        t2_label = f"{t2_pct:.0f}%"
+        t2_size, _ = cv2.getTextSize(t2_label, font, font_scale, thickness)
+        t2_text_x = bar_right - radius - 4 - sq_size - 5 - t2_size[0]
+        cv2.putText(
+            frame, t2_label,
+            (t2_text_x, sq_y + sq_size),
+            font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA,
+        )
+        cv2.rectangle(
+            frame,
+            (bar_right - radius - 4 - sq_size, sq_y),
+            (bar_right - radius - 4, sq_y + sq_size),
+            team2_color,
+            cv2.FILLED,
+        )
+
+        return frame
+
     def draw_ball_marker(
         self,
         frame: np.ndarray,

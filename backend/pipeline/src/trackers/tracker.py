@@ -173,6 +173,7 @@ class Tracker:
         self.debug_counts: List[Dict[str, Dict[str, int]]] = []
         self.ball_debug: List[Dict[str, int]] = []
         self.ball_area_ratios = deque(maxlen=self.ball_auto_area_window)
+        self.raw_ball_candidates: List[List[Dict]] = []
 
         self.ellipse_annotator = sv.EllipseAnnotator(
             color=sv.ColorPalette.from_hex(["#00BFFF", "#FF1493", "#FFD700"]),
@@ -338,6 +339,7 @@ class Tracker:
         self.debug_counts = []
         self.ball_debug = []
         self.ball_area_ratios.clear()
+        self.raw_ball_candidates = []
 
         if self.ball_model is not None and self.ball_slicer is not None:
             frame_iter = progress(range(len(detections)), desc="  Ball detection", unit="frame")
@@ -384,6 +386,7 @@ class Tracker:
         tracks: Dict[str, List[dict]] = {"ball": []}
         self.ball_debug = []
         self.ball_area_ratios.clear()
+        self.raw_ball_candidates = []
 
         start = time.perf_counter()
         with progress(total=len(frames), desc="  Ball frames", unit="frame") as pbar:
@@ -572,6 +575,17 @@ class Tracker:
         reject_aspect = int((~aspect_keep).sum())
         ball_dets = ball_dets[aspect_keep]
         post_aspect = len(ball_dets)
+
+        # Store candidates for DAG solver (after conf + aspect filtering)
+        frame_candidates = []
+        for i in range(len(ball_dets)):
+            cand_bbox = ball_dets.xyxy[i].tolist()
+            cand_conf = float(ball_dets.confidence[i]) if ball_dets.confidence is not None else 0.5
+            frame_candidates.append({"bbox": cand_bbox, "confidence": cand_conf})
+        while len(self.raw_ball_candidates) <= frame_num:
+            self.raw_ball_candidates.append([])
+        self.raw_ball_candidates[frame_num] = frame_candidates
+
         if post_aspect == 0:
             _handle_empty(
                 raw_count=raw_count,
