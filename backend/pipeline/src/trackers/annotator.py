@@ -240,7 +240,13 @@ class TrackAnnotator:
         team1_color: Tuple[int, int, int],
         team2_color: Tuple[int, int, int],
     ) -> np.ndarray:
-        """Draw a broadcast-style possession bar at the top of the frame.
+        """Draw a compact possession widget in the top-left corner.
+
+        Layout (approx 220x60 px):
+        ┌─────────────────────────┐
+        │  POSSESSION             │
+        │  ■ 54%  ████░░░  46% ■ │
+        └─────────────────────────┘
 
         Args:
             frame: Frame to draw on.
@@ -251,117 +257,90 @@ class TrackAnnotator:
         Returns:
             Annotated frame.
         """
-        h, w = frame.shape[:2]
-        margin = 24
-        bar_height = 28
-        y_top = 16
-        bar_left = margin
-        bar_right = w - margin
-        bar_width = bar_right - bar_left
+        t1 = max(0.0, min(100.0, team1_pct))
+        t2 = 100.0 - t1
 
-        # Semi-transparent dark background (rounded-rect approximation)
+        # Widget geometry
+        x0, y0 = 16, 16
+        widget_w = 230
+        widget_h = 56
+        radius = 8
+
+        # --- Semi-transparent dark background ---
         overlay = frame.copy()
-        bg_y1 = y_top
-        bg_y2 = y_top + bar_height
-        radius = bar_height // 2
+        # Rounded rect via rects + corner circles
+        cv2.rectangle(overlay, (x0 + radius, y0), (x0 + widget_w - radius, y0 + widget_h), (20, 20, 20), cv2.FILLED)
+        cv2.rectangle(overlay, (x0, y0 + radius), (x0 + widget_w, y0 + widget_h - radius), (20, 20, 20), cv2.FILLED)
+        for cx, cy in [
+            (x0 + radius, y0 + radius),
+            (x0 + widget_w - radius, y0 + radius),
+            (x0 + radius, y0 + widget_h - radius),
+            (x0 + widget_w - radius, y0 + widget_h - radius),
+        ]:
+            cv2.circle(overlay, (cx, cy), radius, (20, 20, 20), cv2.FILLED)
+        cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
 
-        # Draw rounded rect background using filled rects + circles
-        cv2.rectangle(
-            overlay,
-            (bar_left + radius, bg_y1),
-            (bar_right - radius, bg_y2),
-            (30, 30, 30),
-            cv2.FILLED,
-        )
-        cv2.rectangle(
-            overlay,
-            (bar_left, bg_y1 + radius),
-            (bar_right, bg_y2 - radius),
-            (30, 30, 30),
-            cv2.FILLED,
-        )
-        cv2.circle(overlay, (bar_left + radius, bg_y1 + radius), radius, (30, 30, 30), cv2.FILLED)
-        cv2.circle(overlay, (bar_right - radius, bg_y1 + radius), radius, (30, 30, 30), cv2.FILLED)
-        cv2.circle(overlay, (bar_left + radius, bg_y2 - radius), radius, (30, 30, 30), cv2.FILLED)
-        cv2.circle(overlay, (bar_right - radius, bg_y2 - radius), radius, (30, 30, 30), cv2.FILLED)
-        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
-
-        # Inner colored bar (2px inset)
-        inset = 2
-        inner_left = bar_left + inset + radius
-        inner_right = bar_right - inset - radius
-        inner_width = inner_right - inner_left
-        inner_y1 = bg_y1 + inset
-        inner_y2 = bg_y2 - inset
-        inner_radius = (inner_y2 - inner_y1) // 2
-
-        # Split point
-        t1_pct_clamped = max(0.0, min(100.0, team1_pct))
-        split_x = inner_left + int(inner_width * t1_pct_clamped / 100.0)
-
-        # Team 1 segment (left)
-        if split_x > inner_left:
-            cv2.rectangle(
-                frame,
-                (inner_left, inner_y1),
-                (split_x, inner_y2),
-                team1_color,
-                cv2.FILLED,
-            )
-            # Left rounded cap
-            cv2.circle(frame, (inner_left, inner_y1 + inner_radius), inner_radius, team1_color, cv2.FILLED)
-
-        # Team 2 segment (right)
-        if split_x < inner_right:
-            cv2.rectangle(
-                frame,
-                (split_x, inner_y1),
-                (inner_right, inner_y2),
-                team2_color,
-                cv2.FILLED,
-            )
-            # Right rounded cap
-            cv2.circle(frame, (inner_right, inner_y1 + inner_radius), inner_radius, team2_color, cv2.FILLED)
-
-        # Text labels
+        # --- Title ---
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.50
-        thickness = 1
-        t2_pct = 100.0 - t1_pct_clamped
-
-        # Team 1: colored square + percentage (left side)
-        sq_size = 8
-        sq_y = bg_y1 + (bar_height - sq_size) // 2
-        cv2.rectangle(
-            frame,
-            (bar_left + radius + 4, sq_y),
-            (bar_left + radius + 4 + sq_size, sq_y + sq_size),
-            team1_color,
-            cv2.FILLED,
+        cv2.putText(
+            frame, "POSSESSION",
+            (x0 + 10, y0 + 18),
+            font, 0.38, (180, 180, 180), 1, cv2.LINE_AA,
         )
-        t1_label = f"{t1_pct_clamped:.0f}%"
+
+        # --- Percentage row ---
+        row_y = y0 + 28
+        sq = 10  # color swatch size
+
+        # Team 1: swatch + pct
+        cv2.rectangle(frame, (x0 + 10, row_y), (x0 + 10 + sq, row_y + sq), team1_color, cv2.FILLED)
+        t1_label = f"{t1:.0f}%"
         cv2.putText(
             frame, t1_label,
-            (bar_left + radius + 4 + sq_size + 5, sq_y + sq_size),
-            font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA,
+            (x0 + 10 + sq + 5, row_y + sq),
+            font, 0.45, (255, 255, 255), 1, cv2.LINE_AA,
         )
 
-        # Team 2: percentage + colored square (right side)
-        t2_label = f"{t2_pct:.0f}%"
-        t2_size, _ = cv2.getTextSize(t2_label, font, font_scale, thickness)
-        t2_text_x = bar_right - radius - 4 - sq_size - 5 - t2_size[0]
+        # Team 2: pct + swatch (right-aligned)
+        t2_label = f"{t2:.0f}%"
+        t2_sz, _ = cv2.getTextSize(t2_label, font, 0.45, 1)
+        t2_text_x = x0 + widget_w - 10 - sq - 5 - t2_sz[0]
         cv2.putText(
             frame, t2_label,
-            (t2_text_x, sq_y + sq_size),
-            font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA,
+            (t2_text_x, row_y + sq),
+            font, 0.45, (255, 255, 255), 1, cv2.LINE_AA,
         )
         cv2.rectangle(
             frame,
-            (bar_right - radius - 4 - sq_size, sq_y),
-            (bar_right - radius - 4, sq_y + sq_size),
-            team2_color,
-            cv2.FILLED,
+            (x0 + widget_w - 10 - sq, row_y),
+            (x0 + widget_w - 10, row_y + sq),
+            team2_color, cv2.FILLED,
         )
+
+        # --- Progress bar ---
+        bar_y = row_y + sq + 5
+        bar_h = 6
+        bar_x0 = x0 + 10
+        bar_x1 = x0 + widget_w - 10
+        bar_w = bar_x1 - bar_x0
+        bar_r = bar_h // 2
+
+        # Background track
+        cv2.rectangle(frame, (bar_x0 + bar_r, bar_y), (bar_x1 - bar_r, bar_y + bar_h), (60, 60, 60), cv2.FILLED)
+        cv2.circle(frame, (bar_x0 + bar_r, bar_y + bar_r), bar_r, (60, 60, 60), cv2.FILLED)
+        cv2.circle(frame, (bar_x1 - bar_r, bar_y + bar_r), bar_r, (60, 60, 60), cv2.FILLED)
+
+        split = bar_x0 + int(bar_w * t1 / 100.0)
+
+        # Team 1 fill (left)
+        if split > bar_x0 + bar_r:
+            cv2.rectangle(frame, (bar_x0 + bar_r, bar_y), (split, bar_y + bar_h), team1_color, cv2.FILLED)
+            cv2.circle(frame, (bar_x0 + bar_r, bar_y + bar_r), bar_r, team1_color, cv2.FILLED)
+
+        # Team 2 fill (right)
+        if split < bar_x1 - bar_r:
+            cv2.rectangle(frame, (split, bar_y), (bar_x1 - bar_r, bar_y + bar_h), team2_color, cv2.FILLED)
+            cv2.circle(frame, (bar_x1 - bar_r, bar_y + bar_r), bar_r, team2_color, cv2.FILLED)
 
         return frame
 
