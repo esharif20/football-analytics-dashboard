@@ -102,3 +102,4 @@ class AnalyticsResult:
     events: List[FootballEvent] = field(default_factory=list)
     interaction_graph_team1: Optional[Dict] = None
     interaction_graph_team2: Optional[Dict] = None
+    team_colors: Optional[Dict[int, Tuple[int, int, int]]] = None  # BGR per team

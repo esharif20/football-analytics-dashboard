@@ -146,7 +146,7 @@ class KinematicsCalculator:
 
     @staticmethod
     def _smooth_pitch_positions(
-        positions: List[FramePosition], alpha: float = 0.25,
+        positions: List[FramePosition], alpha: float = 0.10,
     ) -> List[FramePosition]:
         """EMA-smooth pitch positions to reduce homography jitter.
 
@@ -412,7 +412,7 @@ class KinematicsCalculator:
                 if positions:
                     if per_frame_transformers:
                         positions = self.transform_to_pitch_coords_per_frame(positions, per_frame_transformers)
-                        positions = self._smooth_pitch_positions(positions, alpha=0.25)
+                        positions = self._smooth_pitch_positions(positions, alpha=0.10)
                     else:
                         positions = self.transform_to_pitch_coords(positions, transformer)
 
@@ -498,7 +498,7 @@ class KinematicsCalculator:
                     positions = self.transform_to_pitch_coords_per_frame(
                         positions, per_frame_transformers,
                     )
-                    positions = self._smooth_pitch_positions(positions, alpha=0.25)
+                    positions = self._smooth_pitch_positions(positions, alpha=0.10)
                     dist_px, speeds_px, dist_m_opt, speeds_m_opt = (
                         self.compute_distances_and_speeds_adaptive(positions)
                     )
@@ -526,10 +526,11 @@ class KinematicsCalculator:
                     raw_speeds = speeds_m if use_real else speeds_px
                     raw_dists = dist_m if use_real else dist_px
 
-                # Dead-zone: zero out tiny displacements caused by jitter
-                # (< 5cm/frame = standing still noise for real-world,
-                #  < 1px/frame for pixel fallback)
-                dead_zone = 0.05 if use_real else 1.0
+                # Dead-zone: zero out jitter-induced phantom movement.
+                # Homography noise produces apparent speeds of 1-8 m/s for
+                # stationary players.  1.0 m/s ≈ 3.6 km/h (slow walk) is a
+                # safe floor — anything below is standing still.
+                dead_zone = 1.0 if use_real else 2.0
                 for i in range(len(raw_speeds)):
                     if raw_speeds[i] < dead_zone:
                         raw_speeds[i] = 0.0
@@ -546,7 +547,7 @@ class KinematicsCalculator:
                 per_frame: Dict[int, Tuple[float, float]] = {}
                 cumulative = 0.0
                 ema_speed = 0.0
-                ema_alpha = 0.15  # low = very smooth output
+                ema_alpha = 0.06  # low = very smooth output
                 for i in range(len(smoothed)):
                     frame_idx = positions[i + 1].frame_idx
                     cumulative += raw_dists[i]

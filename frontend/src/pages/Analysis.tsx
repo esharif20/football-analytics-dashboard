@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect, createContext, useContext } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { analysisApi, eventsApi, statisticsApi, commentaryApi } from "@/lib/api-local";
@@ -81,8 +81,12 @@ import {
 // ==================== Constants ====================
 const PITCH_WIDTH = 105;
 const PITCH_HEIGHT = 68;
-const TEAM1_HEX = "#e05252";
-const TEAM2_HEX = "#4a9ede";
+const TEAM1_DEFAULT = "#e05252";
+const TEAM2_DEFAULT = "#4a9ede";
+
+// Team color context — lets all sub-components read pipeline-detected jersey colors
+const TeamColorsCtx = createContext({ TEAM1_HEX: TEAM1_DEFAULT, TEAM2_HEX: TEAM2_DEFAULT });
+function useTeamColors() { return useContext(TeamColorsCtx); }
 
 // ==================== Custom Tooltip ====================
 function ChartTooltip({ active, payload, label }: any) {
@@ -208,6 +212,13 @@ export default function Analysis() {
     queryFn: () => commentaryApi.list(analysisId),
     enabled: isAuthenticated && analysis?.status === "completed",
   });
+
+  // Dynamic team colors from pipeline (falls back to defaults)
+  const teamColors = useMemo(() => ({
+    TEAM1_HEX: statistics?.teamColorTeam1 || TEAM1_DEFAULT,
+    TEAM2_HEX: statistics?.teamColorTeam2 || TEAM2_DEFAULT,
+  }), [statistics?.teamColorTeam1, statistics?.teamColorTeam2]);
+  const { TEAM1_HEX, TEAM2_HEX } = teamColors;
 
   const generateCommentaryMutation = useMutation({
     mutationFn: (data: { type: string; context?: any }) => commentaryApi.generate(analysisId, data),
@@ -399,6 +410,7 @@ export default function Analysis() {
 
   // ==================== Main Render ====================
   return (
+    <TeamColorsCtx.Provider value={teamColors}>
     <div className="min-h-screen bg-background">
       {/* Animated gradient background */}
       <div className="analysis-bg">
@@ -719,6 +731,7 @@ export default function Analysis() {
         )}
       </main>
     </div>
+    </TeamColorsCtx.Provider>
   );
 }
 
@@ -981,6 +994,7 @@ function PlayerInteractionGraph({
   interactionTeam1?: InteractionGraphData | null;
   interactionTeam2?: InteractionGraphData | null;
 }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const hasRealData = !!(interactionTeam1?.nodes?.length || interactionTeam2?.nodes?.length);
   const [activeSegment, setActiveSegment] = useState<number>(-1); // -1 = Full Match
   const [graphView, setGraphView] = useState<"all" | "team1" | "team2">(filterTeam);
@@ -1259,6 +1273,7 @@ function PlayerStatsTable({
   selectedPlayer: number | null;
   setSelectedPlayer: (id: number | null) => void;
 }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const filtered = filterTeam === "all" ? players : players.filter((p) => (filterTeam === "team1" ? p.teamId === 1 : p.teamId === 2));
 
   return (
@@ -1396,6 +1411,7 @@ function ComingSoonCard() {
 // ==================== CHART COMPONENTS ====================
 
 function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const data = [
     { name: "Team 1", value: team1, color: TEAM1_HEX },
     { name: "Team 2", value: team2, color: TEAM2_HEX },
@@ -1421,18 +1437,18 @@ function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-3xl font-bold font-mono text-rose-400" style={{ textShadow: "0 0 20px rgba(220,50,50,0.3)" }}>{team1.toFixed(1)}%</span>
+            <span className="text-3xl font-bold font-mono" style={{ color: TEAM1_HEX, textShadow: `0 0 20px ${TEAM1_HEX}4D` }}>{team1.toFixed(1)}%</span>
             <span className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Team 1</span>
           </div>
         </div>
         <div className="flex justify-center gap-6 mt-3">
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full ring-2 ring-rose-400/20" style={{ backgroundColor: TEAM1_HEX }} />
-            <span className="text-xs text-muted-foreground">Team 1 &mdash; <span className="text-rose-400 font-semibold">{team1.toFixed(1)}%</span></span>
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: TEAM1_HEX, boxShadow: `0 0 0 2px ${TEAM1_HEX}33` }} />
+            <span className="text-xs text-muted-foreground">Team 1 &mdash; <span className="font-semibold" style={{ color: TEAM1_HEX }}>{team1.toFixed(1)}%</span></span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full ring-2 ring-sky-400/20" style={{ backgroundColor: TEAM2_HEX }} />
-            <span className="text-xs text-muted-foreground">Team 2 &mdash; <span className="text-sky-400 font-semibold">{team2.toFixed(1)}%</span></span>
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: TEAM2_HEX, boxShadow: `0 0 0 2px ${TEAM2_HEX}33` }} />
+            <span className="text-xs text-muted-foreground">Team 2 &mdash; <span className="font-semibold" style={{ color: TEAM2_HEX }}>{team2.toFixed(1)}%</span></span>
           </div>
         </div>
       </CardContent>
@@ -1441,6 +1457,7 @@ function PossessionDonut({ team1, team2 }: { team1: number; team2: number }) {
 }
 
 function TeamPerformanceRadar({ stats }: { stats: any }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const data = [
     { subject: "Possession", team1: stats.possessionTeam1, team2: stats.possessionTeam2, fullMark: 100 },
     { subject: "Distance", team1: (stats.distanceCoveredTeam1 / 55) * 100, team2: (stats.distanceCoveredTeam2 / 55) * 100, fullMark: 100 },
@@ -1473,6 +1490,7 @@ function TeamPerformanceRadar({ stats }: { stats: any }) {
 }
 
 function StatsComparisonBar({ stats }: { stats: any }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const data = [
     { name: "Dist (km)", team1: stats.distanceCoveredTeam1 * 5, team2: stats.distanceCoveredTeam2 * 5 },
     { name: "Avg Spd", team1: stats.avgSpeedTeam1 * 20, team2: stats.avgSpeedTeam2 * 20 },
@@ -1516,6 +1534,7 @@ function StatsComparisonBar({ stats }: { stats: any }) {
 
 // Timeline Charts
 function TeamShapeChart() {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const data = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
     minute: i * 4.5 + 1,
     team1: 25 + Math.sin(i * 0.5) * 8 + Math.random() * 4,
@@ -1563,6 +1582,7 @@ function TeamShapeChart() {
 }
 
 function DefensiveLineChart() {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const data = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
     minute: i * 4.5 + 1,
     team1: 35 + Math.sin(i * 0.3) * 12 + Math.random() * 3,
@@ -1602,6 +1622,7 @@ function DefensiveLineChart() {
 }
 
 function PressingIntensityChart() {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const data = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
     minute: i * 4.5 + 1,
     team1: 40 + Math.sin(i * 0.6) * 25 + Math.random() * 10,
@@ -1867,6 +1888,7 @@ function ProcessingStatus({ analysis, wsConnected = false }: { analysis: any; ws
 // ==================== Pitch Visualization Components ====================
 
 function PitchRadar({ data, selectedPlayer }: { data: any; selectedPlayer?: number | null }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   if (!data) return <div className="pitch-container flex items-center justify-center"><p className="text-muted-foreground">No tracking data available</p></div>;
   return (
     <div className="pitch-container">
@@ -1926,6 +1948,7 @@ function PitchRadar({ data, selectedPlayer }: { data: any; selectedPlayer?: numb
 
 // Premium Player Node
 function PlayerNode({ player, teamId, isSelected }: { player: any; teamId: number; isSelected?: boolean }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const color = teamId === 1 ? TEAM1_HEX : TEAM2_HEX;
   return (
     <div
@@ -1981,6 +2004,7 @@ function HeatmapView() {
 }
 
 function PassNetworkView() {
+  const { TEAM2_HEX } = useTeamColors();
   const nodes = [
     { id: 1, x: 15, y: 34, passes: 45 }, { id: 2, x: 30, y: 15, passes: 38 },
     { id: 3, x: 30, y: 53, passes: 42 }, { id: 4, x: 45, y: 25, passes: 52 },
@@ -2032,6 +2056,7 @@ function PassNetworkView() {
 }
 
 function VoronoiView({ data }: { data: any }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   if (!data) return <div className="pitch-container flex items-center justify-center"><p className="text-muted-foreground">No tracking data available</p></div>;
   const allPlayers = [...data.team1Players, ...data.team2Players];
   const voronoiCells = useMemo(() => {
@@ -2193,6 +2218,7 @@ function ModeSpecificTabs({
 
 // ==================== Stat Row ====================
 function StatRow({ label, team1, team2, suffix = "" }: { label: string; team1: number; team2: number; suffix?: string }) {
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors();
   const total = team1 + team2;
   const team1Pct = total > 0 ? (team1 / total) * 100 : 50;
   return (

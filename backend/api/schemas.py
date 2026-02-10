@@ -1,4 +1,6 @@
 from __future__ import annotations
+import enum
+import json
 from datetime import datetime
 from typing import Any
 from pydantic import BaseModel
@@ -10,16 +12,34 @@ def _dt(v: datetime | None) -> str | None:
     return v.isoformat() if v else None
 
 
+def _json_safe(val: Any) -> Any:
+    """Coerce a single value to a JSON-serializable type."""
+    if val is None or isinstance(val, (bool, int, float, str)):
+        return val
+    if isinstance(val, enum.Enum):
+        return val.value
+    if isinstance(val, datetime):
+        return val.isoformat()
+    if isinstance(val, (dict, list)):
+        # Round-trip through json to strip any non-serializable nested types
+        try:
+            return json.loads(json.dumps(val))
+        except (TypeError, ValueError, OverflowError):
+            return str(val)
+    # numpy scalars, bytes, or other unknown types
+    try:
+        return float(val) if isinstance(val, (int, float)) else str(val)
+    except Exception:
+        return str(val)
+
+
 def _row_to_dict(row: Any) -> dict:
     """Convert a SQLAlchemy model instance to a JSON-safe dict."""
     d: dict[str, Any] = {}
     for c in row.__table__.columns:
-        # Use the column name (DB column) as the key, not the attribute name
         col_name = c.name
         val = getattr(row, c.key)
-        if isinstance(val, datetime):
-            val = val.isoformat()
-        d[col_name] = val
+        d[col_name] = _json_safe(val)
     return d
 
 

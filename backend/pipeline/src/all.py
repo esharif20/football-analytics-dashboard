@@ -400,10 +400,10 @@ def run(
     per_frame_transformers: dict[int, ViewTransformer] = {}
     if pitch_data is not None:
         kin_smoother = HomographySmoother(
-            window_size=10,
-            decay=0.85,
+            window_size=20,
+            decay=0.7,
             min_inliers=4,
-            position_alpha=0.5,
+            position_alpha=0.3,
         )
         for fi, pd in enumerate(pitch_data):
             fk = pd["frame_keypoints"]
@@ -719,6 +719,7 @@ def run(
             per_frame_transformers=per_frame_transformers or None,
             ball_metrics=ball_metrics,
         )
+        result.team_colors = team_colors  # BGR dict from TeamAssigner
         print_analytics_summary(result)
 
         # Export analytics (including ball_metrics) to JSON in output directory

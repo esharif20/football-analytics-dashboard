@@ -225,6 +225,16 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
             passNetworkTeam1=a.get("interaction_graph_team1"),
             passNetworkTeam2=a.get("interaction_graph_team2"),
         )
+
+        # Extract team jersey colors (BGR→hex)
+        tc = a.get("team_colors", {})
+        def _bgr_to_hex(bgr):
+            if not bgr or len(bgr) != 3:
+                return None
+            b, g, r = int(bgr[0]), int(bgr[1]), int(bgr[2])
+            return f"#{r:02X}{g:02X}{b:02X}"
+        stat.teamColorTeam1 = _bgr_to_hex(tc.get("0") or tc.get(0))
+        stat.teamColorTeam2 = _bgr_to_hex(tc.get("1") or tc.get(1))
         db.add(stat)
 
         # Store detected events in the events table
@@ -260,8 +270,9 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
         await db.rollback()
         return {"success": False, "error": f"Database error: {str(e)[:200]}"}
 
-    # Broadcast completion via WebSocket
-    await broadcast_complete(analysis_id, {"analytics": body.analytics, "tracks": body.tracks})
+    # Broadcast completion via WebSocket (send only lightweight signal;
+    # full analytics can be huge and may contain unserializable types)
+    await broadcast_complete(analysis_id, None)
 
     return {"success": True}
 

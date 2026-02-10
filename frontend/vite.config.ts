@@ -1,24 +1,9 @@
-import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";
 
-// Core plugins (always available)
-const plugins: any[] = [react(), tailwindcss()];
-
-// Manus-specific plugins - optional, only loaded when available
-try {
-  const { jsxLocPlugin } = await import("@builder.io/vite-plugin-jsx-loc");
-  plugins.push(jsxLocPlugin());
-} catch { /* Not available outside Manus */ }
-
-try {
-  const { vitePluginManusRuntime } = await import("vite-plugin-manus-runtime");
-  plugins.push(vitePluginManusRuntime());
-} catch { /* Not available outside Manus */ }
-
 export default defineConfig({
-  plugins,
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
@@ -33,6 +18,17 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    watch: {
+      usePolling: true,
+      interval: 1000,
+      ignored: [
+        "**/node_modules/**",
+        "**/public/**",
+        "**/patches/**",
+        "**/.git/**",
+        "**/dist/**",
+      ],
+    },
     proxy: {
       "/api": {
         target: "http://localhost:8000",
@@ -46,8 +42,6 @@ export default defineConfig({
         target: "ws://localhost:8000",
         ws: true,
         configure: (proxy) => {
-          // Suppress noisy ECONNRESET / "socket ended" errors when
-          // backend restarts or connection drops during pipeline runs
           proxy.on("error", () => {});
           proxy.on("proxyReqWs", (_proxyReq, _req, socket) => {
             socket.on("error", () => {});
