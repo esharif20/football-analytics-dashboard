@@ -152,6 +152,8 @@ class Statistic(Base):
     heatmapDataTeam2: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     passNetworkTeam1: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     passNetworkTeam2: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    teamColorTeam1: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    teamColorTeam2: Mapped[str | None] = mapped_column(String(7), nullable=True)
     createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
     updatedAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
 

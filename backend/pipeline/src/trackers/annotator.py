@@ -188,7 +188,7 @@ class TrackAnnotator:
         Returns:
             Annotated frame.
         """
-        if speed_kmh < 0.5:
+        if speed_kmh < 4.0:
             return frame
 
         x_center, _ = get_center_of_bbox(bbox)
@@ -240,13 +240,12 @@ class TrackAnnotator:
         team1_color: Tuple[int, int, int],
         team2_color: Tuple[int, int, int],
     ) -> np.ndarray:
-        """Draw a compact possession widget in the top-left corner.
+        """Draw a minimal possession pill in the top-left corner.
 
-        Layout (approx 220x60 px):
-        ┌─────────────────────────┐
-        │  POSSESSION             │
-        │  ■ 54%  ████░░░  46% ■ │
-        └─────────────────────────┘
+        Layout (~160x36 px):
+        ┌────────────────────┐
+        │ 54% ██████░░░ 46%  │
+        └────────────────────┘
 
         Args:
             frame: Frame to draw on.
@@ -260,87 +259,68 @@ class TrackAnnotator:
         t1 = max(0.0, min(100.0, team1_pct))
         t2 = 100.0 - t1
 
-        # Widget geometry
-        x0, y0 = 16, 16
-        widget_w = 230
-        widget_h = 56
-        radius = 8
+        # Widget geometry — compact pill
+        x0, y0 = 12, 12
+        widget_w = 160
+        widget_h = 36
+        radius = widget_h // 2  # fully rounded ends (pill shape)
+        bg_color = (15, 15, 15)
 
-        # --- Semi-transparent dark background ---
+        # --- Semi-transparent dark pill background ---
         overlay = frame.copy()
-        # Rounded rect via rects + corner circles
-        cv2.rectangle(overlay, (x0 + radius, y0), (x0 + widget_w - radius, y0 + widget_h), (20, 20, 20), cv2.FILLED)
-        cv2.rectangle(overlay, (x0, y0 + radius), (x0 + widget_w, y0 + widget_h - radius), (20, 20, 20), cv2.FILLED)
-        for cx, cy in [
-            (x0 + radius, y0 + radius),
-            (x0 + widget_w - radius, y0 + radius),
-            (x0 + radius, y0 + widget_h - radius),
-            (x0 + widget_w - radius, y0 + widget_h - radius),
-        ]:
-            cv2.circle(overlay, (cx, cy), radius, (20, 20, 20), cv2.FILLED)
-        cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
-
-        # --- Title ---
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(
-            frame, "POSSESSION",
-            (x0 + 10, y0 + 18),
-            font, 0.38, (180, 180, 180), 1, cv2.LINE_AA,
+        cv2.rectangle(
+            overlay,
+            (x0 + radius, y0),
+            (x0 + widget_w - radius, y0 + widget_h),
+            bg_color, cv2.FILLED,
         )
+        cv2.circle(overlay, (x0 + radius, y0 + radius), radius, bg_color, cv2.FILLED)
+        cv2.circle(overlay, (x0 + widget_w - radius, y0 + radius), radius, bg_color, cv2.FILLED)
+        cv2.addWeighted(overlay, 0.70, frame, 0.30, 0, frame)
 
-        # --- Percentage row ---
-        row_y = y0 + 28
-        sq = 10  # color swatch size
+        font = cv2.FONT_HERSHEY_SIMPLEX
 
-        # Team 1: swatch + pct
-        cv2.rectangle(frame, (x0 + 10, row_y), (x0 + 10 + sq, row_y + sq), team1_color, cv2.FILLED)
+        # --- Left percentage (team 1) ---
         t1_label = f"{t1:.0f}%"
         cv2.putText(
             frame, t1_label,
-            (x0 + 10 + sq + 5, row_y + sq),
-            font, 0.45, (255, 255, 255), 1, cv2.LINE_AA,
+            (x0 + 10, y0 + 24),
+            font, 0.42, (255, 255, 255), 1, cv2.LINE_AA,
         )
 
-        # Team 2: pct + swatch (right-aligned)
+        # --- Right percentage (team 2) ---
         t2_label = f"{t2:.0f}%"
-        t2_sz, _ = cv2.getTextSize(t2_label, font, 0.45, 1)
-        t2_text_x = x0 + widget_w - 10 - sq - 5 - t2_sz[0]
+        t2_sz, _ = cv2.getTextSize(t2_label, font, 0.42, 1)
         cv2.putText(
             frame, t2_label,
-            (t2_text_x, row_y + sq),
-            font, 0.45, (255, 255, 255), 1, cv2.LINE_AA,
-        )
-        cv2.rectangle(
-            frame,
-            (x0 + widget_w - 10 - sq, row_y),
-            (x0 + widget_w - 10, row_y + sq),
-            team2_color, cv2.FILLED,
+            (x0 + widget_w - 10 - t2_sz[0], y0 + 24),
+            font, 0.42, (255, 255, 255), 1, cv2.LINE_AA,
         )
 
-        # --- Progress bar ---
-        bar_y = row_y + sq + 5
-        bar_h = 6
-        bar_x0 = x0 + 10
-        bar_x1 = x0 + widget_w - 10
+        # --- Progress bar (between percentages) ---
+        bar_x0 = x0 + 42
+        bar_x1 = x0 + widget_w - 42
         bar_w = bar_x1 - bar_x0
+        bar_h = 6
+        bar_y = y0 + (widget_h - bar_h) // 2
         bar_r = bar_h // 2
 
         # Background track
-        cv2.rectangle(frame, (bar_x0 + bar_r, bar_y), (bar_x1 - bar_r, bar_y + bar_h), (60, 60, 60), cv2.FILLED)
-        cv2.circle(frame, (bar_x0 + bar_r, bar_y + bar_r), bar_r, (60, 60, 60), cv2.FILLED)
-        cv2.circle(frame, (bar_x1 - bar_r, bar_y + bar_r), bar_r, (60, 60, 60), cv2.FILLED)
+        cv2.rectangle(frame, (bar_x0, bar_y), (bar_x1, bar_y + bar_h), (50, 50, 50), cv2.FILLED)
+        cv2.circle(frame, (bar_x0, bar_y + bar_r), bar_r, (50, 50, 50), cv2.FILLED)
+        cv2.circle(frame, (bar_x1, bar_y + bar_r), bar_r, (50, 50, 50), cv2.FILLED)
 
         split = bar_x0 + int(bar_w * t1 / 100.0)
 
         # Team 1 fill (left)
-        if split > bar_x0 + bar_r:
-            cv2.rectangle(frame, (bar_x0 + bar_r, bar_y), (split, bar_y + bar_h), team1_color, cv2.FILLED)
-            cv2.circle(frame, (bar_x0 + bar_r, bar_y + bar_r), bar_r, team1_color, cv2.FILLED)
+        if split > bar_x0:
+            cv2.rectangle(frame, (bar_x0, bar_y), (split, bar_y + bar_h), team1_color, cv2.FILLED)
+            cv2.circle(frame, (bar_x0, bar_y + bar_r), bar_r, team1_color, cv2.FILLED)
 
         # Team 2 fill (right)
-        if split < bar_x1 - bar_r:
-            cv2.rectangle(frame, (split, bar_y), (bar_x1 - bar_r, bar_y + bar_h), team2_color, cv2.FILLED)
-            cv2.circle(frame, (bar_x1 - bar_r, bar_y + bar_r), bar_r, team2_color, cv2.FILLED)
+        if split < bar_x1:
+            cv2.rectangle(frame, (split, bar_y), (bar_x1, bar_y + bar_h), team2_color, cv2.FILLED)
+            cv2.circle(frame, (bar_x1, bar_y + bar_r), bar_r, team2_color, cv2.FILLED)
 
         return frame
 
