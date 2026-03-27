@@ -1,9 +1,17 @@
----
 milestone: v0.1
 status: in-progress
+version: 1.0
 ---
 
 # Roadmap
+
+## Milestone v0.1 Objectives
+
+- Planning artifacts created and codebase mapped
+- Development environments reproducible (frontend + backend)
+- CV pipeline ↔ API ↔ frontend flow validated and gaps documented
+
+## Phase Breakdown
 
 | Phase | Name | Goal | Status |
 |-------|------|------|--------|
