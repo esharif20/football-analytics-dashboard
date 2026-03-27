@@ -1,6 +1,6 @@
 ---
 milestone: v0.1
-status: in-progress
+status: complete
 version: 1.0
 ---
 
@@ -17,5 +17,5 @@ version: 1.0
 | Phase | Name | Goal | Status |
 |-------|------|------|--------|
 | 1 | Initialize planning & codebase map | Establish GSD planning files and codebase map for brownfield repo | complete (2/2 plans complete) |
-| 2 | Stabilize dev env | Ensure frontend/backend start cleanly with documented commands | not-started |
-| 3 | Pipeline integration hardening | Verify worker ↔ API ↔ frontend flows and document gaps | not-started |
+| 2 | Stabilize dev env | Ensure frontend/backend start cleanly with documented commands | complete (1/1 plans complete) |
+| 3 | Pipeline integration hardening | Verify worker ↔ API ↔ frontend flows and document gaps | complete (1/1 plans complete) |
