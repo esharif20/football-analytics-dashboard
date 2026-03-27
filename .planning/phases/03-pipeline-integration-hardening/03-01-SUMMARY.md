@@ -78,7 +78,7 @@ completed: 2026-03-27
 2. **Task 2: Trace frontend analysis flow** — `adbb9d3` (chore)
 3. **Task 3: Summarize integration gaps** — `cbdaa11` (chore)
 
-**Plan metadata:** `<pending docs commit>`
+**Plan metadata:** `18179fe`
 
 ## Files Created/Modified
 - `.planning/phases/03-pipeline-integration-hardening/03-01-SUMMARY.md` — Gap assessment notes for worker endpoints and frontend flow
