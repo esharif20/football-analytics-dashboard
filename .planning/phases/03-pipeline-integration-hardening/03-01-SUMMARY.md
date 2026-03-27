@@ -49,8 +49,8 @@ completed: TBC
 - **Duration:** TBC
 - **Started:** 2026-03-27T12:41:08Z
 - **Completed:** TBC
-- **Tasks:** 0/3
-- **Files modified:** 0
+- **Tasks:** 2/3
+- **Files modified:** 1
 
 ## Findings
 
@@ -61,6 +61,14 @@ completed: TBC
 - `/analysis/{id}/complete` treats the analytics payload as a blob (stored in `analyticsDataUrl` despite being JSON), does not validate required fields, drops existing statistics before verifying payload, and can commit large JSON without size guards.
 - WebSocket endpoint `/ws/{analysis_id}` has no authentication and allows any client to subscribe to any analysis ID, so progress updates are publicly readable.
 - `/worker/upload-video` accepts base64 video uploads without size/type limits and returns a URL without linking it to an analysis record, leaving ownership/cleanup undefined.
+
+### Frontend upload and analysis flow
+- Upload page only sends `title`, `description`, `file`, `mode`, and `fresh` to the API; UI toggles for camera angle, model selection, and cache usage beyond `fresh` are not persisted to the backend, so pipeline workers never receive those choices.
+- Upload uses raw `XMLHttpRequest` to `/api/upload/video` and assumes a JSON body with `{id}`; errors return generic toasts and do not handle auth/session expiry specifically.
+- After upload, `analysisApi.create` is called without deduplication or validation of allowed modes; failures surface as generic toasts and do not roll back uploaded files.
+- Analysis page gates data fetches on `status === "completed"`, so partial data from failed runs is hidden; processing stage UI expects stage IDs from `PROCESSING_STAGES`, but workers emit `queued`/custom stages, leading to unknown-stage displays.
+- Real-time updates rely on `/ws/{analysis_id}` messages and fallback ETA polling; WebSocket connections are unauthenticated on the server and can be subscribed by any client, while the UI assumes private progress.
+- Visualizations still render with `demoTrackingData` and `demoEvents` when no real tracking/events exist, so the dashboard shows synthetic positions/events rather than pipeline output unless tracks/events APIs are populated.
 
 ## Accomplishments
 - Pending — will fill after remaining tasks.
