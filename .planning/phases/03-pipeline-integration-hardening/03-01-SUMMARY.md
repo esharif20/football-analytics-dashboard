@@ -31,25 +31,25 @@ key-files:
 key-decisions: []
 
 patterns-established:
-  - "Pending — to be documented after analysis"
+  - "Discovery only; no new implementation patterns established"
 
 requirements-completed: []
 
 # Metrics
-duration: TBC
-completed: TBC
+duration: 4m
+completed: 2026-03-27
 ---
 
 # Phase 3 Plan 01: Pipeline flow check Summary
 
-**TBC — will update once all tasks are complete**
+**Documented worker/API/frontend pipeline gaps and prioritized fixes for hardening**
 
 ## Performance
 
-- **Duration:** TBC
+- **Duration:** ~4m
 - **Started:** 2026-03-27T12:41:08Z
-- **Completed:** TBC
-- **Tasks:** 2/3
+- **Completed:** 2026-03-27T12:44:50Z
+- **Tasks:** 3/3
 - **Files modified:** 1
 
 ## Findings
@@ -71,18 +71,29 @@ completed: TBC
 - Visualizations still render with `demoTrackingData` and `demoEvents` when no real tracking/events exist, so the dashboard shows synthetic positions/events rather than pipeline output unless tracks/events APIs are populated.
 
 ## Accomplishments
-- Pending — will fill after remaining tasks.
+- Cataloged worker endpoint gaps across auth, leasing, payload validation, and storage expectations.
+- Traced upload → analysis → realtime render flow and logged mismatches between UI toggles, API payloads, and websocket exposure.
+- Produced actionable next-step list to align pipeline outputs, tighten auth, and remove demo data fallbacks.
+
+## Task Commits
+
+1. **Task 1: Review worker endpoints** — `9959b2d` (chore)
+2. **Task 2: Trace frontend analysis flow** — `adbb9d3` (chore)
+3. **Task 3: Summarize integration gaps** — `<pending task hash>` (docs)
 
 ## Files Created/Modified
-- Pending — will fill after remaining tasks.
+- `.planning/phases/03-pipeline-integration-hardening/03-01-SUMMARY.md` — Gap assessment notes for worker endpoints and frontend flow
 
 ## Decisions Made
-- None yet.
+- None — discovery-only review.
 
 ## Deviations from Plan
+None — plan executed as written.
 
 ## Issues Encountered
-- None so far.
+None.
 
 ## Next Phase Readiness
-- Pending remaining tasks.
+- Require worker auth by default and track leases per worker; reject unauthenticated websocket subscribers.
+- Validate worker status/completion payloads (status enum, progress bounds, stage IDs) and store analytics/tracks in dedicated tables or object storage instead of text blobs.
+- Wire frontend toggles (camera angle, model selection, cache usage) into API payloads; replace demo tracking/events with real API data and handle failed runs gracefully.
