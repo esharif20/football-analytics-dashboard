@@ -18,17 +18,14 @@ tech-stack:
   patterns: []
 
 key-files:
-  created: []
+  created:
+    - .planning/phases/03-pipeline-integration-hardening/03-01-SUMMARY.md
   modified:
-    - backend/api/routers/worker.py
-    - backend/api/schemas.py
-    - backend/api/main.py
-    - backend/api/ws.py
-    - frontend/src/pages/Upload.tsx
-    - frontend/src/pages/Analysis.tsx
-    - frontend/src/hooks/useWebSocket.ts
+    - .planning/STATE.md
+    - .planning/ROADMAP.md
 
-key-decisions: []
+key-decisions:
+  - "None — discovery-only review"
 
 patterns-established:
   - "Discovery only; no new implementation patterns established"
@@ -50,7 +47,7 @@ completed: 2026-03-27
 - **Started:** 2026-03-27T12:41:08Z
 - **Completed:** 2026-03-27T12:44:50Z
 - **Tasks:** 3/3
-- **Files modified:** 1
+- **Files modified:** 3
 
 ## Findings
 
@@ -79,10 +76,14 @@ completed: 2026-03-27
 
 1. **Task 1: Review worker endpoints** — `9959b2d` (chore)
 2. **Task 2: Trace frontend analysis flow** — `adbb9d3` (chore)
-3. **Task 3: Summarize integration gaps** — `<pending task hash>` (docs)
+3. **Task 3: Summarize integration gaps** — `cbdaa11` (chore)
+
+**Plan metadata:** `<pending docs commit>`
 
 ## Files Created/Modified
 - `.planning/phases/03-pipeline-integration-hardening/03-01-SUMMARY.md` — Gap assessment notes for worker endpoints and frontend flow
+- `.planning/STATE.md` — Progress counters and session metadata updated for Phase 3 Plan 01 completion
+- `.planning/ROADMAP.md` — Phase 3 plan marked complete in roadmap progress table
 
 ## Decisions Made
 - None — discovery-only review.
@@ -97,3 +98,9 @@ None.
 - Require worker auth by default and track leases per worker; reject unauthenticated websocket subscribers.
 - Validate worker status/completion payloads (status enum, progress bounds, stage IDs) and store analytics/tracks in dedicated tables or object storage instead of text blobs.
 - Wire frontend toggles (camera angle, model selection, cache usage) into API payloads; replace demo tracking/events with real API data and handle failed runs gracefully.
+
+## Self-Check
+
+- Summary file present: FOUND
+- Commits present: 9959b2d, adbb9d3, cbdaa11
+- Status: **PASSED**
