@@ -30,6 +30,7 @@ except ImportError:
 # Configuration
 DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:3000")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "5"))  # seconds
+COMPLETE_RETRIES = int(os.getenv("COMPLETE_RETRIES", "3"))  # /complete attempts
 PITCH_STRIDE = int(os.getenv("PITCH_STRIDE", "25"))  # optical flow fills intermediate frames
 MODELS_DIR = Path(__file__).parent / "models"
 INPUT_DIR = Path(__file__).parent / "input_videos"
@@ -37,11 +38,15 @@ OUTPUT_DIR = Path(__file__).parent / "output_videos"
 STUBS_DIR = Path(__file__).parent / "stubs"
 CACHE_DIR = Path(__file__).parent / "cache"
 
-# Model URLs (hosted on CDN)
+# Model URLs — configured via environment variables (no hardcoded CDN)
+MODEL_URL_PLAYER = os.getenv("MODEL_URL_PLAYER", "")
+MODEL_URL_BALL = os.getenv("MODEL_URL_BALL", "")
+MODEL_URL_PITCH = os.getenv("MODEL_URL_PITCH", "")
+
 MODEL_URLS = {
-    "player_detection.pt": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/XAzhckYwibJeQRhg.pt",
-    "ball_detection.pt": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/NiUwnYcULyjvIBhr.pt",
-    "pitch_detection.pt": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/pSlXgeDoBtmXQHTJ.pt",
+    "player_detection.pt": MODEL_URL_PLAYER,
+    "ball_detection.pt": MODEL_URL_BALL,
+    "pitch_detection.pt": MODEL_URL_PITCH,
 }
 
 # Ensure directories exist
@@ -88,6 +93,19 @@ def download_models():
             log(f"Downloaded: {model_name} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
         except Exception as e:
             log(f"Failed to download {model_name}: {e}", "ERROR")
+
+
+def validate_model_urls():
+    """Fail fast if any MODEL_URL_* env var is missing. Called at startup before poll loop."""
+    missing = [name for name, url in {
+        "MODEL_URL_PLAYER": MODEL_URL_PLAYER,
+        "MODEL_URL_BALL": MODEL_URL_BALL,
+        "MODEL_URL_PITCH": MODEL_URL_PITCH,
+    }.items() if not url]
+    if missing:
+        log(f"Missing required environment variables: {', '.join(missing)}", level="ERROR")
+        log("Set these to the download URLs for your ML model weights.", level="ERROR")
+        sys.exit(1)
 
 
 def export_tensorrt_models():
@@ -484,16 +502,33 @@ def process_pending_analysis(analysis: Dict) -> bool:
                 results["radarVideo"] = radar_url
 
         # Post results to dashboard (sets status to completed + saves URLs)
-        complete_resp = api_request(f"/worker/analysis/{analysis_id}/complete", "POST", results)
+        complete_resp = None
+        for attempt in range(1, COMPLETE_RETRIES + 1):
+            complete_resp = api_request(f"/worker/analysis/{analysis_id}/complete", "POST", results)
+            if complete_resp and complete_resp.get("success"):
+                break
+            if attempt < COMPLETE_RETRIES:
+                delay_s = min(5, attempt * 2)
+                log(
+                    f"/complete attempt {attempt}/{COMPLETE_RETRIES} failed: {complete_resp}; retrying in {delay_s}s",
+                    "WARN",
+                )
+                time.sleep(delay_s)
+
         elapsed_total = time.time() - _processing_start_time if _processing_start_time else 0
         if complete_resp and complete_resp.get("success"):
             m, s = divmod(int(elapsed_total), 60)
             log(f"✓ Analysis #{analysis_id} completed in {m}m {s}s")
-        else:
-            log(f"/complete returned {complete_resp} — video URL may not be saved", "WARN")
-            # Fallback: at least mark status as completed
-            update_analysis_status(analysis_id, "completed", "done", 100)
-        return True
+            return True
+
+        err_msg = (
+            complete_resp.get("error")
+            if isinstance(complete_resp, dict) and complete_resp.get("error")
+            else "Failed to persist completion payload"
+        )
+        log(f"/complete failed after {COMPLETE_RETRIES} attempts: {complete_resp}", "ERROR")
+        update_analysis_status(analysis_id, "failed", "done", 100, error=err_msg)
+        return False
     else:
         update_analysis_status(analysis_id, "failed", error=results.get("error", "Unknown error"))
         log(f"✗ Analysis #{analysis_id} failed: {results.get('error')}", "ERROR")
@@ -514,6 +549,9 @@ def main():
     log(f"Dashboard URL: {DASHBOARD_URL}")
     log(f"Poll interval: {POLL_INTERVAL}s")
     log(f"Models dir: {MODELS_DIR}")
+
+    # Validate model URL env vars before anything else
+    validate_model_urls()
 
     # Download models if not present
     log_banner("Downloading Models")
