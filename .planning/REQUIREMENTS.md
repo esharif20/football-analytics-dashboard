@@ -18,7 +18,7 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 
 - [x] **DB-01**: Backend uses asyncpg driver connecting to Supabase PostgreSQL instead of aiomysql/MySQL
 - [x] **DB-02**: SQLAlchemy models use PostgreSQL-compatible server_defaults and types
-- [ ] **DB-03**: Alembic is initialized with a baseline migration covering all 7 tables
+- [x] **DB-03**: Alembic is initialized with a baseline migration covering all 7 tables
 - [x] **DB-04**: Runtime ALTER TABLE hacks in worker router are removed
 - [x] **DB-05**: CORS origins are configurable via CORS_ORIGINS env var
 
@@ -78,7 +78,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DB-05 | Phase 4 | Complete |
 | DB-01 | Phase 5 | Complete |
 | DB-02 | Phase 5 | Complete |
-| DB-03 | Phase 5 | Pending |
+| DB-03 | Phase 5 | Complete |
 | DB-04 | Phase 5 | Complete |
 | QUAL-01 | Phase 6 | Pending |
 | QUAL-02 | Phase 6 | Pending |
