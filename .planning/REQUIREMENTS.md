@@ -24,7 +24,7 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 
 ### Code Quality
 
-- [ ] **QUAL-01**: Analysis.tsx is decomposed into sub-components under pages/analysis/ (main file under 400 lines)
+- [x] **QUAL-01**: Analysis.tsx is decomposed into sub-components under pages/analysis/ (main file under 400 lines)
 - [x] **QUAL-02**: Dead base64 upload function removed from api-local.ts; duplicate schema field fixed
 - [x] **QUAL-03**: Unused next-themes dependency removed from frontend
 - [x] **QUAL-04**: JWT_SECRET validation refuses startup in production with default "dev-secret"
@@ -80,7 +80,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DB-02 | Phase 5 | Complete |
 | DB-03 | Phase 5 | Complete |
 | DB-04 | Phase 5 | Complete |
-| QUAL-01 | Phase 6 | Pending |
+| QUAL-01 | Phase 6 | Complete |
 | QUAL-02 | Phase 6 | Complete |
 | QUAL-03 | Phase 6 | Complete |
 | QUAL-04 | Phase 6 | Complete |
