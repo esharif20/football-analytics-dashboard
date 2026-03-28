@@ -36,12 +36,12 @@ Analysts can upload a match video and get automated tactical analytics (possessi
 
 ### Active
 
-- [ ] Remove all Manus platform dependencies
+- [x] Remove all Manus platform dependencies (Validated in Phase 4)
 - [ ] Migrate to Supabase PostgreSQL
 - [ ] Add Alembic migration framework
 - [ ] Decompose Analysis.tsx into sub-components
 - [ ] Remove dead code and unused dependencies
-- [ ] Security hardening (JWT, CORS, env vars)
+- [-] Security hardening (JWT, CORS, env vars) — CORS config done in Phase 4, JWT/env hardening in Phase 6
 - [ ] Backend unit tests
 - [ ] Frontend unit tests
 - [ ] Linting setup (ruff + ESLint/Prettier)
@@ -76,7 +76,7 @@ Analysts can upload a match video and get automated tactical analytics (possessi
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Supabase over Docker MySQL | Eliminate Docker DB dependency, free hosted tier, built-in features for future | -- Pending |
-| Env vars for model URLs | Decouple from manuscdn.com CDN, let user host models anywhere | -- Pending |
+| Env vars for model URLs | Decouple from manuscdn.com CDN, let user host models anywhere | Done — Phase 4 |
 | Alembic for migrations | Standard Python migration tool, replaces fragile runtime ALTER TABLE | -- Pending |
 | ruff over flake8/black | Single tool for linting + formatting, faster, modern Python standard | -- Pending |
 
@@ -98,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after milestone v0.2 start*
+*Last updated: 2026-03-28 after Phase 4 (Manus Dependency Removal) complete*
