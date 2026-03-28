@@ -9,7 +9,7 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 
 ### Manus Removal
 
-- [ ] **MANUS-01**: Model download URLs are configurable via env vars (MODEL_URL_PLAYER/BALL/PITCH), not hardcoded to manuscdn.com
+- [x] **MANUS-01**: Model download URLs are configurable via env vars (MODEL_URL_PLAYER/BALL/PITCH), not hardcoded to manuscdn.com
 - [x] **MANUS-02**: Home page hero images use local assets in frontend/public/images/ instead of manuscdn.com CDN
 - [x] **MANUS-03**: Auth localStorage key renamed from "manus-runtime-user-info" to "football-dashboard-user"
 - [x] **MANUS-04**: Backend and frontend .env.example files exist with all env vars documented
@@ -20,7 +20,7 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 - [ ] **DB-02**: SQLAlchemy models use PostgreSQL-compatible server_defaults and types
 - [ ] **DB-03**: Alembic is initialized with a baseline migration covering all 7 tables
 - [ ] **DB-04**: Runtime ALTER TABLE hacks in worker router are removed
-- [ ] **DB-05**: CORS origins are configurable via CORS_ORIGINS env var
+- [x] **DB-05**: CORS origins are configurable via CORS_ORIGINS env var
 
 ### Code Quality
 
@@ -71,11 +71,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MANUS-01 | Phase 4 | Pending |
+| MANUS-01 | Phase 4 | Complete |
 | MANUS-02 | Phase 4 | Complete |
 | MANUS-03 | Phase 4 | Complete |
 | MANUS-04 | Phase 4 | Complete |
-| DB-05 | Phase 4 | Pending |
+| DB-05 | Phase 4 | Complete |
 | DB-01 | Phase 5 | Pending |
 | DB-02 | Phase 5 | Pending |
 | DB-03 | Phase 5 | Pending |
