@@ -64,3 +64,24 @@ async def test_analysis_list_accessible_in_dev_mode(client):
     resp = await client.get("/api/analysis")
     # 401 would mean AutoLoginMiddleware is not activating — that would be a bug
     assert resp.status_code != 401
+
+
+# ── Upload ────────────────────────────────────────────────────────────────
+
+
+async def test_upload_video_rejects_unauthenticated_requests(client):
+    """Upload endpoint requires auth. In LOCAL_DEV_MODE AutoLoginMiddleware sets a user.
+
+    storage_put may fail (no disk in CI) → 500 is acceptable.
+    401 would mean AutoLoginMiddleware is not injecting a user → bug.
+    422 would mean form field validation failed → wrong request shape.
+    """
+    fake_video = b"fake-video-bytes"
+    resp = await client.post(
+        "/api/upload/video",
+        files={"video": ("test.mp4", fake_video, "video/mp4")},
+        data={"title": "test upload"},
+    )
+    assert resp.status_code not in (401, 422), (
+        f"Expected auth+validation to pass, got {resp.status_code}: {resp.text}"
+    )
