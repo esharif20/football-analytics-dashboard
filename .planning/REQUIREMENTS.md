@@ -71,30 +71,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MANUS-01 | TBD | Pending |
-| MANUS-02 | TBD | Pending |
-| MANUS-03 | TBD | Pending |
-| MANUS-04 | TBD | Pending |
-| DB-01 | TBD | Pending |
-| DB-02 | TBD | Pending |
-| DB-03 | TBD | Pending |
-| DB-04 | TBD | Pending |
-| DB-05 | TBD | Pending |
-| QUAL-01 | TBD | Pending |
-| QUAL-02 | TBD | Pending |
-| QUAL-03 | TBD | Pending |
-| QUAL-04 | TBD | Pending |
-| QUAL-05 | TBD | Pending |
-| QUAL-06 | TBD | Pending |
-| QUAL-07 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
-| TEST-03 | TBD | Pending |
+| MANUS-01 | Phase 4 | Pending |
+| MANUS-02 | Phase 4 | Pending |
+| MANUS-03 | Phase 4 | Pending |
+| MANUS-04 | Phase 4 | Pending |
+| DB-05 | Phase 4 | Pending |
+| DB-01 | Phase 5 | Pending |
+| DB-02 | Phase 5 | Pending |
+| DB-03 | Phase 5 | Pending |
+| DB-04 | Phase 5 | Pending |
+| QUAL-01 | Phase 6 | Pending |
+| QUAL-02 | Phase 6 | Pending |
+| QUAL-03 | Phase 6 | Pending |
+| QUAL-04 | Phase 6 | Pending |
+| QUAL-05 | Phase 6 | Pending |
+| QUAL-06 | Phase 7 | Pending |
+| QUAL-07 | Phase 7 | Pending |
+| TEST-01 | Phase 7 | Pending |
+| TEST-02 | Phase 7 | Pending |
+| TEST-03 | Phase 7 | Pending |
 
 **Coverage:**
 - v0.2 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-28*
