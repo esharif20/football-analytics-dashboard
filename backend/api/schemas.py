@@ -1,4 +1,5 @@
 from __future__ import annotations
+import dataclasses
 import enum
 import json
 from datetime import datetime
@@ -43,6 +44,13 @@ def _row_to_dict(row: Any) -> dict:
     return d
 
 
+def _serialize_user(user: Any) -> dict:
+    """Convert either a DB user or fallback dataclass to a JSON-safe dict."""
+    if dataclasses.is_dataclass(user):
+        return {k: _json_safe(v) for k, v in dataclasses.asdict(user).items()}
+    return _row_to_dict(user)
+
+
 # ==================== Auth ====================
 
 class UserOut(BaseModel):
@@ -74,6 +82,8 @@ class AnalysisCreate(BaseModel):
     videoId: int
     mode: str
     fresh: bool = False
+    cameraType: str | None = None
+    useCustomModels: bool | None = None
 
 
 class AnalysisStatusUpdate(BaseModel):
@@ -146,10 +156,19 @@ class StatisticsCreate(BaseModel):
     distanceCoveredTeam2: float | None = None
     avgSpeedTeam1: float | None = None
     avgSpeedTeam2: float | None = None
+    maxSpeedTeam1: float | None = None
+    maxSpeedTeam2: float | None = None
+    possessionChanges: int | None = None
+    ballDistance: float | None = None
+    ballAvgSpeed: float | None = None
+    ballMaxSpeed: float | None = None
+    directionChanges: int | None = None
     heatmapDataTeam1: Any | None = None
     heatmapDataTeam2: Any | None = None
     passNetworkTeam1: Any | None = None
     passNetworkTeam2: Any | None = None
+    teamColorTeam1: str | None = None
+    teamColorTeam2: str | None = None
 
 
 # ==================== Commentary ====================
@@ -175,9 +194,12 @@ class WorkerCompleteRequest(BaseModel):
     analytics: Any | None = None
     tracks: Any | None = None
     success: bool = True
+    error: str | None = None
 
 
 class WorkerUploadVideo(BaseModel):
     videoData: str
     fileName: str
+    contentType: str = "video/mp4"
+    analysisId: int | None = None
     contentType: str = "video/mp4"

@@ -23,24 +23,34 @@ export interface UseWebSocketOptions {
   onComplete?: (data: WSMessage["data"]) => void;
   onError?: (error: string) => void;
   enabled?: boolean;
+  wsToken?: string;
 }
 
 export function useWebSocket(options: UseWebSocketOptions) {
-  const { analysisId, onProgress, onComplete, onError, enabled = true } = options;
+  const { analysisId, onProgress, onComplete, onError, enabled = true, wsToken } = options;
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const terminalRef = useRef(false);
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WSMessage | null>(null);
 
   const connect = useCallback(() => {
-    if (!enabled || wsRef.current?.readyState === WebSocket.OPEN) {
+    const canConnect = enabled && !!analysisId && !!wsToken;
+    if (!canConnect || terminalRef.current || wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    // Cap reconnect attempts to prevent runaway retries
+    if (reconnectAttemptsRef.current >= 10) {
       return;
     }
 
     // Determine WebSocket URL based on current location
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/${analysisId}`;
+    const query = wsToken ? `?token=${encodeURIComponent(wsToken)}` : "";
+    const wsUrl = `${protocol}//${window.location.host}/ws/${analysisId}${query}`;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -48,6 +58,8 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
       ws.onopen = () => {
         setIsConnected(true);
+        reconnectAttemptsRef.current = 0;
+        terminalRef.current = false;
         
         // Subscribe to analysis updates if analysisId provided
         if (analysisId) {
@@ -73,9 +85,11 @@ export function useWebSocket(options: UseWebSocketOptions) {
               onProgress?.(message.data);
               break;
             case "complete":
+              terminalRef.current = true;
               onComplete?.(message.data);
               break;
             case "error":
+              terminalRef.current = true;
               onError?.(message.data?.error || "Unknown error");
               break;
           }
@@ -88,8 +102,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
         setIsConnected(false);
         wsRef.current = null;
 
-        // Attempt to reconnect after 3 seconds
-        if (enabled) {
+        // Attempt to reconnect after 3 seconds (unless terminal or max attempts)
+        if (enabled && !terminalRef.current) {
+          reconnectAttemptsRef.current += 1;
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, 3000);
@@ -102,11 +117,11 @@ export function useWebSocket(options: UseWebSocketOptions) {
     } catch (e) {
       console.error("WebSocket connection error:", e);
     }
-  }, [enabled, analysisId, onProgress, onComplete, onError]);
+  }, [enabled, analysisId, onProgress, onComplete, onError, wsToken]);
 
   // Connect on mount and when enabled changes
   useEffect(() => {
-    if (enabled) {
+    if (enabled && analysisId && wsToken) {
       connect();
     }
 
@@ -119,7 +134,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
         wsRef.current = null;
       }
     };
-  }, [enabled, connect]);
+  }, [enabled, connect, analysisId, wsToken]);
 
   // Subscribe to new analysis when analysisId changes
   useEffect(() => {

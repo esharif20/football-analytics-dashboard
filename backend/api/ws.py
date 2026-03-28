@@ -1,5 +1,13 @@
 import json
+import hmac
+import hashlib
+from urllib.parse import parse_qs
 from fastapi import WebSocket, WebSocketDisconnect
+from sqlalchemy import select
+
+from .config import settings
+from .database import async_session
+from .models import Analysis
 
 # In-memory registry: analysis_id -> set of connected WebSocket clients
 _subscribers: dict[int, set[WebSocket]] = {}
@@ -10,6 +18,10 @@ async def websocket_endpoint(ws: WebSocket, analysis_id: int):
     WebSocket endpoint: /ws/{analysis_id}
     The frontend connects here to receive real-time progress updates for a specific analysis.
     """
+    # Basic auth: require a signed token unless in permissive local dev mode.
+    if not await _authorize_ws(ws, analysis_id):
+        return
+
     await ws.accept()
 
     if analysis_id not in _subscribers:
@@ -96,3 +108,40 @@ async def _broadcast(analysis_id: int, msg: dict):
             dead.append(ws)
     for ws in dead:
         _subscribers.get(analysis_id, set()).discard(ws)
+
+
+async def _authorize_ws(ws: WebSocket, analysis_id: int) -> bool:
+    # Allow permissive access only when explicitly in local dev and no worker key configured
+    qs = parse_qs(ws.scope.get("query_string", b"").decode()) if ws.scope else {}
+    token = (qs.get("token") or [None])[0]
+
+    if settings.LOCAL_DEV_MODE and not settings.WORKER_API_KEY and not token:
+        return True
+
+    if token is None:
+        await ws.accept()
+        await ws.close(code=4401, reason="Missing token")
+        return False
+
+    if async_session is None:
+        await ws.accept()
+        await ws.close(code=1011, reason="Database unavailable")
+        return False
+
+    async with async_session() as db:
+        res = await db.execute(select(Analysis.userId).where(Analysis.id == analysis_id).limit(1))
+        user_id = res.scalar_one_or_none()
+
+    if user_id is None:
+        await ws.accept()
+        await ws.close(code=4404, reason="Analysis not found")
+        return False
+
+    secret = (settings.JWT_SECRET or "dev-secret").encode()
+    expected = hmac.new(secret, f"{analysis_id}:{user_id}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(token, expected):
+        await ws.accept()
+        await ws.close(code=4401, reason="Invalid token")
+        return False
+
+    return True

@@ -247,12 +247,15 @@ def run(
     effective_stride = pitch_stride if pitch_stride is not None else PITCH_KEYFRAME_STRIDE
 
     frames = load_frames(source_video_path)
+    video_info = sv.VideoInfo.from_video_path(source_video_path)
+    video_fps = float(video_info.fps) if getattr(video_info, "fps", 0) and video_info.fps > 0 else DEFAULT_VIDEO_FPS
 
     banner("Pipeline")
     config_table("Configuration", {
         "Device": device,
         "Frames": len(frames),
         "Resolution": f"{frames[0].shape[1]}x{frames[0].shape[0]}",
+        "FPS": f"{video_fps:.2f}",
         "Ball model": "custom" if use_ball_model_weights and BALL_DETECTION_MODEL_PATH.exists() else "multi-class",
         "Pitch stride": effective_stride,
     })
@@ -304,17 +307,17 @@ def run(
     _poss_calc = PossessionCalculator()
     _poss_events = _poss_calc.calculate_all_frames(tracks)
     possession_per_frame: list[tuple[float, float]] = []
-    _t1_count = _t2_count = 0
-    _smooth_pct = 50.0
+    # Rolling window: last N frames of possession events (~10 seconds at 25 fps)
+    _POSS_WINDOW = 250
+    from collections import deque
+    _recent_teams: deque[int] = deque(maxlen=_POSS_WINDOW)
     for _ev in _poss_events:
-        if _ev.team_id == 1:
-            _t1_count += 1
-        elif _ev.team_id == 2:
-            _t2_count += 1
-        _total = _t1_count + _t2_count
-        _raw_pct = (_t1_count / _total * 100) if _total > 0 else 50.0
-        _smooth_pct = 0.95 * _smooth_pct + 0.05 * _raw_pct
-        possession_per_frame.append((_smooth_pct, 100.0 - _smooth_pct))
+        _recent_teams.append(_ev.team_id)
+        _t1 = sum(1 for t in _recent_teams if t == 1)
+        _t2 = sum(1 for t in _recent_teams if t == 2)
+        _total = _t1 + _t2
+        _pct = (_t1 / _total * 100) if _total > 0 else 50.0
+        possession_per_frame.append((_pct, 100.0 - _pct))
 
     # Determine confidence threshold used for metrics
     if use_ball_model_weights and BALL_DETECTION_MODEL_PATH.exists():
@@ -394,7 +397,7 @@ def run(
     # Analytics engine (only initialized if analytics enabled)
     analytics_engine = None
     if show_analytics:
-        analytics_engine = AnalyticsEngine(fps=DEFAULT_VIDEO_FPS, pitch_config=pitch_config)
+        analytics_engine = AnalyticsEngine(fps=video_fps, pitch_config=pitch_config)
 
     # Build per-frame homographies for speed estimation
     per_frame_transformers: dict[int, ViewTransformer] = {}
@@ -423,7 +426,7 @@ def run(
                 except ValueError:
                     pass
 
-    kin_calc = KinematicsCalculator(fps=DEFAULT_VIDEO_FPS, pitch_config=pitch_config)
+    kin_calc = KinematicsCalculator(fps=video_fps, pitch_config=pitch_config)
     if per_frame_transformers:
         speed_lookup = kin_calc.build_per_frame_lookup(
             tracks, per_frame_transformers=per_frame_transformers,

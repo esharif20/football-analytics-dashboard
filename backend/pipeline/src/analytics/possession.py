@@ -142,11 +142,15 @@ class PossessionCalculator:
     def calculate_all_frames(
         self,
         tracks: Dict[str, List[Dict]],
+        per_frame_transformers: Optional[Dict] = None,
     ) -> List[PossessionEvent]:
         """Calculate possession for all frames.
 
         Args:
             tracks: Full track dictionary with "ball", "players", "goalkeepers".
+            per_frame_transformers: Optional per-frame ViewTransformers. When
+                provided, possession uses real-world cm thresholds instead of
+                pixel thresholds for more consistent results.
 
         Returns:
             List of PossessionEvent for each frame.
@@ -154,13 +158,17 @@ class PossessionCalculator:
         events = []
         num_frames = len(tracks.get("ball", []))
 
+        # Use real-world units when homography is available
+        use_real = per_frame_transformers is not None and len(per_frame_transformers) > 0
+
         for frame_idx in range(num_frames):
             ball_frame = tracks["ball"][frame_idx] if frame_idx < len(tracks.get("ball", [])) else {}
             players_frame = tracks.get("players", [{}] * num_frames)[frame_idx] if frame_idx < len(tracks.get("players", [])) else {}
             goalkeepers_frame = tracks.get("goalkeepers", [{}] * num_frames)[frame_idx] if frame_idx < len(tracks.get("goalkeepers", [])) else {}
 
             event = self.calculate_frame_possession(
-                ball_frame, players_frame, goalkeepers_frame, frame_idx
+                ball_frame, players_frame, goalkeepers_frame, frame_idx,
+                use_real_units=use_real,
             )
             events.append(event)
 

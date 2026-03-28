@@ -188,23 +188,30 @@ class TrackAnnotator:
         Returns:
             Annotated frame.
         """
-        if speed_kmh < 4.0:
+        if distance_m <= 0.1 and speed_kmh < 0.5:
             return frame
 
         x_center, _ = get_center_of_bbox(bbox)
         y1 = int(bbox[1])
 
-        label = f"{speed_kmh:.1f}km/h"
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.45
-        thickness = 1
-        text_size, _ = cv2.getTextSize(label, font, font_scale, thickness)
+        speed_label = f"{speed_kmh:.1f} km/h"
+        if distance_m >= 1000:
+            dist_label = f"{distance_m / 1000:.2f} km"
+        else:
+            dist_label = f"{distance_m:.0f} m"
 
-        pad_x, pad_y = 6, 4
-        rect_w = text_size[0] + pad_x * 2
-        rect_h = text_size[1] + pad_y * 2
-        x1_rect = x_center - rect_w // 2
-        y1_rect = y1 - rect_h - 4  # above the bbox top
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.42
+        thickness = 1
+        speed_size, _ = cv2.getTextSize(speed_label, font, font_scale, thickness)
+        dist_size, _ = cv2.getTextSize(dist_label, font, font_scale, thickness)
+
+        pad_x, pad_y = 6, 3
+        rect_w = max(speed_size[0], dist_size[0]) + pad_x * 2
+        rect_h = speed_size[1] + dist_size[1] + pad_y * 3
+        frame_h, frame_w = frame.shape[:2]
+        x1_rect = int(max(0, min(frame_w - rect_w - 1, x_center - rect_w // 2)))
+        y1_rect = int(max(0, y1 - rect_h - 4))  # above the bbox top
 
         # Semi-transparent background
         overlay = frame.copy()
@@ -219,11 +226,22 @@ class TrackAnnotator:
 
         # White text
         text_x = x1_rect + pad_x
-        text_y = y1_rect + pad_y + text_size[1]
+        speed_y = y1_rect + pad_y + speed_size[1]
+        dist_y = speed_y + pad_y + dist_size[1]
         cv2.putText(
             frame,
-            label,
-            (text_x, text_y),
+            speed_label,
+            (text_x, speed_y),
+            font,
+            font_scale,
+            (255, 255, 255),
+            thickness,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            frame,
+            dist_label,
+            (text_x, dist_y),
             font,
             font_scale,
             (255, 255, 255),

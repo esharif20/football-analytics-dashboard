@@ -25,13 +25,12 @@ _MIN_EVENT_GAP_FRAMES = 5
 _PASS_MAX_FRAMES = 30  # Max frames for ball to travel between teammates
 _PASS_MIN_FRAMES = 2   # Ignore instant same-frame flickers
 
-# Shot detection — ball speed threshold in cm/frame (≈ 60 km/h at 25 fps)
-_SHOT_SPEED_THRESHOLD_CM = 200.0  # Generous: a hard shot is 100-130 km/h
+# Shot detection — ball speed threshold in cm/frame
+# At 25 fps: 90 cm/frame ≈ 81 km/h — catches most real shots (80-130 km/h)
+_SHOT_SPEED_THRESHOLD_CM = 90.0
 
-# Goal regions on a standard pitch (10500 × 6800 cm)
-# Behind either goal-line, within the goal-width band (≈ 732 cm = 7.32 m)
-_GOAL_Y_MIN = (6800 - 732) / 2   # ≈ 3034 cm
-_GOAL_Y_MAX = (6800 + 732) / 2   # ≈ 3766 cm
+# Goal dimensions (7.32 m = 732 cm wide)
+_GOAL_WIDTH_CM = 732
 _GOAL_X_MARGIN = 800  # Within 8 m of goal-line
 
 # Tackle: possession changes between teams within this many frames
@@ -41,11 +40,14 @@ _TACKLE_WINDOW = 8
 class EventDetector:
     """Detect football events from per-frame possession and ball tracking."""
 
-    def __init__(self, fps: float = 25.0, pitch_length: float = 10500.0,
-                 pitch_width: float = 6800.0):
+    def __init__(self, fps: float = 25.0, pitch_length: float = 12000.0,
+                 pitch_width: float = 7000.0):
         self.fps = fps
         self.pitch_length = pitch_length
         self.pitch_width = pitch_width
+        # Goal region bounds derived from pitch dimensions
+        self._goal_y_min = (pitch_width - _GOAL_WIDTH_CM) / 2
+        self._goal_y_max = (pitch_width + _GOAL_WIDTH_CM) / 2
 
     # ── Public API ──────────────────────────────────────────────────
 
@@ -113,9 +115,11 @@ class EventDetector:
 
             run_end_frame = possession_events[j - 1].frame_idx
 
-            # Look ahead for the next controlled possession by same team
+            # Look ahead for the next controlled possession by same team.
+            # Guard on frame_idx distance (not list-index distance) so that
+            # long contested-frame runs don't prematurely exhaust the window.
             k = j
-            while k < n and (k - j) < _PASS_MAX_FRAMES:
+            while k < n and (possession_events[k].frame_idx - run_end_frame) <= _PASS_MAX_FRAMES:
                 ek = possession_events[k]
                 if ek.is_controlled and ek.team_id == run_team and ek.player_track_id is not None:
                     if ek.player_track_id != run_player:
@@ -192,7 +196,7 @@ class EventDetector:
                 continue
 
             # Check Y is within goal-width band
-            if not (_GOAL_Y_MIN <= curr_pos[1] <= _GOAL_Y_MAX):
+            if not (self._goal_y_min <= curr_pos[1] <= self._goal_y_max):
                 continue
 
             # Attribute to last possessing player
