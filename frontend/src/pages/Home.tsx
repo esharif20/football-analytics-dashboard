@@ -24,11 +24,11 @@ import {
   Sparkles
 } from "lucide-react";
 
-// CDN URLs for images
+// Local placeholder images for hero section
 const IMAGES = {
-  stadium: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/xjEbKFcxSRGvJxJg.jpg",
-  heatmap: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/yErWHRzqZbziIiNx.png",
-  aiSports: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663334363677/DZhnIKilPcyeZjEv.jpg",
+  stadium: "/images/stadium.svg",
+  heatmap: "/images/heatmap.svg",
+  aiSports: "/images/ai-sports.svg",
 };
 
 export default function Home() {
