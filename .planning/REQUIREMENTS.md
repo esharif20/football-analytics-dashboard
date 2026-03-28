@@ -10,9 +10,9 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 ### Manus Removal
 
 - [ ] **MANUS-01**: Model download URLs are configurable via env vars (MODEL_URL_PLAYER/BALL/PITCH), not hardcoded to manuscdn.com
-- [ ] **MANUS-02**: Home page hero images use local assets in frontend/public/images/ instead of manuscdn.com CDN
-- [ ] **MANUS-03**: Auth localStorage key renamed from "manus-runtime-user-info" to "football-dashboard-user"
-- [ ] **MANUS-04**: Backend and frontend .env.example files exist with all env vars documented
+- [x] **MANUS-02**: Home page hero images use local assets in frontend/public/images/ instead of manuscdn.com CDN
+- [x] **MANUS-03**: Auth localStorage key renamed from "manus-runtime-user-info" to "football-dashboard-user"
+- [x] **MANUS-04**: Backend and frontend .env.example files exist with all env vars documented
 
 ### Database Migration
 
@@ -72,9 +72,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | MANUS-01 | Phase 4 | Pending |
-| MANUS-02 | Phase 4 | Pending |
-| MANUS-03 | Phase 4 | Pending |
-| MANUS-04 | Phase 4 | Pending |
+| MANUS-02 | Phase 4 | Complete |
+| MANUS-03 | Phase 4 | Complete |
+| MANUS-04 | Phase 4 | Complete |
 | DB-05 | Phase 4 | Pending |
 | DB-01 | Phase 5 | Pending |
 | DB-02 | Phase 5 | Pending |
