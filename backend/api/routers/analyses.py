@@ -1,4 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
+import hmac
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..deps import get_db, get_current_user
 from ..models import User, Video, Analysis
 from ..schemas import AnalysisCreate, AnalysisStatusUpdate, AnalysisResultsUpdate, _row_to_dict
+from ..config import settings
 
 router = APIRouter(tags=["analyses"])
 
@@ -30,6 +33,12 @@ PROCESSING_STAGES = [
     {"id": "analytics", "name": "Computing Analytics", "weight": 10},
     {"id": "render", "name": "Rendering Output", "weight": 5},
 ]
+
+
+def _sign_ws_token(analysis_id: int, user_id: int) -> str:
+    secret = settings.JWT_SECRET or "dev-secret"
+    payload = f"{analysis_id}:{user_id}".encode()
+    return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
 @router.get("/analysis")
@@ -69,7 +78,9 @@ async def get_analysis(analysis_id: int, user: User = Depends(get_current_user),
     analysis = result.scalar_one_or_none()
     if not analysis or analysis.userId != user.id:
         raise HTTPException(status_code=404, detail="Analysis not found")
-    return _row_to_dict(analysis)
+    data = _row_to_dict(analysis)
+    data["wsToken"] = _sign_ws_token(analysis.id, analysis.userId)
+    return data
 
 
 @router.post("/analysis")
@@ -80,6 +91,9 @@ async def create_analysis(body: AnalysisCreate, user: User = Depends(get_current
     if not video or video.userId != user.id:
         raise HTTPException(status_code=404, detail="Video not found")
 
+    if body.mode not in PIPELINE_MODES:
+        raise HTTPException(status_code=400, detail="Invalid mode")
+
     analysis = Analysis(
         videoId=body.videoId,
         userId=user.id,
@@ -87,11 +101,17 @@ async def create_analysis(body: AnalysisCreate, user: User = Depends(get_current
         status="pending",
         progress=0,
         skipCache=body.fresh,
+        config={
+            "cameraType": body.cameraType,
+            "useCustomModels": body.useCustomModels,
+            "fresh": body.fresh,
+            "mode": body.mode,
+        },
     )
     db.add(analysis)
     await db.commit()
     await db.refresh(analysis)
-    return {"id": analysis.id}
+    return {"id": analysis.id, "wsToken": _sign_ws_token(analysis.id, analysis.userId)}
 
 
 @router.put("/analysis/{analysis_id}/status")
@@ -108,9 +128,9 @@ async def update_status(analysis_id: int, body: AnalysisStatusUpdate, user: User
     if body.errorMessage is not None:
         analysis.errorMessage = body.errorMessage
     if body.status == "processing" and body.progress == 0:
-        analysis.startedAt = datetime.utcnow()
+        analysis.startedAt = datetime.now(timezone.utc).replace(tzinfo=None)
     if body.status in ("completed", "failed"):
-        analysis.completedAt = datetime.utcnow()
+        analysis.completedAt = datetime.now(timezone.utc).replace(tzinfo=None)
 
     await db.commit()
     return {"success": True}
@@ -150,7 +170,7 @@ async def terminate_analysis(analysis_id: int, user: User = Depends(get_current_
 
     analysis.status = "failed"
     analysis.errorMessage = "Terminated by user"
-    analysis.completedAt = datetime.utcnow()
+    analysis.completedAt = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     return {"success": True}
 
@@ -166,7 +186,10 @@ async def get_eta(analysis_id: int, user: User = Depends(get_current_user), db: 
     now_ms = int(time.time() * 1000)
 
     start_time = now_ms
-    if analysis.createdAt:
+    if analysis.startedAt:
+        ts = int(analysis.startedAt.timestamp() * 1000)
+        start_time = ts
+    elif analysis.createdAt:
         ts = int(analysis.createdAt.timestamp() * 1000)
         start_time = ts
 
