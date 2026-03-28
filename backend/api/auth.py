@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -6,6 +7,8 @@ from sqlalchemy import select
 from .config import settings
 from .database import async_session
 from .models import User
+
+logger = logging.getLogger("api.auth")
 
 
 class AutoLoginMiddleware:
@@ -19,9 +22,15 @@ class AutoLoginMiddleware:
 
     def __init__(self, app: ASGIApp):
         self.app = app
+        self._dev_mode = settings.LOCAL_DEV_MODE is True
+        if self._dev_mode:
+            logger.warning(
+                "AutoLoginMiddleware is ACTIVE — all requests auto-authenticated as dev user. "
+                "Set LOCAL_DEV_MODE=false to disable."
+            )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] == "http" and settings.LOCAL_DEV_MODE and async_session is not None:
+        if scope["type"] == "http" and self._dev_mode and async_session is not None:
             path = scope.get("path", "")
             # Skip auth for static files — no user needed
             if not path.startswith("/uploads"):
