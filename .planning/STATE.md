@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Objectives
-status: executing
-last_updated: "2026-03-28T11:26:57.419Z"
+status: verifying
+last_updated: "2026-03-28T11:28:49.028Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Session State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 04 (manus-dependency-removal) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-28
 
 ## Accumulated Context
@@ -45,6 +45,8 @@ Last activity: 2026-03-28
 - Supabase over Docker MySQL (user confirmed)
 - Env vars for ML model URLs (user confirmed)
 - [Phase 04]: SVG placeholders for hero images instead of raster; localStorage key renamed to football-dashboard-user
+- [Phase 04]: Worker exits with sys.exit(1) on missing MODEL_URL_* env vars for fail-fast behavior
+- [Phase 04]: CORS_ORIGINS defaults to localhost:5173,localhost:3000 for dev parity
 
 ## Performance Metrics
 
@@ -55,3 +57,4 @@ Last activity: 2026-03-28
 | (v0.1) Phase 01 P02 | 4m | 3 tasks | 7 files |
 | (v0.1) Phase 01 P01 | 3m | 3 tasks | 4 files |
 | Phase 04 P02 | 3m | 2 tasks | 7 files |
+| Phase 04 P01 | 3m | 2 tasks | 3 files |
