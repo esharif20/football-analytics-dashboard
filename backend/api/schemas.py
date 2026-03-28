@@ -202,4 +202,3 @@ class WorkerUploadVideo(BaseModel):
     fileName: str
     contentType: str = "video/mp4"
     analysisId: int | None = None
-    contentType: str = "video/mp4"
