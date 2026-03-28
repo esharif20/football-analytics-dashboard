@@ -17,6 +17,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 # ---------- Native PostgreSQL enum types ----------
+# Enum types are created implicitly by op.create_table when first referenced.
 
 userrole_enum = sa.Enum("user", "admin", name="userrole")
 pipelinemode_enum = sa.Enum("all", "radar", "team", "track", "players", "ball", "pitch", name="pipelinemode")
@@ -24,11 +25,6 @@ processingstatus_enum = sa.Enum("pending", "uploading", "processing", "completed
 
 
 def upgrade() -> None:
-    # Create enum types first
-    userrole_enum.create(op.get_bind(), checkfirst=True)
-    pipelinemode_enum.create(op.get_bind(), checkfirst=True)
-    processingstatus_enum.create(op.get_bind(), checkfirst=True)
-
     # --- users ---
     op.create_table(
         "users",
@@ -184,6 +180,6 @@ def downgrade() -> None:
     op.drop_table("users")
 
     # Drop enum types
-    processingstatus_enum.drop(op.get_bind(), checkfirst=True)
-    pipelinemode_enum.drop(op.get_bind(), checkfirst=True)
-    userrole_enum.drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS processingstatus")
+    op.execute("DROP TYPE IF EXISTS pipelinemode")
+    op.execute("DROP TYPE IF EXISTS userrole")
