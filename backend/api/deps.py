@@ -12,7 +12,7 @@ async def get_db() -> AsyncSession:
         yield session
 
 
-async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+async def get_current_user(request: Request) -> User:
     """
     In local dev mode, auto-login returns a fixed dev user.
     The user is set on the request state by the auto-login middleware in auth.py.

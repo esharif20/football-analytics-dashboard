@@ -47,10 +47,19 @@ async def create_statistics(body: StatisticsCreate, user: User = Depends(get_cur
         distanceCoveredTeam2=body.distanceCoveredTeam2,
         avgSpeedTeam1=body.avgSpeedTeam1,
         avgSpeedTeam2=body.avgSpeedTeam2,
+        maxSpeedTeam1=body.maxSpeedTeam1,
+        maxSpeedTeam2=body.maxSpeedTeam2,
+        possessionChanges=body.possessionChanges,
+        ballDistance=body.ballDistance,
+        ballAvgSpeed=body.ballAvgSpeed,
+        ballMaxSpeed=body.ballMaxSpeed,
+        directionChanges=body.directionChanges,
         heatmapDataTeam1=body.heatmapDataTeam1,
         heatmapDataTeam2=body.heatmapDataTeam2,
         passNetworkTeam1=body.passNetworkTeam1,
         passNetworkTeam2=body.passNetworkTeam2,
+        teamColorTeam1=body.teamColorTeam1,
+        teamColorTeam2=body.teamColorTeam2,
     )
     db.add(stat)
     await db.commit()

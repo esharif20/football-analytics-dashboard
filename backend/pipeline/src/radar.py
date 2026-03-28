@@ -1,7 +1,7 @@
 """Radar/tactical view pipeline mode - projects players onto 2D pitch."""
 
 from collections import deque
-from typing import Iterator, List, Optional, TYPE_CHECKING
+from typing import Dict, Iterator, List, Optional, TYPE_CHECKING
 
 import numpy as np
 import supervision as sv
@@ -33,7 +33,7 @@ from pitch import (
     draw_voronoi_on_frame,
 )
 from pitch.annotators import render_radar_overlay
-from analytics import AnalyticsEngine, BallPathTracker, print_analytics_summary
+from analytics import AnalyticsEngine, print_analytics_summary
 from trackers.track_stabiliser import stabilise_tracks
 from team_assigner import TeamAssigner, TeamAssignerConfig
 from all import _precompute_pitch_keypoints
@@ -74,6 +74,35 @@ def validate_keypoint_distribution(keypoints: np.ndarray, min_spread: float = 20
     x_spread = np.max(keypoints[:, 0]) - np.min(keypoints[:, 0])
     y_spread = np.max(keypoints[:, 1]) - np.min(keypoints[:, 1])
     return x_spread > min_spread and y_spread > min_spread
+
+
+def _build_smoothed_transformer(
+    frame_keypoints: np.ndarray,
+    pitch_keypoints: np.ndarray,
+    smoother: HomographySmoother,
+    frame_idx: int,
+    require_distribution: bool = False,
+) -> Optional[ViewTransformer]:
+    """Build a quality-gated, temporally smoothed transformer for one frame."""
+    if len(frame_keypoints) < 4:
+        return None
+    if require_distribution and not validate_keypoint_distribution(frame_keypoints):
+        return None
+
+    try:
+        transformer = ViewTransformer(
+            source=frame_keypoints.astype(np.float32),
+            target=pitch_keypoints.astype(np.float32),
+        )
+    except ValueError:
+        return None
+
+    smoothed_matrix = smoother.update_homography(transformer, frame_idx)
+    if smoothed_matrix is None:
+        return None
+
+    transformer.matrix = smoothed_matrix
+    return transformer
 
 
 def run(
@@ -135,6 +164,8 @@ def run(
 
     print("Tracking players/referees/goalkeepers and ball...")
     frames = load_frames(source_video_path)
+    video_info = sv.VideoInfo.from_video_path(source_video_path)
+    video_fps = float(video_info.fps) if getattr(video_info, "fps", 0) and video_info.fps > 0 else DEFAULT_VIDEO_FPS
 
     tracker = build_tracker(
         device=device,
@@ -200,9 +231,8 @@ def run(
         max_fallback_age=30, # Max 1 second of stale matrix fallback
     )
 
-    # Analytics - initialize engine and ball path tracker
-    analytics_engine = AnalyticsEngine(fps=DEFAULT_VIDEO_FPS, pitch_config=pitch_config)
-    ball_path_tracker = BallPathTracker(fps=DEFAULT_VIDEO_FPS)
+    # Analytics engine
+    analytics_engine = AnalyticsEngine(fps=video_fps, pitch_config=pitch_config)
 
     # Store ball path positions for drawing
     accumulated_ball_positions: List[np.ndarray] = []
@@ -219,6 +249,27 @@ def run(
         stride=effective_stride,
         pitch_backend=effective_backend,
     )
+
+    # Build per-frame homographies for analytics/statistics.
+    per_frame_transformers: Dict[int, ViewTransformer] = {}
+    analytics_smoother = HomographySmoother(
+        window_size=20,
+        decay=0.7,
+        min_inliers=4,
+        position_alpha=0.3,
+    )
+    for frame_idx, pitch_frame in enumerate(pitch_data):
+        frame_keypoints = pitch_frame["frame_keypoints"]
+        pitch_keypoints = pitch_frame["pitch_keypoints"]
+        transformer = _build_smoothed_transformer(
+            frame_keypoints=frame_keypoints,
+            pitch_keypoints=pitch_keypoints,
+            smoother=analytics_smoother,
+            frame_idx=frame_idx,
+            require_distribution=True,
+        )
+        if transformer is not None:
+            per_frame_transformers[frame_idx] = transformer
 
     print("Generating radar overlay frames...")
 
@@ -253,20 +304,15 @@ def run(
             )
 
         # Check if we have enough well-distributed keypoints for homography
-        if len(frame_keypoints) >= 4 and validate_keypoint_distribution(frame_keypoints):
+        transformer = _build_smoothed_transformer(
+            frame_keypoints=frame_keypoints,
+            pitch_keypoints=pitch_keypoints,
+            smoother=smoother,
+            frame_idx=frame_idx,
+            require_distribution=True,
+        )
+        if transformer is not None:
             try:
-                transformer = ViewTransformer(
-                    source=frame_keypoints.astype(np.float32),
-                    target=pitch_keypoints.astype(np.float32)
-                )
-
-                # Get smoothed homography (quality gating + temporal smoothing)
-                smoothed_matrix = smoother.update_homography(transformer, frame_idx)
-                if smoothed_matrix is None:
-                    # No valid homography available yet
-                    yield annotated_frame
-                    continue
-                transformer.matrix = smoothed_matrix
 
                 # Extract player positions from tracks
                 team_1_positions = []
@@ -293,9 +339,9 @@ def run(
                             pitch_length=pitch_config.length,
                             pitch_width=pitch_config.width
                         )
-                        if team_id == 1:
+                        if team_id == 0:
                             team_1_positions.append(pitch_pos)
-                        else:
+                        elif team_id == 1:
                             team_2_positions.append(pitch_pos)
 
                 # Process goalkeepers (add to respective teams)
@@ -313,9 +359,9 @@ def run(
                             pitch_length=pitch_config.length,
                             pitch_width=pitch_config.width
                         )
-                        if team_id == 1:
+                        if team_id == 0:
                             team_1_positions.append(pitch_pos)
-                        else:
+                        elif team_id == 1:
                             team_2_positions.append(pitch_pos)
 
                 # Process referees
@@ -458,7 +504,9 @@ def run(
     # After all frames processed, print analytics summary
     if show_analytics:
         print("\nComputing analytics...")
-        # Note: We compute analytics without transformer since homography varies per frame
-        # The possession/kinematics will use pixel-based metrics
-        result = analytics_engine.compute(tracks, transformer=None)
+        result = analytics_engine.compute(
+            tracks,
+            transformer=None,
+            per_frame_transformers=per_frame_transformers or None,
+        )
         print_analytics_summary(result)

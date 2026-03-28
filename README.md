@@ -194,6 +194,18 @@ cd frontend && pnpm dev
 
 Open **http://localhost:5173** — auto-logged in, no auth needed.
 
+## GSD Workflow (opt-in)
+
+Use the GSD commands to track work on this brownfield repo:
+
+- Run `/gsd:map-codebase` once to index the stack and architecture.
+- Then `/gsd:new-project` to create `.planning/` with `ROADMAP.md` and `STATE.md`.
+- Check status anytime with `/gsd:progress` (or `/gsd:resume-work` if returning).
+- Fast start for the first phase: `/gsd:discuss-phase 1 --auto && /gsd:plan-phase 1 && /gsd:execute-phase 1`.
+- Planning artifacts live in `.planning/`; keep git-tracking them with the rest of the repo.
+
+If a command fails because `.planning/` is missing, run `/gsd:new-project` first.
+
 ### Terminal Layout
 
 | Terminal | Command | What it does |

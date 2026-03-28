@@ -5,9 +5,9 @@ export const isLocalDevMode = !import.meta.env.VITE_OAUTH_PORTAL_URL || import.m
 
 // Generate login URL at runtime so redirect URI reflects the current origin.
 export const getLoginUrl = () => {
-  // In local dev mode, there's no OAuth - user is auto-logged in
+  // In local dev mode, there's no OAuth - user is auto-logged in, go straight to dashboard
   if (isLocalDevMode) {
-    return "/";
+    return "/dashboard";
   }
 
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;

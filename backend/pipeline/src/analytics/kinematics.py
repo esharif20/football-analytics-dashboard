@@ -19,6 +19,10 @@ CM_TO_M = 0.01
 # Speed clamp — world-class sprint is ~36 km/h
 MAX_PLAYER_SPEED_KMH = 40.0
 
+# Ball speed clamp — hardest shots reach ~130 km/h; cap at 200 to allow
+# fast clearances while filtering homography noise
+MAX_BALL_SPEED_KMH = 200.0
+
 
 class KinematicsCalculator:
     """Calculate speed and distance metrics for players and ball."""
@@ -146,13 +150,14 @@ class KinematicsCalculator:
 
     @staticmethod
     def _smooth_pitch_positions(
-        positions: List[FramePosition], alpha: float = 0.10,
+        positions: List[FramePosition], alpha: float = 0.40,
     ) -> List[FramePosition]:
         """EMA-smooth pitch positions to reduce homography jitter.
 
         Args:
             positions: List of FramePosition with pitch_pos already set.
             alpha: Weight for current observation (0→full smoothing, 1→no smoothing).
+                   Default 0.40 balances responsiveness with noise reduction.
 
         Returns:
             Same list with pitch_pos smoothed in-place.
@@ -174,6 +179,7 @@ class KinematicsCalculator:
     def compute_distances_and_speeds_adaptive(
         self,
         positions: List[FramePosition],
+        max_speed_m_per_sec: Optional[float] = None,
     ) -> Tuple[List[float], List[float], List[Optional[float]], List[Optional[float]]]:
         """Compute distances/speeds using pitch coords where available.
 
@@ -209,10 +215,9 @@ class KinematicsCalculator:
                 d_m = d_cm * CM_TO_M
                 time_sec = frame_gap / self.fps
                 speed = d_m / time_sec
-                max_speed = MAX_PLAYER_SPEED_KMH / 3.6
-                if speed > max_speed:
-                    speed = max_speed
-                    d_m = max_speed * time_sec
+                if max_speed_m_per_sec is not None and speed > max_speed_m_per_sec:
+                    speed = max_speed_m_per_sec
+                    d_m = max_speed_m_per_sec * time_sec
                 distances_m.append(d_m)
                 speeds_m.append(speed)
             else:
@@ -261,6 +266,7 @@ class KinematicsCalculator:
     def compute_distances_and_speeds(
         self,
         positions: List[FramePosition],
+        max_speed_m_per_sec: Optional[float] = None,
     ) -> Tuple[List[float], List[float], Optional[List[float]], Optional[List[float]]]:
         """Compute frame-to-frame distances and speeds.
 
@@ -297,11 +303,13 @@ class KinematicsCalculator:
             if has_pitch and prev.pitch_pos and curr.pitch_pos:
                 d_cm = measure_distance(prev.pitch_pos, curr.pitch_pos)
                 d_m = d_cm * CM_TO_M
-                distances_m.append(d_m)
-
-                # Speed: distance / time
                 time_sec = frame_gap / self.fps
-                speeds_m_per_sec.append(d_m / time_sec)
+                speed = d_m / time_sec
+                if max_speed_m_per_sec is not None and speed > max_speed_m_per_sec:
+                    speed = max_speed_m_per_sec
+                    d_m = max_speed_m_per_sec * time_sec
+                distances_m.append(d_m)
+                speeds_m_per_sec.append(speed)
 
         return (
             distances_px,
@@ -345,12 +353,18 @@ class KinematicsCalculator:
                 max_speed_m_per_sec=None,
             )
 
+        speed_cap_m_s = (
+            MAX_PLAYER_SPEED_KMH / 3.6
+            if entity_type in ("player", "goalkeeper")
+            else MAX_BALL_SPEED_KMH / 3.6
+        )
+
         if use_adaptive:
-            dist_px, speeds_px, dist_m_opt, speeds_m_opt = self.compute_distances_and_speeds_adaptive(positions)
-            # Filter None values and clamp unrealistic speeds (noisy homographies)
-            max_speed_m_s = MAX_PLAYER_SPEED_KMH / 3.6  # ~11.1 m/s
+            dist_px, speeds_px, dist_m_opt, speeds_m_opt = self.compute_distances_and_speeds_adaptive(
+                positions, max_speed_m_per_sec=speed_cap_m_s,
+            )
             dist_m_valid = [d for d in dist_m_opt if d is not None]
-            speeds_m_valid = [min(s, max_speed_m_s) for s in speeds_m_opt if s is not None]
+            speeds_m_valid = [s for s in speeds_m_opt if s is not None]
             return KinematicStats(
                 track_id=track_id,
                 entity_type=entity_type,
@@ -365,7 +379,9 @@ class KinematicsCalculator:
                 max_speed_m_per_sec=float(max(speeds_m_valid)) if speeds_m_valid else None,
             )
 
-        dist_px, speeds_px, dist_m, speeds_m = self.compute_distances_and_speeds(positions)
+        dist_px, speeds_px, dist_m, speeds_m = self.compute_distances_and_speeds(
+            positions, max_speed_m_per_sec=speed_cap_m_s,
+        )
 
         return KinematicStats(
             track_id=track_id,
@@ -412,7 +428,7 @@ class KinematicsCalculator:
                 if positions:
                     if per_frame_transformers:
                         positions = self.transform_to_pitch_coords_per_frame(positions, per_frame_transformers)
-                        positions = self._smooth_pitch_positions(positions, alpha=0.10)
+                        positions = self._smooth_pitch_positions(positions, alpha=0.40)
                     else:
                         positions = self.transform_to_pitch_coords(positions, transformer)
 
@@ -473,13 +489,13 @@ class KinematicsCalculator:
             tracks: Full track dictionary.
             transformer: Single ViewTransformer applied to all frames (legacy).
             per_frame_transformers: Per-frame ViewTransformers (preferred).
-                When provided, uses adaptive pipeline with gap interpolation.
+                When provided, uses adaptive pipeline in real-world units.
             smooth_window: Number of frames for speed smoothing window.
 
         Returns:
             {track_id: {frame_idx: (speed_kmh, cumulative_distance_m)}}
             Speed is smoothed over ``smooth_window`` frames.
-            When no homography, uses pixel-based estimates (px/frame → rough km/h).
+            Values are emitted only when real-world homography is available.
         """
         lookup: Dict[int, Dict[int, Tuple[float, float]]] = {}
 
@@ -498,39 +514,40 @@ class KinematicsCalculator:
                     positions = self.transform_to_pitch_coords_per_frame(
                         positions, per_frame_transformers,
                     )
-                    positions = self._smooth_pitch_positions(positions, alpha=0.10)
-                    dist_px, speeds_px, dist_m_opt, speeds_m_opt = (
-                        self.compute_distances_and_speeds_adaptive(positions)
+                    positions = self._smooth_pitch_positions(positions, alpha=0.40)
+                    _dist_px, _speeds_px, dist_m_opt, speeds_m_opt = (
+                        self.compute_distances_and_speeds_adaptive(
+                            positions,
+                            max_speed_m_per_sec=MAX_PLAYER_SPEED_KMH / 3.6,
+                        )
                     )
 
                     # Count how many segments have real-world data
                     real_count = sum(1 for s in speeds_m_opt if s is not None)
-                    use_real = real_count >= len(speeds_m_opt) * 0.5
+                    if real_count == 0:
+                        continue
 
-                    if use_real:
-                        speeds_m_filled = self._interpolate_gaps(speeds_m_opt)
-                        dist_m_filled = self._interpolate_gaps(dist_m_opt)
-                        raw_speeds = speeds_m_filled
-                        raw_dists = dist_m_filled
-                    else:
-                        raw_speeds = speeds_px
-                        raw_dists = dist_px
-                        use_real = False
+                    raw_speeds = [float(s) if s is not None else 0.0 for s in speeds_m_opt]
+                    raw_dists = [float(d) if d is not None else 0.0 for d in dist_m_opt]
                 else:
                     # Legacy single-transformer path
                     positions = self.transform_to_pitch_coords(positions, transformer)
-                    dist_px, speeds_px, dist_m, speeds_m = (
-                        self.compute_distances_and_speeds(positions)
+                    _dist_px, _speeds_px, dist_m, speeds_m = (
+                        self.compute_distances_and_speeds(
+                            positions,
+                            max_speed_m_per_sec=MAX_PLAYER_SPEED_KMH / 3.6,
+                        )
                     )
-                    use_real = speeds_m is not None and len(speeds_m) > 0
-                    raw_speeds = speeds_m if use_real else speeds_px
-                    raw_dists = dist_m if use_real else dist_px
+                    if speeds_m is None or dist_m is None or len(speeds_m) == 0:
+                        continue
+                    raw_speeds = list(speeds_m)
+                    raw_dists = list(dist_m)
 
                 # Dead-zone: zero out jitter-induced phantom movement.
-                # Homography noise produces apparent speeds of 1-8 m/s for
-                # stationary players.  1.0 m/s ≈ 3.6 km/h (slow walk) is a
-                # safe floor — anything below is standing still.
-                dead_zone = 1.0 if use_real else 2.0
+                # Homography noise produces apparent speeds below ~0.4 m/s for
+                # stationary players. 0.4 m/s ≈ 1.44 km/h — well below walking
+                # pace, so only true measurement noise is filtered.
+                dead_zone = 0.4
                 for i in range(len(raw_speeds)):
                     if raw_speeds[i] < dead_zone:
                         raw_speeds[i] = 0.0
@@ -547,17 +564,13 @@ class KinematicsCalculator:
                 per_frame: Dict[int, Tuple[float, float]] = {}
                 cumulative = 0.0
                 ema_speed = 0.0
-                ema_alpha = 0.06  # low = very smooth output
+                ema_alpha = 0.20  # Responsive EMA — ramps to true speed in ~15 frames
                 for i in range(len(smoothed)):
                     frame_idx = positions[i + 1].frame_idx
                     cumulative += raw_dists[i]
 
-                    if use_real:
-                        speed_kmh = min(smoothed[i] * 3.6, MAX_PLAYER_SPEED_KMH)
-                        dist_total = cumulative
-                    else:
-                        speed_kmh = min(smoothed[i] * self.fps * 0.05, MAX_PLAYER_SPEED_KMH)
-                        dist_total = cumulative * 0.05
+                    speed_kmh = min(smoothed[i] * 3.6, MAX_PLAYER_SPEED_KMH)
+                    dist_total = cumulative
 
                     # Temporal EMA to prevent frame-to-frame jitter in display
                     ema_speed = ema_alpha * speed_kmh + (1 - ema_alpha) * ema_speed

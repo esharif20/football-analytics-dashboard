@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { analysisApi } from "@/lib/api-local";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { PIPELINE_MODES, PipelineMode } from "@/shared/types";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Cpu, Cloud, Sparkles, Video, Camera, Lock, RotateCcw } from "lucide-react";
 
@@ -45,6 +44,7 @@ export default function Upload() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
   
+  const titleRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -100,13 +100,16 @@ export default function Upload() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!file) {
       toast.error("Please select a video file");
       return;
     }
-    
-    if (!title.trim()) {
+
+    // Read from DOM as authoritative source — React state can desync when inputs
+    // are cleared via browser autofill, extensions, or programmatic interaction.
+    const domTitle = titleRef.current?.value ?? title;
+    if (!domTitle.trim()) {
       toast.error("Please enter a title");
       return;
     }
@@ -121,7 +124,7 @@ export default function Upload() {
       // Use FormData multipart upload (no base64, streams the file directly)
       const formData = new FormData();
       formData.append("video", file);
-      formData.append("title", title.trim());
+      formData.append("title", domTitle.trim());
       formData.append("description", description.trim() || "");
 
       const startTime = Date.now();
@@ -191,6 +194,8 @@ export default function Upload() {
         videoId: uploadResult.id,
         mode: selectedMode,
         fresh: freshRun,
+        cameraType,
+        useCustomModels,
       });
 
       setUploadProgress(100);
@@ -335,7 +340,9 @@ export default function Upload() {
               <div className="space-y-2">
                 <Label htmlFor="title">Title *</Label>
                 <Input
+                  ref={titleRef}
                   id="title"
+                  name="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g., Arsenal vs Chelsea - Premier League"

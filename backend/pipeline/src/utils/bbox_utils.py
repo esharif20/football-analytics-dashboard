@@ -1,6 +1,6 @@
 def get_center_of_bbox(bbox):
     x1, y1, x2, y2 = bbox
-    return int((x1 + x2) / 2), int((y1 + y2) / 2)
+    return (x1 + x2) / 2.0, (y1 + y2) / 2.0
 
 
 def get_bbox_width(bbox):
@@ -9,7 +9,7 @@ def get_bbox_width(bbox):
 
 def get_foot_position(bbox):
     x1, y1, x2, y2 = bbox
-    return int((x1 + x2) / 2), int(y2)
+    return (x1 + x2) / 2.0, float(y2)
 
 
 def measure_distance(p1, p2):

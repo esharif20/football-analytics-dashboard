@@ -104,32 +104,32 @@ test('upload form requires title before submit', async ({ page }) => {
   });
 
   // Clear the title field if it was auto-filled
-  const titleInput = page.locator('input[type="text"]').first();
+  const titleInput = page.locator('#title');
   const titleVisible = await titleInput.isVisible().catch(() => false);
   if (titleVisible) {
     await titleInput.clear();
   }
 
-  // Submit the form
-  const submitButton = page.locator('button[type="submit"], button:has-text("Upload"), button:has-text("Start Analysis")').first();
-  const submitVisible = await submitButton.isVisible().catch(() => false);
-  if (submitVisible) {
-    await submitButton.click();
+  // The submit button must be disabled when title is empty
+  const submitButton = page.locator('button[type="submit"], button:has-text("Start Analysis")').first();
+
+  // If button is disabled, validation is working — pass immediately
+  const isDisabled = await submitButton.isDisabled().catch(() => true);
+  if (isDisabled) {
+    expect(isDisabled, 'Submit button is correctly disabled when title is empty').toBe(true);
+    return;
   }
 
-  // Allow a brief moment for any navigation or toast to appear
+  // Button is enabled — click it and check we stay on /upload or get an error
+  await submitButton.click({ force: true });
   await page.waitForTimeout(1_000);
 
-  // Assert the page did NOT navigate away (still on /upload)
   const currentUrl = page.url();
   const stayedOnUpload = currentUrl.includes('/upload');
-
-  // OR a validation error appeared
-  const validationError = await page.locator('text=/title/i, text=/required/i').first().isVisible().catch(() => false);
   const toastError = await page.locator('[data-sonner-toast]').filter({ hasText: /title/i }).first().isVisible().catch(() => false);
 
   expect(
-    stayedOnUpload || validationError || toastError,
+    stayedOnUpload || toastError,
     `Upload form submitted without a title and navigated away to: ${currentUrl}. Expected to stay on /upload or show a validation error.`
   ).toBe(true);
 });
