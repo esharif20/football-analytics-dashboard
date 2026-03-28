@@ -18,3 +18,14 @@ class Settings:
 
 
 settings = Settings()
+
+import logging as _logging
+
+_logger = _logging.getLogger("api.config")
+
+# QUAL-04 / D-07: Refuse to start with insecure JWT in non-dev mode
+if settings.JWT_SECRET == "dev-secret" and not settings.LOCAL_DEV_MODE:
+    raise ValueError(
+        "JWT_SECRET is set to the insecure default 'dev-secret' but LOCAL_DEV_MODE is not enabled. "
+        "Set a strong JWT_SECRET for production or set LOCAL_DEV_MODE=true for development."
+    )
