@@ -66,6 +66,12 @@ Remove all Manus platform dependencies, migrate from Docker MySQL to Supabase Po
 
 **Goal:** Every code change validated by automated tests, linting, and CI
 **Requirements:** TEST-01, TEST-02, TEST-03, QUAL-06, QUAL-07
+**Plans:** 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Backend ruff linting config + pytest HTTP endpoint smoke tests
+- [ ] 07-02-PLAN.md — Frontend ESLint + Prettier config + vitest unit tests
+- [ ] 07-03-PLAN.md — CI pipeline expansion: fix frontend cache bug + add backend job
 
 **Success Criteria:**
 1. `pytest` passes with tests covering health, upload, analysis, worker, and commentary endpoints
