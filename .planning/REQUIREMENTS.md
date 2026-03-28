@@ -30,13 +30,13 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 - [x] **QUAL-04**: JWT_SECRET validation refuses startup in production with default "dev-secret"
 - [x] **QUAL-05**: AutoLogin middleware only activates when LOCAL_DEV_MODE=true explicitly
 - [x] **QUAL-06**: ruff configured for backend Python linting
-- [ ] **QUAL-07**: ESLint + Prettier configured for frontend TypeScript linting
+- [x] **QUAL-07**: ESLint + Prettier configured for frontend TypeScript linting
 
 ### Testing
 
 - [x] **TEST-01**: Backend pytest suite covers health, upload, analysis, worker, and commentary endpoints
-- [ ] **TEST-02**: Frontend vitest suite covers key components and hooks
-- [ ] **TEST-03**: CI pipeline includes backend lint + test job alongside frontend
+- [x] **TEST-02**: Frontend vitest suite covers key components and hooks
+- [x] **TEST-03**: CI pipeline includes backend lint + test job alongside frontend
 
 ## Future Requirements
 
@@ -86,10 +86,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | QUAL-04 | Phase 6 | Complete |
 | QUAL-05 | Phase 6 | Complete |
 | QUAL-06 | Phase 7 | Complete |
-| QUAL-07 | Phase 7 | Pending |
+| QUAL-07 | Phase 7 | Complete |
 | TEST-01 | Phase 7 | Complete |
-| TEST-02 | Phase 7 | Pending |
-| TEST-03 | Phase 7 | Pending |
+| TEST-02 | Phase 7 | Complete |
+| TEST-03 | Phase 7 | Complete |
 
 **Coverage:**
 - v0.2 requirements: 19 total
