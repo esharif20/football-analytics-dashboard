@@ -23,7 +23,7 @@ Remove all Manus platform dependencies, migrate from Docker MySQL to Supabase Po
 | 4 | Manus Dependency Removal | Application runs with zero references to the Manus platform | MANUS-01, MANUS-02, MANUS-03, MANUS-04, DB-05 | pending |
 | 5 | Supabase Migration & Alembic | 1/2 | In Progress|  |
 | 6 | Frontend Decomposition & Code Quality | Codebase follows maintainable patterns with security guardrails | QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05 | pending |
-| 7 | Testing, Linting & CI | Every code change validated by automated tests, linting, and CI | TEST-01, TEST-02, TEST-03, QUAL-06, QUAL-07 | pending |
+| 7 | Testing, Linting & CI | 1/3 | In Progress|  |
 
 ## Phase Details
 
@@ -66,10 +66,10 @@ Remove all Manus platform dependencies, migrate from Docker MySQL to Supabase Po
 
 **Goal:** Every code change validated by automated tests, linting, and CI
 **Requirements:** TEST-01, TEST-02, TEST-03, QUAL-06, QUAL-07
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 07-01-PLAN.md — Backend ruff linting config + pytest HTTP endpoint smoke tests
+- [x] 07-01-PLAN.md — Backend ruff linting config + pytest HTTP endpoint smoke tests
 - [ ] 07-02-PLAN.md — Frontend ESLint + Prettier config + vitest unit tests
 - [ ] 07-03-PLAN.md — CI pipeline expansion: fix frontend cache bug + add backend job
 
