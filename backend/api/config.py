@@ -13,8 +13,23 @@ class Settings:
     LOCAL_STORAGE_DIR: str = os.getenv("LOCAL_STORAGE_DIR", "./uploads")
     OWNER_OPEN_ID: str = os.getenv("OWNER_OPEN_ID", "local-dev-user")
     JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret")
+    WORKER_API_KEY: str = os.getenv("WORKER_API_KEY", "")
     FORGE_API_URL: str = os.getenv("BUILT_IN_FORGE_API_URL", "")
     FORGE_API_KEY: str = os.getenv("BUILT_IN_FORGE_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+
+    # CORS
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    # LLM tactical analysis
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "")  # Override default model per provider
+
 
 
 settings = Settings()

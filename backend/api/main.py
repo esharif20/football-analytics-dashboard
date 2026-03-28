@@ -1,14 +1,20 @@
 import os
+import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .auth import AutoLoginMiddleware
 from .ws import websocket_endpoint
+from .deps import get_current_user, get_db
+from .models import User, Video as VideoModel
+from .schemas import _serialize_user
+from .storage import storage_put
 
 from .routers import system, videos, analyses, events, tracks, stats, commentary, worker
 
@@ -26,7 +32,7 @@ app = FastAPI(title="Football Analytics Dashboard API", lifespan=lifespan)
 # CORS — allow the Vite dev server and any local origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,10 +50,6 @@ app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
 app.websocket("/ws/{analysis_id}")(websocket_endpoint)
 
 # Auth endpoints (outside /api prefix for simplicity)
-from fastapi import APIRouter, Depends, Request
-from .deps import get_current_user, get_db
-from .models import User
-from .schemas import _row_to_dict
 
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -57,7 +59,7 @@ async def auth_me(request: Request):
     user = getattr(request.state, "user", None)
     if user is None:
         return None
-    return _row_to_dict(user)
+    return _serialize_user(user)
 
 
 @auth_router.post("/auto-login")
@@ -65,7 +67,7 @@ async def auto_login(request: Request):
     user = getattr(request.state, "user", None)
     if user is None:
         return None
-    return _row_to_dict(user)
+    return _serialize_user(user)
 
 
 @auth_router.post("/logout")
@@ -76,11 +78,6 @@ async def logout():
 app.include_router(auth_router)
 
 # Multipart video upload endpoint (matches /api/upload/video used by Upload.tsx)
-from fastapi import UploadFile, File, Form
-import time
-from .storage import storage_put
-from .models import Video as VideoModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @app.post("/api/upload/video")
@@ -93,7 +90,6 @@ async def upload_video_multipart(
 ):
     user = getattr(request.state, "user", None)
     if user is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Authentication required")
 
     file_bytes = await video.read()
@@ -132,3 +128,8 @@ app.include_router(tracks.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(commentary.router, prefix="/api")
 app.include_router(worker.router, prefix="/api")
+
+if os.getenv("ENABLE_TEST_SUPPORT", "").lower() == "true":
+    from .routers import test_support
+
+    app.include_router(test_support.router, prefix="/api")
