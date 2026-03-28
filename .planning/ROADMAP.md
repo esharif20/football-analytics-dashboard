@@ -21,7 +21,7 @@ Remove all Manus platform dependencies, migrate from Docker MySQL to Supabase Po
 | Phase | Name | Goal | Requirements | Status |
 |-------|------|------|--------------|--------|
 | 4 | Manus Dependency Removal | Application runs with zero references to the Manus platform | MANUS-01, MANUS-02, MANUS-03, MANUS-04, DB-05 | pending |
-| 5 | Supabase Migration & Alembic | Data persists to Supabase PostgreSQL with managed schema migrations | DB-01, DB-02, DB-03, DB-04 | pending |
+| 5 | Supabase Migration & Alembic | 1/2 | In Progress|  |
 | 6 | Frontend Decomposition & Code Quality | Codebase follows maintainable patterns with security guardrails | QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05 | pending |
 | 7 | Testing, Linting & CI | Every code change validated by automated tests, linting, and CI | TEST-01, TEST-02, TEST-03, QUAL-06, QUAL-07 | pending |
 
