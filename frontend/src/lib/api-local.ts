@@ -50,8 +50,6 @@ export const authApi = {
 export const videosApi = {
   list: () => request<any[]>('/videos'),
   get: (id: number) => request<any>(`/videos/${id}`),
-  upload: (data: { title: string; description?: string; fileName: string; fileBase64: string; fileSize: number; mimeType: string }) =>
-    request<any>('/videos/upload-base64', { method: 'POST', body: data }),
   delete: (id: number) => request<any>(`/videos/${id}`, { method: 'DELETE' }),
 };
 
