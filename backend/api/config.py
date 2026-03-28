@@ -1,5 +1,7 @@
+import logging as _logging
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load .env from project root
@@ -31,10 +33,7 @@ class Settings:
     LLM_MODEL: str = os.getenv("LLM_MODEL", "")  # Override default model per provider
 
 
-
 settings = Settings()
-
-import logging as _logging
 
 _logger = _logging.getLogger("api.config")
 
