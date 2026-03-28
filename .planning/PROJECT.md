@@ -37,8 +37,8 @@ Analysts can upload a match video and get automated tactical analytics (possessi
 ### Active
 
 - [x] Remove all Manus platform dependencies (Validated in Phase 4)
-- [ ] Migrate to Supabase PostgreSQL
-- [ ] Add Alembic migration framework
+- [x] Migrate to Supabase PostgreSQL (Validated in Phase 5)
+- [x] Add Alembic migration framework (Validated in Phase 5)
 - [ ] Decompose Analysis.tsx into sub-components
 - [ ] Remove dead code and unused dependencies
 - [-] Security hardening (JWT, CORS, env vars) — CORS config done in Phase 4, JWT/env hardening in Phase 6
@@ -75,9 +75,9 @@ Analysts can upload a match video and get automated tactical analytics (possessi
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Supabase over Docker MySQL | Eliminate Docker DB dependency, free hosted tier, built-in features for future | -- Pending |
+| Supabase over Docker MySQL | Eliminate Docker DB dependency, free hosted tier, built-in features for future | Done — Phase 5 |
 | Env vars for model URLs | Decouple from manuscdn.com CDN, let user host models anywhere | Done — Phase 4 |
-| Alembic for migrations | Standard Python migration tool, replaces fragile runtime ALTER TABLE | -- Pending |
+| Alembic for migrations | Standard Python migration tool, replaces fragile runtime ALTER TABLE | Done — Phase 5 |
 | ruff over flake8/black | Single tool for linting + formatting, faster, modern Python standard | -- Pending |
 
 ## Evolution
@@ -98,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after Phase 4 (Manus Dependency Removal) complete*
+*Last updated: 2026-03-28 after Phase 5 (Supabase Migration & Alembic) complete*
