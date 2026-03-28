@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from sqlalchemy import (
     Integer, String, Text, Float, Boolean, Enum, JSON,
-    TIMESTAMP, func,
+    TIMESTAMP, func, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,7 +40,7 @@ class User(Base):
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     loginMethod: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    role: Mapped[str] = mapped_column(Enum(UserRole), nullable=False, server_default="user")
+    role: Mapped[str] = mapped_column(Enum(UserRole), nullable=False, server_default=text("'user'"))
     createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
     updatedAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
     lastSignedIn: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
@@ -73,11 +73,13 @@ class Analysis(Base):
     videoId: Mapped[int] = mapped_column(Integer, nullable=False)
     userId: Mapped[int] = mapped_column(Integer, nullable=False)
     mode: Mapped[str] = mapped_column(Enum(PipelineMode), nullable=False)
-    status: Mapped[str] = mapped_column(Enum(ProcessingStatus), nullable=False, server_default="pending")
-    progress: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    status: Mapped[str] = mapped_column(Enum(ProcessingStatus), nullable=False, server_default=text("'pending'"))
+    progress: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     currentStage: Mapped[str | None] = mapped_column(String(128), nullable=True)
     errorMessage: Mapped[str | None] = mapped_column(Text, nullable=True)
-    skipCache: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
+    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    claimedBy: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    skipCache: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     annotatedVideoUrl: Mapped[str | None] = mapped_column(Text, nullable=True)
     radarVideoUrl: Mapped[str | None] = mapped_column(Text, nullable=True)
     trackingDataUrl: Mapped[str | None] = mapped_column(Text, nullable=True)
