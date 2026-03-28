@@ -1,20 +1,29 @@
 import enum
 from datetime import datetime
+
 from sqlalchemy import (
-    Integer, String, Text, Float, Boolean, Enum, JSON,
-    TIMESTAMP, func, text,
+    JSON,
+    TIMESTAMP,
+    Boolean,
+    Enum,
+    Float,
+    Integer,
+    String,
+    Text,
+    func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     user = "user"
     admin = "admin"
 
 
-class PipelineMode(str, enum.Enum):
+class PipelineMode(enum.StrEnum):
     all = "all"
     radar = "radar"
     team = "team"
@@ -24,7 +33,7 @@ class PipelineMode(str, enum.Enum):
     pitch = "pitch"
 
 
-class ProcessingStatus(str, enum.Enum):
+class ProcessingStatus(enum.StrEnum):
     pending = "pending"
     uploading = "uploading"
     processing = "processing"
@@ -40,10 +49,18 @@ class User(Base):
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     loginMethod: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    role: Mapped[str] = mapped_column(Enum(UserRole, create_type=False), nullable=False, server_default=text("'user'"))
-    createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
-    updatedAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
-    lastSignedIn: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
+    role: Mapped[str] = mapped_column(
+        Enum(UserRole, create_type=False), nullable=False, server_default=text("'user'")
+    )
+    createdAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
+    updatedAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    lastSignedIn: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
 
 
 class Video(Base):
@@ -62,8 +79,12 @@ class Video(Base):
     frameCount: Mapped[int | None] = mapped_column(Integer, nullable=True)
     fileSize: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mimeType: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
-    updatedAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
+    createdAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
+    updatedAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Analysis(Base):
@@ -73,7 +94,9 @@ class Analysis(Base):
     videoId: Mapped[int] = mapped_column(Integer, nullable=False)
     userId: Mapped[int] = mapped_column(Integer, nullable=False)
     mode: Mapped[str] = mapped_column(Enum(PipelineMode, create_type=False), nullable=False)
-    status: Mapped[str] = mapped_column(Enum(ProcessingStatus, create_type=False), nullable=False, server_default=text("'pending'"))
+    status: Mapped[str] = mapped_column(
+        Enum(ProcessingStatus, create_type=False), nullable=False, server_default=text("'pending'")
+    )
     progress: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     currentStage: Mapped[str | None] = mapped_column(String(128), nullable=True)
     errorMessage: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -87,8 +110,12 @@ class Analysis(Base):
     startedAt: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
     completedAt: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
     processingTimeMs: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
-    updatedAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
+    createdAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
+    updatedAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Event(Base):
@@ -109,7 +136,9 @@ class Event(Base):
     success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     event_metadata: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
-    createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
+    createdAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
 
 
 class Track(Base):
@@ -123,7 +152,9 @@ class Track(Base):
     ballPosition: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     teamFormations: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     voronoiData: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
+    createdAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
 
 
 class Statistic(Base):
@@ -156,8 +187,12 @@ class Statistic(Base):
     passNetworkTeam2: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     teamColorTeam1: Mapped[str | None] = mapped_column(String(7), nullable=True)
     teamColorTeam2: Mapped[str | None] = mapped_column(String(7), nullable=True)
-    createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
-    updatedAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
+    createdAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
+    updatedAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Commentary(Base):
@@ -172,4 +207,6 @@ class Commentary(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     groundingData: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    createdAt: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False, server_default=func.now())
+    createdAt: Mapped[datetime] = mapped_column(
+        TIMESTAMP, nullable=False, server_default=func.now()
+    )
