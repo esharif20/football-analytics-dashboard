@@ -1,17 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.2
-milestone_name: Codebase Hardening & Supabase Migration
-current_phase: 4
-status: planning
-stopped_at: null
-last_updated: "2026-03-28T00:00:00.000Z"
+milestone: v0.1
+milestone_name: Objectives
+status: executing
+last_updated: "2026-03-28T11:26:57.419Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Session State
@@ -21,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Analysts can upload a match video and get automated tactical analytics without manual annotation.
-**Current focus:** Defining requirements for v0.2
+**Current focus:** Phase 04 — manus-dependency-removal
 
 ## Current Position
 
-Phase: 4 -- Manus Dependency Removal
-Plan: --
-Status: Ready to plan
-Last activity: 2026-03-28 -- Roadmap created (4 phases, 19 requirements)
+Phase: 04 (manus-dependency-removal) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-03-28
 
 ## Accumulated Context
 
@@ -46,6 +44,7 @@ Last activity: 2026-03-28 -- Roadmap created (4 phases, 19 requirements)
 
 - Supabase over Docker MySQL (user confirmed)
 - Env vars for ML model URLs (user confirmed)
+- [Phase 04]: SVG placeholders for hero images instead of raster; localStorage key renamed to football-dashboard-user
 
 ## Performance Metrics
 
@@ -55,3 +54,4 @@ Last activity: 2026-03-28 -- Roadmap created (4 phases, 19 requirements)
 | (v0.1) Phase 02 P01 | 5m | 3 tasks | 0 files |
 | (v0.1) Phase 01 P02 | 4m | 3 tasks | 7 files |
 | (v0.1) Phase 01 P01 | 3m | 3 tasks | 4 files |
+| Phase 04 P02 | 3m | 2 tasks | 7 files |
