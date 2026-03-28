@@ -39,9 +39,9 @@ Analysts can upload a match video and get automated tactical analytics (possessi
 - [x] Remove all Manus platform dependencies (Validated in Phase 4)
 - [x] Migrate to Supabase PostgreSQL (Validated in Phase 5)
 - [x] Add Alembic migration framework (Validated in Phase 5)
-- [ ] Decompose Analysis.tsx into sub-components
-- [ ] Remove dead code and unused dependencies
-- [-] Security hardening (JWT, CORS, env vars) — CORS config done in Phase 4, JWT/env hardening in Phase 6
+- [x] Decompose Analysis.tsx into sub-components (Validated in Phase 6)
+- [x] Remove dead code and unused dependencies (Validated in Phase 6)
+- [x] Security hardening (JWT, CORS, env vars) — CORS config done in Phase 4, JWT/env hardening in Phase 6
 - [ ] Backend unit tests
 - [ ] Frontend unit tests
 - [ ] Linting setup (ruff + ESLint/Prettier)
@@ -98,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after Phase 5 (Supabase Migration & Alembic) complete*
+*Last updated: 2026-03-28 after Phase 6 (Frontend Decomposition & Code Quality) complete*
