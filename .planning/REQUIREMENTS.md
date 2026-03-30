@@ -38,15 +38,38 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 - [x] **TEST-02**: Frontend vitest suite covers key components and hooks
 - [x] **TEST-03**: CI pipeline includes backend lint + test job alongside frontend
 
+## v0.3 Requirements
+
+### Database Redesign & Time-Series Tracks
+
+- **DB-R01**: Supabase migration files define all 7 tables with foreign key constraints (ON DELETE CASCADE) and replace the current ad-hoc SQLAlchemy schema
+- **DB-R02**: Performance indexes added on analysisId (events, tracks, statistics, commentary tables), videoId (analyses), userId (videos, analyses)
+- **DB-R03**: RLS (Row Level Security) enabled on users, videos, analyses tables with permissive policies (USING true) — infrastructure in place for strict row-ownership policies once Supabase Auth JWT integration is added (deferred to future milestone)
+- **DB-R04**: SQLAlchemy models in backend/api/models.py updated to match migrated schema with explicit ForeignKey declarations
+- **DB-R05**: Per-frame tracking data exported by pipeline and posted to the tracks table after each successful analysis (750 rows max per analysis, downsampled for long videos)
+- **DB-R06**: Worker-authenticated POST /api/worker/tracks/{analysis_id} endpoint accepts batched track frames and inserts into tracks table
+- **DB-R07**: GET /api/tracks/{analysis_id} supports pagination (offset, limit, frame_start, frame_end query params)
+
+### Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| DB-R01 | Phase 8 | Complete |
+| DB-R02 | Phase 8 | Complete |
+| DB-R03 | Phase 8 | Complete |
+| DB-R04 | Phase 8 | Complete |
+| DB-R05 | Phase 8 | pending |
+| DB-R06 | Phase 8 | pending |
+| DB-R07 | Phase 8 | pending |
+
 ## Future Requirements
 
 Deferred to subsequent milestones. Tracked but not in current roadmap.
 
 ### Database Enhancements
 
-- **DB-F01**: ForeignKey declarations added to all models for referential integrity
-- **DB-F02**: TIMESTAMP columns upgraded to timezone-aware (TIMESTAMP WITH TIME ZONE)
-- **DB-F03**: Native PostgreSQL enums vs VARCHAR+CHECK evaluation
+- **DB-F01**: TIMESTAMP columns upgraded to timezone-aware (TIMESTAMP WITH TIME ZONE)
+- **DB-F02**: Native PostgreSQL enums vs VARCHAR+CHECK evaluation
 
 ### Deployment
 
