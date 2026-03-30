@@ -1,7 +1,7 @@
 ---
-milestone: v0.2
+milestone: v0.3
 status: active
-version: 1.0
+version: 1.1
 ---
 
 # Roadmap
@@ -20,10 +20,11 @@ Remove all Manus platform dependencies, migrate from Docker MySQL to Supabase Po
 
 | Phase | Name | Goal | Requirements | Status |
 |-------|------|------|--------------|--------|
-| 4 | Manus Dependency Removal | Application runs with zero references to the Manus platform | MANUS-01, MANUS-02, MANUS-03, MANUS-04, DB-05 | pending |
-| 5 | Supabase Migration & Alembic | 1/2 | In Progress|  |
-| 6 | Frontend Decomposition & Code Quality | Codebase follows maintainable patterns with security guardrails | QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05 | pending |
-| 7 | Testing, Linting & CI | 4/4 | Complete   | 2026-03-28 |
+| 4 | Manus Dependency Removal | Application runs with zero references to the Manus platform | MANUS-01, MANUS-02, MANUS-03, MANUS-04, DB-05 | complete |
+| 5 | Supabase Migration & Alembic | Data persists to Supabase PostgreSQL with managed schema migrations | DB-01, DB-02, DB-03, DB-04 | complete |
+| 6 | Frontend Decomposition & Code Quality | Codebase follows maintainable patterns with security guardrails | QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05 | complete |
+| 7 | Testing, Linting & CI | Every code change validated by automated tests, linting, and CI | TEST-01, TEST-02, TEST-03, QUAL-06, QUAL-07 | complete |
+| 8 | Database Redesign & Time-Series Tracks | Schema has referential integrity, proper indexes, RLS, and per-frame tracking data populates the tracks table | DB-R01, DB-R02, DB-R03, DB-R04, DB-R05, DB-R06, DB-R07 | pending |
 
 ## Phase Details
 
@@ -79,3 +80,23 @@ Plans:
 3. `ruff check backend/` passes with zero violations on the configured ruleset
 4. `eslint frontend/src/` and `prettier --check frontend/src/` pass with zero violations
 5. CI pipeline runs backend lint + test job and blocks merge on failure
+
+### Phase 8: Database Redesign & Time-Series Tracks
+
+**Goal:** Schema has referential integrity, proper indexes, RLS, and per-frame tracking data populates the tracks table
+**Requirements:** DB-R01, DB-R02, DB-R03, DB-R04, DB-R05, DB-R06, DB-R07
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Supabase migration SQL (FK constraints, indexes, RLS) + SQLAlchemy ForeignKey declarations
+- [ ] 08-02-PLAN.md — Pipeline export_tracks_json() function + call in all.py
+- [ ] 08-03-PLAN.md — Worker POST /tracks endpoint + paginated GET /tracks + pipeline worker batched upload
+
+**Success Criteria:**
+1. All 7 application tables have foreign key constraints with ON DELETE CASCADE
+2. Indexes exist on analysisId (events, tracks, statistics, commentary), videoId (analyses), userId (videos, analyses)
+3. Running `supabase db reset` applies all migrations cleanly on a fresh DB
+4. After a completed RunPod analysis, SELECT COUNT(*) FROM tracks WHERE analysis_id = {id} returns > 0
+5. RLS policies exist: authenticated users can only SELECT/INSERT/UPDATE/DELETE their own rows in users, videos, analyses
+6. SQLAlchemy models in backend/api/models.py match the migrated schema exactly
+7. Backend API continues to pass all existing pytest tests after schema changes
