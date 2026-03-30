@@ -39,7 +39,7 @@ from pitch import (
     draw_voronoi_on_frame,
 )
 from pitch.annotators import render_radar_overlay
-from analytics import AnalyticsEngine, print_analytics_summary, export_analytics_json
+from analytics import AnalyticsEngine, print_analytics_summary, export_analytics_json, export_tracks_json
 from analytics.kinematics import KinematicsCalculator
 from trackers.annotator import TrackAnnotator
 # Import Mode from __init__ (same directory)
@@ -731,3 +731,5 @@ def run(
         output_subdir.mkdir(parents=True, exist_ok=True)
         analytics_json_path = output_subdir / f"{video_name}_analytics.json"
         export_analytics_json(result, str(analytics_json_path))
+        tracks_json_path = output_subdir / f"{video_name}_tracks.json"
+        export_tracks_json(tracks, result, str(tracks_json_path))
