@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..deps import get_db, get_current_user
-from ..models import User, Analysis, Track
+from ..deps import get_current_user, get_db
+from ..models import Analysis, Track, User
 from ..schemas import TracksCreate, _row_to_dict
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
@@ -18,16 +18,33 @@ async def _verify_analysis_owner(analysis_id: int, user: User, db: AsyncSession)
 
 
 @router.get("/{analysis_id}")
-async def list_tracks(analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def list_tracks(
+    analysis_id: int,
+    offset: int = 0,
+    limit: int = 200,
+    frame_start: int | None = None,
+    frame_end: int | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     await _verify_analysis_owner(analysis_id, user, db)
-    result = await db.execute(
-        select(Track).where(Track.analysisId == analysis_id).order_by(Track.frameNumber)
-    )
+    query = select(Track).where(Track.analysisId == analysis_id)
+    if frame_start is not None:
+        query = query.where(Track.frameNumber >= frame_start)
+    if frame_end is not None:
+        query = query.where(Track.frameNumber <= frame_end)
+    query = query.order_by(Track.frameNumber).offset(offset).limit(min(limit, 500))
+    result = await db.execute(query)
     return [_row_to_dict(r) for r in result.scalars().all()]
 
 
 @router.get("/{analysis_id}/frame/{frame_number}")
-async def get_at_frame(analysis_id: int, frame_number: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_at_frame(
+    analysis_id: int,
+    frame_number: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     await _verify_analysis_owner(analysis_id, user, db)
     result = await db.execute(
         select(Track)
@@ -41,7 +58,9 @@ async def get_at_frame(analysis_id: int, frame_number: int, user: User = Depends
 
 
 @router.post("")
-async def create_tracks(body: TracksCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def create_tracks(
+    body: TracksCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     await _verify_analysis_owner(body.analysisId, user, db)
 
     batch_size = 100

@@ -2,18 +2,18 @@ import base64
 import json
 import logging
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..deps import get_db
-from ..models import Analysis, Video, Statistic, Event
-from ..schemas import WorkerStatusUpdate, WorkerCompleteRequest, WorkerUploadVideo, _row_to_dict
-from ..storage import storage_put, reencode_to_h264
-from ..ws import broadcast_progress, broadcast_complete, broadcast_error
+from ..models import Analysis, Event, Statistic, Track, Video
+from ..schemas import WorkerCompleteRequest, WorkerStatusUpdate, WorkerTracksCreate, WorkerUploadVideo
+from ..storage import reencode_to_h264, storage_put
+from ..ws import broadcast_complete, broadcast_error, broadcast_progress
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/worker", tags=["worker"])
@@ -36,7 +36,7 @@ async def verify_worker_key(x_worker_key: str = Header("")):
 @router.get("/pending")
 async def get_pending(db: AsyncSession = Depends(get_db), _auth: str = Depends(verify_worker_key)):
     """Atomically claim one pending or stale analysis for a worker."""
-    stale_before = datetime.now(timezone.utc).replace(tzinfo=None) - PROCESSING_LEASE_TIMEOUT
+    stale_before = datetime.now(UTC).replace(tzinfo=None) - PROCESSING_LEASE_TIMEOUT
     result = await db.execute(
         select(Analysis, Video.originalUrl)
         .join(Video, Analysis.videoId == Video.id)
@@ -59,29 +59,48 @@ async def get_pending(db: AsyncSession = Depends(get_db), _auth: str = Depends(v
         analysis.errorMessage = None
         analysis.completedAt = None
         analysis.claimedBy = _auth or ""
-        analysis.startedAt = datetime.now(timezone.utc).replace(tzinfo=None)
-        analyses.append({
-            "id": analysis.id,
-            "videoId": analysis.videoId,
-            "videoUrl": video_url,
-            "mode": analysis.mode,
-            "skipCache": analysis.skipCache,
-            "modelConfig": analysis.config or {},
-        })
+        analysis.startedAt = datetime.now(UTC).replace(tzinfo=None)
+        analyses.append(
+            {
+                "id": analysis.id,
+                "videoId": analysis.videoId,
+                "videoUrl": video_url,
+                "mode": analysis.mode,
+                "skipCache": analysis.skipCache,
+                "modelConfig": analysis.config or {},
+            }
+        )
     if rows:
         await db.commit()
     return {"analyses": analyses}
 
 
 @router.post("/analysis/{analysis_id}/status")
-async def update_worker_status(analysis_id: int, body: WorkerStatusUpdate, db: AsyncSession = Depends(get_db), _auth: str = Depends(verify_worker_key)):
+async def update_worker_status(
+    analysis_id: int,
+    body: WorkerStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    _auth: str = Depends(verify_worker_key),
+):
     """Worker sends progress updates during processing."""
     allowed_status = {"pending", "processing", "completed", "failed", "uploading", "downloading"}
     if body.status not in allowed_status:
         raise HTTPException(status_code=400, detail="Invalid status")
     if body.progress < 0 or body.progress > 100:
         raise HTTPException(status_code=400, detail="Progress must be 0-100")
-    allowed_stages = {"upload", "load", "detect", "track", "team", "pitch", "analytics", "render", "queued", "downloading", "processing"}
+    allowed_stages = {
+        "upload",
+        "load",
+        "detect",
+        "track",
+        "team",
+        "pitch",
+        "analytics",
+        "render",
+        "queued",
+        "downloading",
+        "processing",
+    }
     if body.currentStage and body.currentStage not in allowed_stages:
         raise HTTPException(status_code=400, detail="Invalid currentStage")
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
@@ -99,9 +118,9 @@ async def update_worker_status(analysis_id: int, body: WorkerStatusUpdate, db: A
     if body.error:
         analysis.errorMessage = body.error
     if body.status == "processing" and body.progress == 0:
-        analysis.startedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        analysis.startedAt = datetime.now(UTC).replace(tzinfo=None)
     if body.status in ("completed", "failed"):
-        analysis.completedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        analysis.completedAt = datetime.now(UTC).replace(tzinfo=None)
 
     await db.commit()
 
@@ -109,7 +128,9 @@ async def update_worker_status(analysis_id: int, body: WorkerStatusUpdate, db: A
     if body.status == "failed" and body.error:
         await broadcast_error(analysis_id, body.error)
     else:
-        await broadcast_progress(analysis_id, body.status, body.progress, body.currentStage, body.eta)
+        await broadcast_progress(
+            analysis_id, body.status, body.progress, body.currentStage, body.eta
+        )
 
     return {"success": True}
 
@@ -131,7 +152,8 @@ def _strip_analytics_for_storage(analytics: dict) -> dict:
             for pid, pdata in val.items():
                 if isinstance(pdata, dict):
                     stripped[pid] = {
-                        k: v for k, v in pdata.items()
+                        k: v
+                        for k, v in pdata.items()
                         if k not in ("speeds_px_per_frame", "speeds_m_per_sec")
                     }
                 else:
@@ -139,8 +161,7 @@ def _strip_analytics_for_storage(analytics: dict) -> dict:
             out[key] = stripped
         elif key == "ball_kinematics" and isinstance(val, dict):
             out[key] = {
-                k: v for k, v in val.items()
-                if k not in ("speeds_px_per_frame", "speeds_m_per_sec")
+                k: v for k, v in val.items() if k not in ("speeds_px_per_frame", "speeds_m_per_sec")
             }
         elif key == "ball_path" and isinstance(val, dict):
             # Keep summary + downsampled pitch_positions, drop pixel positions
@@ -158,7 +179,8 @@ def _strip_analytics_for_storage(analytics: dict) -> dict:
             # Keep event summary only — full events are stored in the events table
             out[key] = [
                 {k: v for k, v in e.items() if k not in ("pitch_start", "pitch_end")}
-                for e in val if isinstance(e, dict)
+                for e in val
+                if isinstance(e, dict)
             ]
         else:
             out[key] = val
@@ -166,7 +188,12 @@ def _strip_analytics_for_storage(analytics: dict) -> dict:
 
 
 @router.post("/analysis/{analysis_id}/complete")
-async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: AsyncSession = Depends(get_db), _auth: str = Depends(verify_worker_key)):
+async def complete_analysis(
+    analysis_id: int,
+    body: WorkerCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+    _auth: str = Depends(verify_worker_key),
+):
     """Worker submits final results."""
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
     analysis = result.scalar_one_or_none()
@@ -181,7 +208,7 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
         analysis.currentStage = "done"
         analysis.progress = 100
         analysis.errorMessage = body.error or "Worker reported failure"
-        analysis.completedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        analysis.completedAt = datetime.now(UTC).replace(tzinfo=None)
         await db.commit()
         await broadcast_error(analysis_id, analysis.errorMessage)
         return {"success": False, "error": analysis.errorMessage}
@@ -213,7 +240,7 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
     analysis.status = "completed"
     analysis.progress = 100
     analysis.currentStage = "done"
-    analysis.completedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+    analysis.completedAt = datetime.now(UTC).replace(tzinfo=None)
 
     # Delete any existing statistics for this analysis (re-run case)
     existing_stats = await db.execute(select(Statistic).where(Statistic.analysisId == analysis_id))
@@ -278,10 +305,26 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
 
         # Count passes and shots per team from detected events
         events_list = a.get("events", [])
-        passes_t1 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "pass" and e.get("team_id") == 0)
-        passes_t2 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "pass" and e.get("team_id") == 1)
-        shots_t1 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "shot" and e.get("team_id") == 0)
-        shots_t2 = sum(1 for e in events_list if isinstance(e, dict) and e.get("event_type") == "shot" and e.get("team_id") == 1)
+        passes_t1 = sum(
+            1
+            for e in events_list
+            if isinstance(e, dict) and e.get("event_type") == "pass" and e.get("team_id") == 0
+        )
+        passes_t2 = sum(
+            1
+            for e in events_list
+            if isinstance(e, dict) and e.get("event_type") == "pass" and e.get("team_id") == 1
+        )
+        shots_t1 = sum(
+            1
+            for e in events_list
+            if isinstance(e, dict) and e.get("event_type") == "shot" and e.get("team_id") == 0
+        )
+        shots_t2 = sum(
+            1
+            for e in events_list
+            if isinstance(e, dict) and e.get("event_type") == "shot" and e.get("team_id") == 1
+        )
 
         stat = Statistic(
             analysisId=analysis_id,
@@ -298,9 +341,15 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
             maxSpeedTeam1=_max_to_kmh(team_max_speeds[0]),
             maxSpeedTeam2=_max_to_kmh(team_max_speeds[1]),
             possessionChanges=poss.get("possession_changes"),
-            ballDistance=round(float(ball_distance_m) / 1000, 2) if ball_distance_m is not None else None,
-            ballAvgSpeed=round(bk.get("avg_speed_m_per_sec", 0) * 3.6, 1) if bk.get("avg_speed_m_per_sec") else None,
-            ballMaxSpeed=round(bk.get("max_speed_m_per_sec", 0) * 3.6, 1) if bk.get("max_speed_m_per_sec") else None,
+            ballDistance=round(float(ball_distance_m) / 1000, 2)
+            if ball_distance_m is not None
+            else None,
+            ballAvgSpeed=round(bk.get("avg_speed_m_per_sec", 0) * 3.6, 1)
+            if bk.get("avg_speed_m_per_sec")
+            else None,
+            ballMaxSpeed=round(bk.get("max_speed_m_per_sec", 0) * 3.6, 1)
+            if bk.get("max_speed_m_per_sec")
+            else None,
             directionChanges=bp.get("direction_changes"),
             passNetworkTeam1=a.get("interaction_graph_team1"),
             passNetworkTeam2=a.get("interaction_graph_team2"),
@@ -308,11 +357,13 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
 
         # Extract team jersey colors (BGR→hex)
         tc = a.get("team_colors", {})
+
         def _bgr_to_hex(bgr):
             if not bgr or len(bgr) != 3:
                 return None
             b, g, r = int(bgr[0]), int(bgr[1]), int(bgr[2])
             return f"#{r:02X}{g:02X}{b:02X}"
+
         stat.teamColorTeam1 = _bgr_to_hex(tc.get("0") or tc.get(0))
         stat.teamColorTeam2 = _bgr_to_hex(tc.get("1") or tc.get(1))
         db.add(stat)
@@ -327,21 +378,27 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
             for ev in events_list:
                 if not isinstance(ev, dict):
                     continue
-                db.add(Event(
-                    analysisId=analysis_id,
-                    type=ev.get("event_type", "unknown"),
-                    frameNumber=ev.get("frame_idx", 0),
-                    timestamp=ev.get("timestamp_sec", 0.0),
-                    playerId=ev.get("player_track_id"),
-                    teamId=ev.get("team_id"),
-                    targetPlayerId=ev.get("target_player_track_id"),
-                    startX=ev.get("pitch_start", [None, None])[0] if ev.get("pitch_start") else None,
-                    startY=ev.get("pitch_start", [None, None])[1] if ev.get("pitch_start") else None,
-                    endX=ev.get("pitch_end", [None, None])[0] if ev.get("pitch_end") else None,
-                    endY=ev.get("pitch_end", [None, None])[1] if ev.get("pitch_end") else None,
-                    success=ev.get("success"),
-                    confidence=ev.get("confidence"),
-                ))
+                db.add(
+                    Event(
+                        analysisId=analysis_id,
+                        type=ev.get("event_type", "unknown"),
+                        frameNumber=ev.get("frame_idx", 0),
+                        timestamp=ev.get("timestamp_sec", 0.0),
+                        playerId=ev.get("player_track_id"),
+                        teamId=ev.get("team_id"),
+                        targetPlayerId=ev.get("target_player_track_id"),
+                        startX=ev.get("pitch_start", [None, None])[0]
+                        if ev.get("pitch_start")
+                        else None,
+                        startY=ev.get("pitch_start", [None, None])[1]
+                        if ev.get("pitch_start")
+                        else None,
+                        endX=ev.get("pitch_end", [None, None])[0] if ev.get("pitch_end") else None,
+                        endY=ev.get("pitch_end", [None, None])[1] if ev.get("pitch_end") else None,
+                        success=ev.get("success"),
+                        confidence=ev.get("confidence"),
+                    )
+                )
 
     try:
         await db.commit()
@@ -358,7 +415,11 @@ async def complete_analysis(analysis_id: int, body: WorkerCompleteRequest, db: A
 
 
 @router.post("/upload-video")
-async def upload_video(body: WorkerUploadVideo, db: AsyncSession = Depends(get_db), _auth: str = Depends(verify_worker_key)):
+async def upload_video(
+    body: WorkerUploadVideo,
+    db: AsyncSession = Depends(get_db),
+    _auth: str = Depends(verify_worker_key),
+):
     """Worker uploads processed video files (base64 encoded)."""
     video_bytes = base64.b64decode(body.videoData)
     if len(video_bytes) > 200 * 1024 * 1024:
@@ -380,3 +441,48 @@ async def upload_video(body: WorkerUploadVideo, db: AsyncSession = Depends(get_d
         reencode_to_h264(result["path"])
 
     return {"success": True, "url": result["url"]}
+
+
+@router.post("/tracks/{analysis_id}")
+async def post_tracks(
+    analysis_id: int,
+    body: WorkerTracksCreate,
+    db: AsyncSession = Depends(get_db),
+    _auth: str = Depends(verify_worker_key),
+):
+    """Worker posts batched per-frame tracking data to the tracks table.
+
+    Called after analysis completion. Body contains up to 100 frames per request.
+    Worker batches total frames into 100-frame chunks and calls this endpoint once per chunk.
+    Existing tracks for this analysis_id are deleted on the first call (frame 0 present),
+    then rows are appended for subsequent batches.
+    """
+    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
+    analysis = result.scalar_one_or_none()
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    for frame in body.frames:
+        db.add(
+            Track(
+                analysisId=analysis_id,
+                frameNumber=frame.frameNumber,
+                timestamp=frame.timestamp,
+                ballPosition=frame.ballPosition,
+                playerPositions=frame.playerPositions,
+                # Store possessionTeamId in teamFormations JSON to avoid schema change
+                teamFormations={"possessionTeamId": frame.possessionTeamId}
+                if frame.possessionTeamId is not None
+                else None,
+                voronoiData=None,
+            )
+        )
+
+    try:
+        await db.commit()
+    except Exception as e:
+        logger.error("Failed to insert tracks batch for analysis %s: %s", analysis_id, e)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)[:200]}")
+
+    return {"success": True, "inserted": len(body.frames)}
