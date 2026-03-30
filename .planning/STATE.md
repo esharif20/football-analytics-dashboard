@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Objectives
-status: verifying
-last_updated: "2026-03-28T15:12:53.442Z"
-last_activity: 2026-03-28
+status: executing
+last_updated: "2026-03-30T10:11:09.101Z"
+last_activity: 2026-03-30
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 7
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 18
+  completed_plans: 16
 ---
 
 # Session State
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Analysts can upload a match video and get automated tactical analytics without manual annotation.
-**Current focus:** Phase 07 — testing-linting-ci
+**Current focus:** Phase 08 — database-redesign-time-series-tracks
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-28
+Phase: 08 (database-redesign-time-series-tracks) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-03-30
 
 ## Accumulated Context
 
@@ -57,6 +57,8 @@ Last activity: 2026-03-28
 - [Phase 07-02]: PitchVisualizations.tsx rules-of-hooks violation auto-fixed: moved useMemo before early return
 - [Phase 07-testing-linting-ci]: DATABASE_URL set to postgresql+asyncpg://skip:skip@skip/skip in CI — config.py validates at import time but dependency_overrides prevent actual connection
 - [Phase 07-04]: Assert 500 acceptable for upload test: storage_put fails without disk in CI; 401/422 are the true failure signals
+- [Phase 08]: Permissive RLS (USING true) rather than strict: auto-login flow has no JWT; strict RLS deferred until Supabase Auth JWT integration
+- [Phase 08]: Commentary.eventId uses ON DELETE SET NULL so commentary survives event deletion
 
 ## Performance Metrics
 
@@ -76,3 +78,4 @@ Last activity: 2026-03-28
 | Phase 07 P07-02 | 7m | 2 tasks | 8 files |
 | Phase 07-testing-linting-ci P07-03 | 3m | 1 tasks | 1 files |
 | Phase 07-testing-linting-ci P07-04 | 2m | 1 tasks | 1 files |
+| Phase 08-database-redesign-time-series-tracks P01 | 5 | 2 tasks | 2 files |
