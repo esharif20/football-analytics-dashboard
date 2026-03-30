@@ -24,7 +24,7 @@ Remove all Manus platform dependencies, migrate from Docker MySQL to Supabase Po
 | 5 | Supabase Migration & Alembic | Data persists to Supabase PostgreSQL with managed schema migrations | DB-01, DB-02, DB-03, DB-04 | complete |
 | 6 | Frontend Decomposition & Code Quality | Codebase follows maintainable patterns with security guardrails | QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05 | complete |
 | 7 | Testing, Linting & CI | Every code change validated by automated tests, linting, and CI | TEST-01, TEST-02, TEST-03, QUAL-06, QUAL-07 | complete |
-| 8 | Database Redesign & Time-Series Tracks | 1/3 | In Progress|  |
+| 8 | Database Redesign & Time-Series Tracks | 3/3 | Complete   | 2026-03-30 |
 
 ## Phase Details
 
@@ -85,12 +85,12 @@ Plans:
 
 **Goal:** Schema has referential integrity, proper indexes, RLS, and per-frame tracking data populates the tracks table
 **Requirements:** DB-R01, DB-R02, DB-R03, DB-R04, DB-R05, DB-R06, DB-R07
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 08-01-PLAN.md — Supabase migration SQL (FK constraints, indexes, RLS) + SQLAlchemy ForeignKey declarations
-- [ ] 08-02-PLAN.md — Pipeline export_tracks_json() function + call in all.py
-- [ ] 08-03-PLAN.md — Worker POST /tracks endpoint + paginated GET /tracks + pipeline worker batched upload
+- [x] 08-02-PLAN.md — Pipeline export_tracks_json() function + call in all.py
+- [x] 08-03-PLAN.md — Worker POST /tracks endpoint + paginated GET /tracks + pipeline worker batched upload
 
 **Success Criteria:**
 1. All 7 application tables have foreign key constraints with ON DELETE CASCADE

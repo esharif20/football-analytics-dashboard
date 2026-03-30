@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Objectives
-status: executing
-last_updated: "2026-03-30T10:11:09.101Z"
+status: verifying
+last_updated: "2026-03-30T10:17:32.017Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 18
-  completed_plans: 16
+  completed_plans: 18
 ---
 
 # Session State
@@ -24,8 +24,8 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 08 (database-redesign-time-series-tracks) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute
+Plan: 3 of 3
+Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
 ## Accumulated Context
@@ -59,6 +59,8 @@ Last activity: 2026-03-30
 - [Phase 07-04]: Assert 500 acceptable for upload test: storage_put fails without disk in CI; 401/422 are the true failure signals
 - [Phase 08]: Permissive RLS (USING true) rather than strict: auto-login flow has no JWT; strict RLS deferred until Supabase Auth JWT integration
 - [Phase 08]: Commentary.eventId uses ON DELETE SET NULL so commentary survives event deletion
+- [Phase 08-02]: Use bbox bottom-center (y2) as player position — more stable foot contact point
+- [Phase 08-02]: Frame count capped at 750 via uniform stride; goalkeepers included in playerPositions with isGoalkeeper flag
 
 ## Performance Metrics
 
@@ -79,3 +81,5 @@ Last activity: 2026-03-30
 | Phase 07-testing-linting-ci P07-03 | 3m | 1 tasks | 1 files |
 | Phase 07-testing-linting-ci P07-04 | 2m | 1 tasks | 1 files |
 | Phase 08-database-redesign-time-series-tracks P01 | 5 | 2 tasks | 2 files |
+| Phase 08-database-redesign-time-series-tracks P02 | 4 | 2 tasks | 2 files |
+| Phase 08 P03 | 205 | 2 tasks | 4 files |
