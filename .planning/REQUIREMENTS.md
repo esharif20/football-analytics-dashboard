@@ -59,8 +59,8 @@ Requirements for codebase hardening and Supabase migration. Each maps to roadmap
 | DB-R03 | Phase 8 | Complete |
 | DB-R04 | Phase 8 | Complete |
 | DB-R05 | Phase 8 | Complete |
-| DB-R06 | Phase 8 | pending |
-| DB-R07 | Phase 8 | pending |
+| DB-R06 | Phase 8 | Complete |
+| DB-R07 | Phase 8 | Complete |
 
 ## Future Requirements
 

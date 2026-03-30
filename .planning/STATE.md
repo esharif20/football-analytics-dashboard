@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Objectives
 status: verifying
-last_updated: "2026-03-30T10:17:32.017Z"
+last_updated: "2026-03-30T10:17:41.919Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 8
@@ -61,6 +61,8 @@ Last activity: 2026-03-30
 - [Phase 08]: Commentary.eventId uses ON DELETE SET NULL so commentary survives event deletion
 - [Phase 08-02]: Use bbox bottom-center (y2) as player position — more stable foot contact point
 - [Phase 08-02]: Frame count capped at 750 via uniform stride; goalkeepers included in playerPositions with isGoalkeeper flag
+- [Phase 08]: possessionTeamId stored in teamFormations JSON to avoid schema change
+- [Phase 08]: Failed track uploads log a warning but do not block analysis completion
 
 ## Performance Metrics
 
