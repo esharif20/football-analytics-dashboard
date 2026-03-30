@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 import dataclasses
 import enum
 import json
 from datetime import datetime
 from typing import Any
+
 from pydantic import BaseModel
 
-
 # ==================== Shared helpers ====================
+
 
 def _dt(v: datetime | None) -> str | None:
     return v.isoformat() if v else None
@@ -53,6 +55,7 @@ def _serialize_user(user: Any) -> dict:
 
 # ==================== Auth ====================
 
+
 class UserOut(BaseModel):
     id: int
     openId: str
@@ -67,6 +70,7 @@ class UserOut(BaseModel):
 
 # ==================== Videos ====================
 
+
 class VideoUploadBase64(BaseModel):
     title: str
     description: str | None = None
@@ -77,6 +81,7 @@ class VideoUploadBase64(BaseModel):
 
 
 # ==================== Analyses ====================
+
 
 class AnalysisCreate(BaseModel):
     videoId: int
@@ -103,6 +108,7 @@ class AnalysisResultsUpdate(BaseModel):
 
 # ==================== Events ====================
 
+
 class EventItem(BaseModel):
     type: str
     frameNumber: int
@@ -126,6 +132,7 @@ class EventsCreate(BaseModel):
 
 # ==================== Tracks ====================
 
+
 class TrackItem(BaseModel):
     frameNumber: int
     timestamp: float
@@ -141,6 +148,7 @@ class TracksCreate(BaseModel):
 
 
 # ==================== Statistics ====================
+
 
 class StatisticsCreate(BaseModel):
     analysisId: int
@@ -173,12 +181,14 @@ class StatisticsCreate(BaseModel):
 
 # ==================== Commentary ====================
 
+
 class CommentaryGenerate(BaseModel):
     type: str
     context: dict[str, Any] = {}
 
 
 # ==================== Worker ====================
+
 
 class WorkerStatusUpdate(BaseModel):
     status: str
@@ -202,3 +212,15 @@ class WorkerUploadVideo(BaseModel):
     fileName: str
     contentType: str = "video/mp4"
     analysisId: int | None = None
+
+
+class WorkerTrackFrame(BaseModel):
+    frameNumber: int
+    timestamp: float
+    ballPosition: Any | None = None
+    playerPositions: Any | None = None
+    possessionTeamId: int | None = None
+
+
+class WorkerTracksCreate(BaseModel):
+    frames: list[WorkerTrackFrame]
