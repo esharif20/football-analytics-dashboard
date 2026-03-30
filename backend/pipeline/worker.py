@@ -221,6 +221,52 @@ def save_to_cache(cache_key: str, results: Dict):
     log(f"Saved results to cache: {cache_key}")
 
 
+def post_tracks_to_api(analysis_id: int, tracks_file_path: str) -> bool:
+    """Read per-frame tracks JSON and POST to API in batches of 100 frames.
+
+    Args:
+        analysis_id: Analysis ID as int. Pass int(analysis_id) at call site since JSON
+            deserialization may return int but explicit cast ensures type safety.
+        tracks_file_path: Absolute path to {video_name}_tracks.json.
+
+    Returns:
+        True if all batches succeeded, False on first error.
+    """
+    try:
+        with open(tracks_file_path, "r") as f:
+            frames = json.load(f)
+    except Exception as e:
+        log(f"Could not read tracks file {tracks_file_path}: {e}", "ERROR")
+        return False
+
+    if not frames:
+        log("Tracks file is empty — skipping track upload", "WARN")
+        return True
+
+    BATCH_SIZE = 100
+    total = len(frames)
+    batches_sent = 0
+
+    for batch_start in range(0, total, BATCH_SIZE):
+        batch = frames[batch_start : batch_start + BATCH_SIZE]
+        payload = {"frames": batch}
+        resp = api_request(f"/worker/tracks/{analysis_id}", "POST", payload)
+        if not resp or not resp.get("success"):
+            log(
+                f"Failed to post tracks batch {batch_start}-{batch_start+len(batch)-1}: {resp}",
+                "ERROR",
+            )
+            return False
+        batches_sent += 1
+        log(
+            f"Tracks batch {batches_sent}: posted frames {batch_start}-{batch_start+len(batch)-1} "
+            f"({len(batch)} rows, {batch_start+len(batch)}/{total} total)"
+        )
+
+    log(f"Tracks upload complete: {total} frames in {batches_sent} batches")
+    return True
+
+
 def download_video(video_url: str, video_id: str) -> Optional[Path]:
     """Download video from URL to local input directory."""
     output_path = INPUT_DIR / f"{video_id}.mp4"
@@ -415,11 +461,21 @@ def run_pipeline(video_path: Path, analysis_id: str, mode: str, model_config: Di
     # Pipeline writes analytics to src/output_videos/{name}/{name}_analytics.json
     pipeline_output_dir = Path(__file__).parent / "src" / "output_videos"
     analytics_file = pipeline_output_dir / video_name / f"{video_name}_analytics.json"
-    
+    tracks_json_file = pipeline_output_dir / video_name / f"{video_name}_tracks.json"
+
     if analytics_file.exists():
         with open(analytics_file, "r") as f:
             results["analytics"] = json.load(f)
-    
+
+    # Post per-frame tracks to API (produced by export_tracks_json in all.py)
+    if tracks_json_file.exists():
+        log(f"Uploading per-frame tracks: {tracks_json_file}")
+        tracks_ok = post_tracks_to_api(int(analysis_id), str(tracks_json_file))  # cast: JSON may deserialize as int already, but explicit cast prevents type mismatch
+        if not tracks_ok:
+            log("Track upload failed — analysis will complete without track data", "WARN")
+    else:
+        log(f"No tracks JSON found at {tracks_json_file} — skipping track upload", "WARN")
+
     return results
 
 
