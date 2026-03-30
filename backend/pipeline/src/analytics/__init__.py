@@ -238,6 +238,118 @@ def export_analytics_json(result: AnalyticsResult, filepath: str) -> None:
     _logger.info(f"Analytics exported to: {filepath}")
 
 
+def export_tracks_json(
+    tracks: Dict,
+    result: "AnalyticsResult",
+    filepath: str,
+    max_frames: int = 750,
+) -> None:
+    """Export per-frame tracking data to JSON for database ingestion.
+
+    Produces a list of frame objects suitable for POST /api/worker/tracks/{id}.
+    Ball positions come from result.ball_path.positions (already computed).
+    Player positions are derived from the raw tracks dict (bbox center-bottom point).
+    Frame count is capped at max_frames via uniform downsampling.
+
+    Args:
+        tracks: Raw tracker output dict with keys: players, ball, goalkeepers, referees.
+        result: AnalyticsResult (provides ball_path, possession, fps).
+        filepath: Output file path.
+        max_frames: Maximum rows to output (default 750 — 30s clip at 25fps).
+    """
+    import math
+
+    fps = result.fps if result.fps else 25.0
+
+    # Build ball position lookup: frame_idx -> {pixelPos, pitchPos}
+    ball_lookup: Dict[int, Dict] = {}
+    for fp in result.ball_path.positions:
+        ball_lookup[fp.frame_idx] = {
+            "pixelPos": [fp.pixel_pos[0], fp.pixel_pos[1]] if fp.pixel_pos else None,
+            "pitchPos": [fp.pitch_pos[0], fp.pitch_pos[1]] if fp.pitch_pos else None,
+        }
+
+    # Build possession lookup: frame_idx -> team_id
+    poss_lookup: Dict[int, int] = {}
+    for pe in result.possession.events:
+        poss_lookup[pe.frame_idx] = pe.team_id
+
+    # Determine total frame count from players track list
+    players_list = tracks.get("players", [])
+    total_frames = len(players_list)
+    if total_frames == 0:
+        _logger.warning("export_tracks_json: no player frames found in tracks dict")
+        return
+
+    # Compute downsample stride (keep every stride-th frame; always include frame 0)
+    stride = max(1, math.ceil(total_frames / max_frames))
+    selected_frames = list(range(0, total_frames, stride))
+    # Ensure we do not exceed max_frames
+    selected_frames = selected_frames[:max_frames]
+
+    def _safe(v):
+        """Replace inf/nan with None for JSON safety."""
+        if isinstance(v, float):
+            return v if math.isfinite(v) else None
+        return v
+
+    frame_rows = []
+    for frame_idx in selected_frames:
+        timestamp = _safe(frame_idx / fps)
+
+        # Ball position for this frame
+        ball_pos = ball_lookup.get(frame_idx)
+
+        # Player positions: dict of track_id -> {x, y, teamId}
+        # x, y = center-bottom of bbox (foot contact point, more stable than center)
+        player_positions: Dict[str, Dict] = {}
+        frame_detections = players_list[frame_idx] if frame_idx < len(players_list) else {}
+        for track_id, det in frame_detections.items():
+            bbox = det.get("bbox") or det.get("bbox_tlwh")
+            if not bbox or len(bbox) < 4:
+                continue
+            # bbox format: [x1, y1, x2, y2]
+            x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+            cx = _safe((x1 + x2) / 2)
+            cy = _safe(float(y2))  # bottom-center (foot contact)
+            player_positions[str(track_id)] = {
+                "x": cx,
+                "y": cy,
+                "teamId": det.get("team_id"),
+            }
+
+        # Also include goalkeepers in player_positions
+        gk_list = tracks.get("goalkeepers", [])
+        if frame_idx < len(gk_list):
+            for track_id, det in gk_list[frame_idx].items():
+                bbox = det.get("bbox") or det.get("bbox_tlwh")
+                if not bbox or len(bbox) < 4:
+                    continue
+                x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+                player_positions[str(track_id)] = {
+                    "x": _safe((x1 + x2) / 2),
+                    "y": _safe(float(y2)),
+                    "teamId": det.get("team_id"),
+                    "isGoalkeeper": True,
+                }
+
+        frame_rows.append({
+            "frameNumber": frame_idx,
+            "timestamp": timestamp,
+            "ballPosition": ball_pos,
+            "playerPositions": player_positions if player_positions else None,
+            "possessionTeamId": poss_lookup.get(frame_idx),
+        })
+
+    with open(filepath, "w") as f:
+        json.dump(frame_rows, f)
+
+    _logger.info(
+        "Tracks exported: %d frames (total=%d, stride=%d, max=%d) → %s",
+        len(frame_rows), total_frames, stride, max_frames, filepath,
+    )
+
+
 __all__ = [
     # Main engine
     "AnalyticsEngine",
@@ -247,6 +359,7 @@ __all__ = [
     "compute_kinematics",
     "print_analytics_summary",
     "export_analytics_json",
+    "export_tracks_json",
     "draw_ball_path_on_pitch",
 
     # Types
