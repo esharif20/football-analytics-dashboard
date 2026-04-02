@@ -3,64 +3,59 @@
 **Defined:** 2026-03-28
 **Core Value:** Analysts can upload a match video and get automated tactical analytics without manual annotation.
 
-## v0.2 Requirements
+## v0.5 Requirements
 
-Requirements for codebase hardening and Supabase migration. Each maps to roadmap phases.
+Requirements for analysis visualization overhaul and UI polish.
 
-### Manus Removal
+### Visualization Fixes
 
-- [x] **MANUS-01**: Model download URLs are configurable via env vars (MODEL_URL_PLAYER/BALL/PITCH), not hardcoded to manuscdn.com
-- [x] **MANUS-02**: Home page hero images use local assets in frontend/public/images/ instead of manuscdn.com CDN
-- [x] **MANUS-03**: Auth localStorage key renamed from "manus-runtime-user-info" to "football-dashboard-user"
-- [x] **MANUS-04**: Backend and frontend .env.example files exist with all env vars documented
+- [ ] **VIZ-01**: Heatmap tab shows colored grid cells visible on dark background (not invisible due to blend mode)
+- [ ] **VIZ-02**: Pass network nodes positioned at correct pitch coordinates with thin, curved edges (not thick straight lines)
+- [ ] **VIZ-03**: Ball trajectory renders as a clean smooth path with directional gradient (not yellow spaghetti)
 
-### Database Migration
+### Analytics
 
-- [x] **DB-01**: Backend uses asyncpg driver connecting to Supabase PostgreSQL instead of aiomysql/MySQL
-- [x] **DB-02**: SQLAlchemy models use PostgreSQL-compatible server_defaults and types
-- [x] **DB-03**: Alembic is initialized with a baseline migration covering all 7 tables
-- [x] **DB-04**: Runtime ALTER TABLE hacks in worker router are removed
-- [x] **DB-05**: CORS origins are configurable via CORS_ORIGINS env var
+- [ ] **ANLY-01**: Team Compactness, Defensive Line, and Pressing Intensity charts display real data computed from tracks (no "Planned" badges)
+- [ ] **ANLY-02**: Frame scrubber has play/pause, speed control, and keyboard shortcuts
 
-### Code Quality
+### UI Polish
 
-- [x] **QUAL-01**: Analysis.tsx is decomposed into sub-components under pages/analysis/ (main file under 400 lines)
-- [x] **QUAL-02**: Dead base64 upload function removed from api-local.ts; duplicate schema field fixed
-- [x] **QUAL-03**: Unused next-themes dependency removed from frontend
-- [x] **QUAL-04**: JWT_SECRET validation refuses startup in production with default "dev-secret"
-- [x] **QUAL-05**: AutoLogin middleware only activates when LOCAL_DEV_MODE=true explicitly
-- [x] **QUAL-06**: ruff configured for backend Python linting
-- [x] **QUAL-07**: ESLint + Prettier configured for frontend TypeScript linting
+- [ ] **UI-01**: Consistent page layout with no random large gaps, uniform spacing, and section labels
+- [ ] **UI-02**: `pnpm build` succeeds and all existing pytest + Playwright tests pass after changes
 
-### Testing
+## Completed Requirements (Previous Milestones)
 
-- [x] **TEST-01**: Backend pytest suite covers health, upload, analysis, worker, and commentary endpoints
-- [x] **TEST-02**: Frontend vitest suite covers key components and hooks
-- [x] **TEST-03**: CI pipeline includes backend lint + test job alongside frontend
+### v0.2 — Codebase Hardening & Supabase Migration
 
-## v0.3 Requirements
+- [x] **MANUS-01**: Model download URLs configurable via env vars
+- [x] **MANUS-02**: Hero images use local assets
+- [x] **MANUS-03**: Auth localStorage key renamed
+- [x] **MANUS-04**: .env.example files documented
+- [x] **DB-01**: asyncpg driver to Supabase PostgreSQL
+- [x] **DB-02**: PostgreSQL-compatible types/defaults
+- [x] **DB-03**: Alembic baseline migration
+- [x] **DB-04**: Runtime ALTER TABLE hacks removed
+- [x] **DB-05**: CORS origins configurable
+- [x] **QUAL-01**: Analysis.tsx decomposed
+- [x] **QUAL-02**: Dead code removed
+- [x] **QUAL-03**: next-themes removed
+- [x] **QUAL-04**: JWT_SECRET validation
+- [x] **QUAL-05**: AutoLogin guard
+- [x] **QUAL-06**: ruff configured
+- [x] **QUAL-07**: ESLint + Prettier configured
+- [x] **TEST-01**: Backend pytest suite
+- [x] **TEST-02**: Frontend vitest suite
+- [x] **TEST-03**: CI pipeline expansion
 
-### Database Redesign & Time-Series Tracks
+### v0.3 — Database Redesign & Time-Series Tracks
 
-- **DB-R01**: Supabase migration files define all 7 tables with foreign key constraints (ON DELETE CASCADE) and replace the current ad-hoc SQLAlchemy schema
-- **DB-R02**: Performance indexes added on analysisId (events, tracks, statistics, commentary tables), videoId (analyses), userId (videos, analyses)
-- **DB-R03**: RLS (Row Level Security) enabled on users, videos, analyses tables with permissive policies (USING true) — infrastructure in place for strict row-ownership policies once Supabase Auth JWT integration is added (deferred to future milestone)
-- **DB-R04**: SQLAlchemy models in backend/api/models.py updated to match migrated schema with explicit ForeignKey declarations
-- **DB-R05**: Per-frame tracking data exported by pipeline and posted to the tracks table after each successful analysis (750 rows max per analysis, downsampled for long videos)
-- **DB-R06**: Worker-authenticated POST /api/worker/tracks/{analysis_id} endpoint accepts batched track frames and inserts into tracks table
-- **DB-R07**: GET /api/tracks/{analysis_id} supports pagination (offset, limit, frame_start, frame_end query params)
-
-### Traceability
-
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| DB-R01 | Phase 8 | Complete |
-| DB-R02 | Phase 8 | Complete |
-| DB-R03 | Phase 8 | Complete |
-| DB-R04 | Phase 8 | Complete |
-| DB-R05 | Phase 8 | Complete |
-| DB-R06 | Phase 8 | Complete |
-| DB-R07 | Phase 8 | Complete |
+- [x] **DB-R01**: FK constraints (ON DELETE CASCADE)
+- [x] **DB-R02**: Performance indexes
+- [x] **DB-R03**: RLS policies (permissive)
+- [x] **DB-R04**: SQLAlchemy models match schema
+- [x] **DB-R05**: Per-frame tracking data export
+- [x] **DB-R06**: POST /api/worker/tracks endpoint
+- [x] **DB-R07**: GET /api/tracks with pagination
 
 ## Future Requirements
 
@@ -82,11 +77,11 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| New user-facing features | This milestone is purely structural/quality |
 | Pipeline algorithm changes | Pipeline must remain functionally identical |
-| OAuth/SSO integration | Current auto-login dev mode stays; auth hardening is security-only |
-| Mobile responsive redesign | UI changes limited to Analysis.tsx decomposition (same visual output) |
-| Database sharding/replication | Supabase handles this; out of scope for application code |
+| New data collection features | Focus is fixing existing visualizations, not adding new ones |
+| OAuth/SSO integration | Current auto-login dev mode stays |
+| Backend API changes | Viz fixes are frontend-only; backend already serves correct data |
+| Mobile responsive redesign | Desktop-first; responsive deferred |
 
 ## Traceability
 
@@ -94,31 +89,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MANUS-01 | Phase 4 | Complete |
-| MANUS-02 | Phase 4 | Complete |
-| MANUS-03 | Phase 4 | Complete |
-| MANUS-04 | Phase 4 | Complete |
-| DB-05 | Phase 4 | Complete |
-| DB-01 | Phase 5 | Complete |
-| DB-02 | Phase 5 | Complete |
-| DB-03 | Phase 5 | Complete |
-| DB-04 | Phase 5 | Complete |
-| QUAL-01 | Phase 6 | Complete |
-| QUAL-02 | Phase 6 | Complete |
-| QUAL-03 | Phase 6 | Complete |
-| QUAL-04 | Phase 6 | Complete |
-| QUAL-05 | Phase 6 | Complete |
-| QUAL-06 | Phase 7 | Complete |
-| QUAL-07 | Phase 7 | Complete |
-| TEST-01 | Phase 7 | Complete |
-| TEST-02 | Phase 7 | Complete |
-| TEST-03 | Phase 7 | Complete |
+| VIZ-01 | — | Pending |
+| VIZ-02 | — | Pending |
+| VIZ-03 | — | Pending |
+| ANLY-01 | — | Pending |
+| ANLY-02 | — | Pending |
+| UI-01 | — | Pending |
+| UI-02 | — | Pending |
 
 **Coverage:**
-- v0.2 requirements: 19 total
-- Mapped to phases: 19
-- Unmapped: 0
+- v0.5 requirements: 7 total
+- Mapped to phases: 0
+- Unmapped: 7 ⚠️
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-28 after initial definition*
+*Last updated: 2026-04-02 after milestone v0.5 requirements defined*
