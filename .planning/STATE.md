@@ -1,32 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1
-milestone_name: Objectives
-status: verifying
-last_updated: "2026-03-30T10:27:55.113Z"
-last_activity: 2026-03-30
+milestone: v0.5
+milestone_name: Analysis Viz Overhaul & UI Polish
+status: active
+last_updated: "2026-04-02T00:00:00.000Z"
+last_activity: 2026-04-02
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 18
-  completed_plans: 18
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Session State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-28)
+See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Analysts can upload a match video and get automated tactical analytics without manual annotation.
-**Current focus:** Phase 08 — database-redesign-time-series-tracks
+**Current focus:** Milestone v0.5 — defining requirements
 
 ## Current Position
 
-Phase: 08
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-30
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-02 — Milestone v0.5 started
 
 ## Accumulated Context
 

@@ -8,20 +8,17 @@ An end-to-end football analytics platform where analysts upload match footage, r
 
 Analysts can upload a match video and get automated tactical analytics (possession, player tracking, events, radar view) without manual annotation.
 
-## Current Milestone: v0.2 Codebase Hardening & Supabase Migration
+## Current Milestone: v0.5 Analysis Viz Overhaul & UI Polish
 
-**Goal:** Remove all Manus platform dependencies, migrate from Docker MySQL to Supabase PostgreSQL, and harden codebase with proper testing, linting, security, and SWE best practices -- while keeping all existing functionality intact.
+**Goal:** Fix all broken/ugly visualizations, replace placeholder data with real computed metrics, and polish the analysis page UI.
 
 **Target features:**
-- Remove all manuscdn.com CDN references (model URLs, hero images, localStorage keys)
-- Migrate database from Docker MySQL to Supabase PostgreSQL (asyncpg)
-- Add Alembic migration framework for schema management
-- Decompose Analysis.tsx monolith (~2300 lines) into sub-components
-- Remove dead code and unused dependencies (next-themes, dead base64 upload)
-- Harden security (JWT validation in production, CORS env config, env var enforcement)
-- Add backend unit tests (pytest + httpx) and frontend unit tests (vitest)
-- Add linting (ruff for backend, ESLint + Prettier for frontend)
-- Expand CI pipeline to cover backend lint + tests
+- Fix heatmap visibility (colored grid cells on dark background, not invisible blend mode)
+- Fix pass network (correct pitch positions, thin curved edges)
+- Fix ball trajectory (clean smooth path with directional gradient)
+- Replace placeholder "Planned" badges with real computed metrics (Team Compactness, Defensive Line, Pressing Intensity)
+- Frame scrubber enhancements (play/pause, speed control, keyboard shortcuts)
+- Layout polish (consistent spacing, section labels, no large gaps)
 
 ## Requirements
 
@@ -33,19 +30,21 @@ Analysts can upload a match video and get automated tactical analytics (possessi
 - View possession stats, player tracking, events, radar view
 - AI tactical commentary generation (Gemini/OpenAI)
 - Worker polling architecture for GPU pipeline processing
+- Manus platform dependencies removed (v0.2, Phase 4)
+- Supabase PostgreSQL migration with Alembic (v0.2, Phase 5)
+- Frontend decomposition, dead code removal, security hardening (v0.2, Phase 6)
+- Backend/frontend testing, linting, CI (v0.2, Phase 7)
+- DB redesign with FK constraints, indexes, RLS, time-series tracks (v0.3, Phase 8)
+- Real tracking data wired to pitch visualizations (Phase 9)
 
 ### Active
 
-- [x] Remove all Manus platform dependencies (Validated in Phase 4)
-- [x] Migrate to Supabase PostgreSQL (Validated in Phase 5)
-- [x] Add Alembic migration framework (Validated in Phase 5)
-- [x] Decompose Analysis.tsx into sub-components (Validated in Phase 6)
-- [x] Remove dead code and unused dependencies (Validated in Phase 6)
-- [x] Security hardening (JWT, CORS, env vars) — CORS config done in Phase 4, JWT/env hardening in Phase 6
-- [ ] Backend unit tests
-- [ ] Frontend unit tests
-- [ ] Linting setup (ruff + ESLint/Prettier)
-- [ ] CI expansion for backend
+- [ ] Fix heatmap visibility on dark backgrounds
+- [ ] Fix pass network node positions and edge styling
+- [ ] Fix ball trajectory rendering (smooth path, directional gradient)
+- [ ] Compute real metrics for Team Compactness, Defensive Line, Pressing Intensity from tracks data
+- [ ] Frame scrubber play/pause, speed control, keyboard shortcuts
+- [ ] Layout polish (consistent spacing, section labels)
 
 ### Out of Scope
 
@@ -98,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 8 (Database Redesign & Time-Series Tracks) complete*
+*Last updated: 2026-04-02 after Milestone v0.5 started*
