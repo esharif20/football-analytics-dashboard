@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.5
-milestone_name: Analysis Viz Overhaul & UI Polish
-status: active
-last_updated: "2026-04-02T00:00:00.000Z"
+milestone: v0.1
+milestone_name: Objectives
+status: executing
+last_updated: "2026-04-02T16:52:42.421Z"
 last_activity: 2026-04-02
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 10
+  completed_phases: 8
+  total_plans: 20
+  completed_plans: 19
 ---
 
 # Session State
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Analysts can upload a match video and get automated tactical analytics without manual annotation.
-**Current focus:** Phase 11 — Visualization Fixes
+**Current focus:** Phase 11 — visualization-fixes
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
-Status: Ready for planning
-Last activity: 2026-04-02 — Milestone v0.5 roadmap created (3 phases)
+Phase: 11 (visualization-fixes) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-02
 
 ## Accumulated Context
 
@@ -63,6 +63,8 @@ Last activity: 2026-04-02 — Milestone v0.5 roadmap created (3 phases)
 - [Phase 08-02]: Frame count capped at 750 via uniform stride; goalkeepers included in playerPositions with isGoalkeeper flag
 - [Phase 08]: possessionTeamId stored in teamFormations JSON to avoid schema change
 - [Phase 08]: Failed track uploads log a warning but do not block analysis completion
+- [Phase 11-visualization-fixes]: Apply VIZ-01/VIZ-02 fixes to Analysis.tsx (monolith) since PitchVisualizations.tsx decomposition has not yet occurred
+- [Phase 11-visualization-fixes]: SVG z-index 4 promotion approach for HeatmapView — lifts data SVG above pitch-container::after vignette (z-index 3)
 
 ## Performance Metrics
 
@@ -85,3 +87,4 @@ Last activity: 2026-04-02 — Milestone v0.5 roadmap created (3 phases)
 | Phase 08-database-redesign-time-series-tracks P01 | 5 | 2 tasks | 2 files |
 | Phase 08-database-redesign-time-series-tracks P02 | 4 | 2 tasks | 2 files |
 | Phase 08 P03 | 205 | 2 tasks | 4 files |
+| Phase 11-visualization-fixes P01 | 8 | 2 tasks | 1 files |

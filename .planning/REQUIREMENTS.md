@@ -9,8 +9,8 @@ Requirements for analysis visualization overhaul and UI polish.
 
 ### Visualization Fixes
 
-- [ ] **VIZ-01**: Heatmap tab shows colored grid cells visible on dark background (not invisible due to blend mode)
-- [ ] **VIZ-02**: Pass network nodes positioned at correct pitch coordinates with thin, curved edges (not thick straight lines)
+- [x] **VIZ-01**: Heatmap tab shows colored grid cells visible on dark background (not invisible due to blend mode)
+- [x] **VIZ-02**: Pass network nodes positioned at correct pitch coordinates with thin, curved edges (not thick straight lines)
 - [ ] **VIZ-03**: Ball trajectory renders as a clean smooth path with directional gradient (not yellow spaghetti)
 
 ### Analytics
@@ -89,8 +89,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIZ-01 | Phase 11 | Pending |
-| VIZ-02 | Phase 11 | Pending |
+| VIZ-01 | Phase 11 | Complete |
+| VIZ-02 | Phase 11 | Complete |
 | VIZ-03 | Phase 11 | Pending |
 | ANLY-01 | Phase 12 | Pending |
 | ANLY-02 | Phase 12 | Pending |
