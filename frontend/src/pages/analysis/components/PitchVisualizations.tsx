@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { Radar, Target, Users, Zap, Map } from 'lucide-react'
+import { Radar, Target, Users, Zap, Map as MapIcon } from 'lucide-react'
 import { useTeamColors, PITCH_WIDTH, PITCH_HEIGHT, EVENT_TYPES } from '../context'
 import type { PipelineMode } from '../context'
 
@@ -150,14 +150,54 @@ export function PlayerNode({
   )
 }
 
-export function HeatmapView() {
+export function HeatmapView({
+  heatmapTeam1,
+  heatmapTeam2,
+}: {
+  heatmapTeam1?: any
+  heatmapTeam2?: any
+}) {
+  const [teamToggle, setTeamToggle] = useState<'team1' | 'team2'>('team1')
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors()
+
+  const heatmapData = teamToggle === 'team1' ? heatmapTeam1 : heatmapTeam2
+  const hasRealData = Array.isArray(heatmapData?.grid) && heatmapData.grid.length > 0
+  const hasAnyData =
+    (Array.isArray(heatmapTeam1?.grid) && heatmapTeam1.grid.length > 0) ||
+    (Array.isArray(heatmapTeam2?.grid) && heatmapTeam2.grid.length > 0)
+
+  const gridCells = useMemo(() => {
+    if (!hasRealData) return []
+    const grid: number[][] = heatmapData.grid
+    const rows = grid.length
+    const cols = grid[0]?.length || 0
+    if (rows === 0 || cols === 0) return []
+    let maxVal = 0
+    for (const row of grid) for (const v of row) if (v > maxVal) maxVal = v
+    if (maxVal === 0) return []
+    const cellW = PITCH_WIDTH / cols
+    const cellH = PITCH_HEIGHT / rows
+    const cells: { x: number; y: number; w: number; h: number; opacity: number }[] = []
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const opacity = (grid[r][c] / maxVal) * 0.75
+        if (opacity > 0.02) {
+          cells.push({ x: c * cellW, y: r * cellH, w: cellW, h: cellH, opacity })
+        }
+      }
+    }
+    return cells
+  }, [heatmapData, hasRealData])
+
+  const teamColor = teamToggle === 'team1' ? TEAM1_HEX : TEAM2_HEX
+
   return (
     <div className="pitch-container">
       <svg
         className="absolute inset-0 w-full h-full"
         viewBox="0 0 105 68"
         preserveAspectRatio="xMidYMid meet"
-        style={{ zIndex: 2 }}
+        style={{ zIndex: 4 }}
       >
         <defs>
           <filter id="heatLineGlow">
@@ -167,21 +207,30 @@ export function HeatmapView() {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <radialGradient id="hz1">
-            <stop offset="0%" stopColor="oklch(0.55 0.22 25)" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="oklch(0.55 0.2 25)" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="hz2">
-            <stop offset="0%" stopColor="oklch(0.65 0.22 45)" stopOpacity="0.7" />
-            <stop offset="100%" stopColor="oklch(0.65 0.2 45)" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="hz3">
-            <stop offset="0%" stopColor="oklch(0.6 0.2 145)" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="oklch(0.6 0.2 145)" stopOpacity="0" />
-          </radialGradient>
-          <filter id="heatBlur">
-            <feGaussianBlur stdDeviation="3" />
-          </filter>
+          {!hasRealData && (
+            <>
+              <radialGradient id="hz1">
+                <stop offset="0%" stopColor="oklch(0.55 0.22 25)" stopOpacity="0.85" />
+                <stop offset="100%" stopColor="oklch(0.55 0.2 25)" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="hz2">
+                <stop offset="0%" stopColor="oklch(0.65 0.22 45)" stopOpacity="0.7" />
+                <stop offset="100%" stopColor="oklch(0.65 0.2 45)" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="hz3">
+                <stop offset="0%" stopColor="oklch(0.6 0.2 145)" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="oklch(0.6 0.2 145)" stopOpacity="0" />
+              </radialGradient>
+              <filter id="heatBlur">
+                <feGaussianBlur stdDeviation="3" />
+              </filter>
+            </>
+          )}
+          {hasRealData && (
+            <filter id="heatCellBlur">
+              <feGaussianBlur stdDeviation="2.5" />
+            </filter>
+          )}
         </defs>
         <g
           filter="url(#heatLineGlow)"
@@ -198,18 +247,69 @@ export function HeatmapView() {
           <rect x="88" y="13.84" width="16.5" height="40.32" />
           <rect x="99" y="24.84" width="5.5" height="18.32" />
         </g>
-        <g filter="url(#heatBlur)" style={{ mixBlendMode: 'screen' }}>
-          <ellipse cx="28" cy="30" rx="14" ry="18" fill="url(#hz1)" />
-          <ellipse cx="52.5" cy="34" rx="18" ry="14" fill="url(#hz2)" />
-          <ellipse cx="77" cy="38" rx="14" ry="18" fill="url(#hz1)" />
-          <ellipse cx="40" cy="20" rx="10" ry="12" fill="url(#hz3)" />
-          <ellipse cx="65" cy="48" rx="10" ry="12" fill="url(#hz3)" />
-        </g>
+        {hasRealData ? (
+          <>
+            {/* Glow underlayer */}
+            <g filter="url(#heatCellBlur)" opacity={0.45}>
+              {gridCells.map((cell, i) => (
+                <rect
+                  key={`glow-${i}`}
+                  x={cell.x - 0.5}
+                  y={cell.y - 0.5}
+                  width={cell.w + 1}
+                  height={cell.h + 1}
+                  fill={teamColor}
+                  fillOpacity={cell.opacity * 0.6}
+                />
+              ))}
+            </g>
+            {/* Main cells */}
+            <g>
+              {gridCells.map((cell, i) => (
+                <rect
+                  key={i}
+                  x={cell.x}
+                  y={cell.y}
+                  width={cell.w}
+                  height={cell.h}
+                  fill={teamColor}
+                  fillOpacity={Math.min(0.9, cell.opacity * 1.2)}
+                />
+              ))}
+            </g>
+          </>
+        ) : (
+          <g filter="url(#heatBlur)">
+            <ellipse cx="28" cy="30" rx="14" ry="18" fill="url(#hz1)" />
+            <ellipse cx="52.5" cy="34" rx="18" ry="14" fill="url(#hz2)" />
+            <ellipse cx="77" cy="38" rx="14" ry="18" fill="url(#hz1)" />
+            <ellipse cx="40" cy="20" rx="10" ry="12" fill="url(#hz3)" />
+            <ellipse cx="65" cy="48" rx="10" ry="12" fill="url(#hz3)" />
+          </g>
+        )}
       </svg>
       <div
-        className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-medium"
+        className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-medium space-y-1.5"
         style={{ zIndex: 20 }}
       >
+        {hasAnyData && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setTeamToggle('team1')}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${teamToggle === 'team1' ? 'text-white font-semibold' : 'text-white/40'}`}
+              style={teamToggle === 'team1' ? { backgroundColor: `${TEAM1_HEX}40` } : {}}
+            >
+              T1
+            </button>
+            <button
+              onClick={() => setTeamToggle('team2')}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${teamToggle === 'team2' ? 'text-white font-semibold' : 'text-white/40'}`}
+              style={teamToggle === 'team2' ? { backgroundColor: `${TEAM2_HEX}40` } : {}}
+            >
+              T2
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <div className="w-20 h-2 rounded-full heatmap-gradient" />
           <span className="text-white/70">Low → High</span>
@@ -219,25 +319,62 @@ export function HeatmapView() {
   )
 }
 
-export function PassNetworkView() {
-  const { TEAM2_HEX } = useTeamColors()
-  const nodes = [
-    { id: 1, x: 15, y: 34, passes: 45 },
-    { id: 2, x: 30, y: 15, passes: 38 },
-    { id: 3, x: 30, y: 53, passes: 42 },
-    { id: 4, x: 45, y: 25, passes: 52 },
-    { id: 5, x: 45, y: 43, passes: 48 },
-    { id: 6, x: 60, y: 34, passes: 35 },
-  ]
-  const edges = [
-    { from: 1, to: 2, count: 12 },
-    { from: 1, to: 3, count: 15 },
-    { from: 2, to: 4, count: 18 },
-    { from: 3, to: 5, count: 14 },
-    { from: 4, to: 6, count: 10 },
-    { from: 5, to: 6, count: 8 },
-    { from: 4, to: 5, count: 6 },
-  ]
+const DEMO_PASS_NODES = [
+  { id: '1', x: 15, y: 34, degree: 2, betweenness: 0, clustering: 0, teamId: 1 },
+  { id: '2', x: 30, y: 15, degree: 2, betweenness: 0, clustering: 0, teamId: 1 },
+  { id: '3', x: 30, y: 53, degree: 2, betweenness: 0, clustering: 0, teamId: 1 },
+  { id: '4', x: 45, y: 25, degree: 3, betweenness: 0, clustering: 0, teamId: 1 },
+  { id: '5', x: 45, y: 43, degree: 3, betweenness: 0, clustering: 0, teamId: 1 },
+  { id: '6', x: 60, y: 34, degree: 2, betweenness: 0, clustering: 0, teamId: 1 },
+]
+const DEMO_PASS_EDGES = [
+  { from: '1', to: '2', weight: 12 },
+  { from: '1', to: '3', weight: 15 },
+  { from: '2', to: '4', weight: 18 },
+  { from: '3', to: '5', weight: 14 },
+  { from: '4', to: '6', weight: 10 },
+  { from: '5', to: '6', weight: 8 },
+  { from: '4', to: '5', weight: 6 },
+]
+
+export function PassNetworkView({
+  passNetworkTeam1,
+  passNetworkTeam2,
+}: {
+  passNetworkTeam1?: any
+  passNetworkTeam2?: any
+}) {
+  const [teamToggle, setTeamToggle] = useState<'team1' | 'team2'>('team1')
+  const { TEAM1_HEX, TEAM2_HEX } = useTeamColors()
+
+  const hasTeam1 =
+    Array.isArray(passNetworkTeam1?.nodes) && passNetworkTeam1.nodes.length > 0
+  const hasTeam2 =
+    Array.isArray(passNetworkTeam2?.nodes) && passNetworkTeam2.nodes.length > 0
+  const hasAnyReal = hasTeam1 || hasTeam2
+
+  const networkData = teamToggle === 'team1' ? passNetworkTeam1 : passNetworkTeam2
+  const hasRealData =
+    Array.isArray(networkData?.nodes) &&
+    networkData.nodes.length > 0 &&
+    Array.isArray(networkData?.edges)
+
+  const rawNodes: typeof DEMO_PASS_NODES = hasRealData ? networkData.nodes : DEMO_PASS_NODES
+  const edges: typeof DEMO_PASS_EDGES = hasRealData ? networkData.edges : DEMO_PASS_EDGES
+
+  // Normalize coordinates: backend stores in cm (0-10500 x 0-6800), SVG viewBox is 0-105 x 0-68
+  const nodes = useMemo(() => {
+    const needsScale = rawNodes.some(n => n.x > 200 || n.y > 200)
+    if (!needsScale) return rawNodes
+    return rawNodes.map(n => ({ ...n, x: n.x / 100, y: n.y / 100 }))
+  }, [rawNodes])
+
+  const nodeMap = useMemo(
+    () => new Map(nodes.map((n) => [String(n.id), n])),
+    [nodes]
+  )
+  const teamColor = teamToggle === 'team1' ? TEAM1_HEX : TEAM2_HEX
+
   return (
     <div className="pitch-container">
       <svg
@@ -254,9 +391,6 @@ export function PassNetworkView() {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-            <polygon points="0 0, 8 3, 0 6" fill="oklch(0.7 0.18 145)" fillOpacity="0.7" />
-          </marker>
           <filter id="edgeGlow">
             <feGaussianBlur stdDeviation="0.5" result="blur" />
             <feMerge>
@@ -282,19 +416,28 @@ export function PassNetworkView() {
         </g>
         <g filter="url(#edgeGlow)">
           {edges.map((edge, i) => {
-            const fromNode = nodes.find((n) => n.id === edge.from)!
-            const toNode = nodes.find((n) => n.id === edge.to)!
+            const fromNode = nodeMap.get(String(edge.from))
+            const toNode = nodeMap.get(String(edge.to))
+            if (!fromNode || !toNode) return null
+            // Curved path: perpendicular offset to reduce overlap
+            const mx = (fromNode.x + toNode.x) / 2
+            const my = (fromNode.y + toNode.y) / 2
+            const dx = toNode.x - fromNode.x
+            const dy = toNode.y - fromNode.y
+            const len = Math.sqrt(dx * dx + dy * dy) || 1
+            const offset = Math.min(3, len * 0.15)
+            const cpx = mx - (dy / len) * offset
+            const cpy = my + (dx / len) * offset
+            const d = `M ${fromNode.x} ${fromNode.y} Q ${cpx} ${cpy} ${toNode.x} ${toNode.y}`
+            const sw = Math.max(0.15, Math.min(1.2, edge.weight * 0.06))
             return (
-              <line
+              <path
                 key={i}
-                x1={fromNode.x}
-                y1={fromNode.y}
-                x2={toNode.x}
-                y2={toNode.y}
-                stroke="oklch(0.7 0.18 145)"
-                strokeWidth={Math.max(0.5, edge.count / 6)}
-                strokeOpacity={0.5}
-                markerEnd="url(#arrowhead)"
+                d={d}
+                fill="none"
+                stroke={teamColor}
+                strokeWidth={sw}
+                strokeOpacity={0.35}
               />
             )
           })}
@@ -308,13 +451,36 @@ export function PassNetworkView() {
             {
               left: `${(node.x / PITCH_WIDTH) * 100}%`,
               top: `${(node.y / PITCH_HEIGHT) * 100}%`,
-              '--player-color': TEAM2_HEX,
+              '--player-color': teamColor,
             } as React.CSSProperties
           }
         >
           <span className="player-node-label">{node.id}</span>
         </div>
       ))}
+      {hasAnyReal && (
+        <div
+          className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-medium"
+          style={{ zIndex: 20 }}
+        >
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setTeamToggle('team1')}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${teamToggle === 'team1' ? 'text-white font-semibold' : 'text-white/40'}`}
+              style={teamToggle === 'team1' ? { backgroundColor: `${TEAM1_HEX}40` } : {}}
+            >
+              T1
+            </button>
+            <button
+              onClick={() => setTeamToggle('team2')}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${teamToggle === 'team2' ? 'text-white font-semibold' : 'text-white/40'}`}
+              style={teamToggle === 'team2' ? { backgroundColor: `${TEAM2_HEX}40` } : {}}
+            >
+              T2
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -469,6 +635,10 @@ export function ModeSpecificTabs({
   filterTeam,
   selectedPlayer,
   setSelectedPlayer,
+  heatmapTeam1,
+  heatmapTeam2,
+  passNetworkTeam1,
+  passNetworkTeam2,
 }: {
   mode: PipelineMode
   activeTab: string
@@ -478,6 +648,10 @@ export function ModeSpecificTabs({
   filterTeam: string
   selectedPlayer: number | null
   setSelectedPlayer: (id: number | null) => void
+  heatmapTeam1?: any
+  heatmapTeam2?: any
+  passNetworkTeam1?: any
+  passNetworkTeam2?: any
 }) {
   const modeTabs: Record<PipelineMode, string[]> = {
     all: ['radar', 'voronoi', 'heatmap', 'passes', 'events'],
@@ -492,7 +666,7 @@ export function ModeSpecificTabs({
   const tabConfig: Record<string, { icon: React.ReactNode; label: string }> = {
     radar: { icon: <Radar className="w-4 h-4" />, label: 'Radar' },
     voronoi: { icon: <Users className="w-4 h-4" />, label: 'Voronoi' },
-    heatmap: { icon: <Map className="w-4 h-4" />, label: 'Heatmap' },
+    heatmap: { icon: <MapIcon className="w-4 h-4" />, label: 'Heatmap' },
     passes: { icon: <Target className="w-4 h-4" />, label: 'Passes' },
     events: { icon: <Zap className="w-4 h-4" />, label: 'Events' },
   }
@@ -524,10 +698,10 @@ export function ModeSpecificTabs({
         <VoronoiView data={trackingData} />
       </TabsContent>
       <TabsContent value="heatmap" className="mt-4">
-        <HeatmapView />
+        <HeatmapView heatmapTeam1={heatmapTeam1} heatmapTeam2={heatmapTeam2} />
       </TabsContent>
       <TabsContent value="passes" className="mt-4">
-        <PassNetworkView />
+        <PassNetworkView passNetworkTeam1={passNetworkTeam1} passNetworkTeam2={passNetworkTeam2} />
       </TabsContent>
       <TabsContent value="events" className="mt-4">
         <EventTimeline events={events} />
