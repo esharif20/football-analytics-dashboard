@@ -89,18 +89,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIZ-01 | — | Pending |
-| VIZ-02 | — | Pending |
-| VIZ-03 | — | Pending |
-| ANLY-01 | — | Pending |
-| ANLY-02 | — | Pending |
-| UI-01 | — | Pending |
-| UI-02 | — | Pending |
+| VIZ-01 | Phase 11 | Pending |
+| VIZ-02 | Phase 11 | Pending |
+| VIZ-03 | Phase 11 | Pending |
+| ANLY-01 | Phase 12 | Pending |
+| ANLY-02 | Phase 12 | Pending |
+| UI-01 | Phase 13 | Pending |
+| UI-02 | Phase 13 | Pending |
 
 **Coverage:**
 - v0.5 requirements: 7 total
-- Mapped to phases: 0
-- Unmapped: 7 ⚠️
+- Mapped to phases: 7
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-28*
