@@ -55,6 +55,11 @@ Fix all broken/ugly visualizations, replace placeholder data with real computed 
 
 **Goal:** All three pitch viz components render correctly
 **Requirements:** VIZ-01, VIZ-02, VIZ-03
+**Plans:** 2 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — Fix HeatmapView z-index and PassNetworkView arrowheads/node class (VIZ-01, VIZ-02)
+- [ ] 11-02-PLAN.md — Fix BallTrajectoryDiagram white→amber gradient trail (VIZ-03)
 
 **Success Criteria:**
 1. Heatmap displays colored grid cells visible against dark background (no blend-mode hiding)
