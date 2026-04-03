@@ -48,6 +48,7 @@ Fix all broken/ugly visualizations, replace placeholder data with real computed 
 | 11 | Visualization Fixes | 2/2 | Complete   | 2026-04-02 |
 | 12 | Computed Metrics & Frame Scrubber | Real tactical metrics from tracks + playback controls | ANLY-01, ANLY-02 | pending |
 | 13 | Layout Polish & Verification | Consistent layout, all tests pass | UI-01, UI-02 | pending |
+| 14 | Multi-Model Evaluation Comparison | 1/3 | In Progress|  |
 
 ## Phase Details
 
@@ -89,3 +90,21 @@ Plans:
 3. `pnpm build` completes with zero errors
 4. All pytest tests pass
 5. All Playwright E2E tests pass
+
+### Phase 14: Multi-Model Evaluation Comparison
+
+**Goal:** Add HuggingFace + OpenAI providers to eval framework, run all no-annotation evaluations across multiple models
+**Requirements:** EVAL-01 (HF provider), EVAL-02 (multi-model grounding), EVAL-03 (multi-model VLM)
+**Depends on:** Pipeline output data from RunPod
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 14 to break down)
+
+**Success Criteria:**
+1. `HuggingFaceProvider` in `llm_providers.py` using `huggingface_hub` InferenceClient (Mistral-7B-Instruct)
+2. `OpenAIVisionProvider` in `vlm_comparison.py` for GPT-4o-mini vision
+3. `llm_grounding.py` accepts `--provider huggingface` and runs successfully
+4. `vlm_comparison.py` accepts `--provider all` and runs Gemini + OpenAI vision matrix
+5. `tracking_quality.py` runs and produces metrics + LaTeX tables
+6. `llm_grounding.py` produces grounding comparison across 3 models x 3 formats x 4 analysis types
+7. `vlm_comparison.py` produces 2 models x 3 conditions comparison matrix
