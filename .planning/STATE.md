@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Objectives
-status: verifying
-last_updated: "2026-04-02T16:56:14.948Z"
-last_activity: 2026-04-02
+status: executing
+last_updated: "2026-04-03T10:36:57.147Z"
+last_activity: 2026-04-03
 progress:
-  total_phases: 10
+  total_phases: 13
   completed_phases: 9
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 23
+  completed_plans: 21
 ---
 
 # Session State
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Analysts can upload a match video and get automated tactical analytics without manual annotation.
-**Current focus:** Phase 11 — visualization-fixes
+**Current focus:** Phase 14 — multi-model-evaluation-comparison
 
 ## Current Position
 
-Phase: 11 (visualization-fixes) — EXECUTING
-Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-04-02
+Phase: 14 (multi-model-evaluation-comparison) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-04-03
 
 ## Accumulated Context
 
@@ -36,8 +36,13 @@ Last activity: 2026-04-02
 - Analysis.tsx is 2300-line monolith needing decomposition
 - No unit tests, no linting, CI is frontend-only
 
+### Roadmap Evolution
+
+- Phase 14 added: Multi-model evaluation comparison (HF + OpenAI + Gemini providers, run all no-annotation evals)
+
 ## Session Log
 
+- 2026-04-03: Phase 14 added — multi-model evaluation comparison
 - 2026-03-28: Milestone v0.2 started -- Codebase Hardening & Supabase Migration
 
 ## Decisions
@@ -67,6 +72,8 @@ Last activity: 2026-04-02
 - [Phase 11-visualization-fixes]: SVG z-index 4 promotion approach for HeatmapView — lifts data SVG above pitch-container::after vignette (z-index 3)
 - [Phase 11-visualization-fixes]: Applied VIZ-03 SEGMENT_STYLE fix to Analysis.tsx (not PipelineInfo.tsx) — same file-path deviation as Plan 11-01; decomposition not yet executed
 - [Phase 11-visualization-fixes]: SEGMENT_STYLE: 5-segment discrete path approach used for trail gradient rather than SVG linearGradient — more per-segment control
+- [Phase 14]: gpt-4o-mini as default OpenAI vision model (cost-efficient, vision-capable)
+- [Phase 14]: VISION_PROVIDERS registry dict for extensible provider lookup
 
 ## Performance Metrics
 
@@ -91,3 +98,4 @@ Last activity: 2026-04-02
 | Phase 08 P03 | 205 | 2 tasks | 4 files |
 | Phase 11-visualization-fixes P01 | 8 | 2 tasks | 1 files |
 | Phase 11-visualization-fixes P02 | 6 | 1 tasks | 1 files |
+| Phase 14 P02 | 3m | 2 tasks | 2 files |
