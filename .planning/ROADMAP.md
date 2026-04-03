@@ -48,7 +48,7 @@ Fix all broken/ugly visualizations, replace placeholder data with real computed 
 | 11 | Visualization Fixes | 2/2 | Complete   | 2026-04-02 |
 | 12 | Computed Metrics & Frame Scrubber | Real tactical metrics from tracks + playback controls | ANLY-01, ANLY-02 | pending |
 | 13 | Layout Polish & Verification | Consistent layout, all tests pass | UI-01, UI-02 | pending |
-| 14 | Multi-Model Evaluation Comparison | 1/3 | In Progress|  |
+| 14 | Multi-Model Evaluation Comparison | 2/3 | In Progress|  |
 
 ## Phase Details
 
