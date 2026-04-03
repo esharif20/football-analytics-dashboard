@@ -275,6 +275,7 @@ async def run_async(
     output_dir: str,
     n_keyframes: int = 5,
     analysis_type: str = "match_overview",
+    provider: str = "gemini",
 ) -> dict:
     from services.llm_providers import get_provider
 
@@ -283,12 +284,7 @@ async def run_async(
     tracks = load_tracks(tracks_path)
     markdown_context = format_as_markdown(analytics)
 
-    vision_provider = GeminiVisionProvider()
-    if not vision_provider.is_available():
-        print("Error: GEMINI_API_KEY not set. VLM comparison requires Gemini.")
-        return {}
-
-    judge_provider = get_provider("gemini")
+    providers_to_run = list(VISION_PROVIDERS.keys()) if provider == "all" else [provider]
 
     print(f"\n=== VLM Grounding Comparison ({analysis_type}) ===")
     print(f"Extracting {n_keyframes} keyframes from video...")
@@ -296,7 +292,6 @@ async def run_async(
     raw_frames = extract_keyframes(video_path, n_keyframes)
     print(f"  Extracted {len(raw_frames)} frames")
 
-    # Annotate frames with tracking overlays
     total_frames = max((f.get("frameNumber", 0) for f in tracks), default=0)
     keyframe_indices = np.linspace(0, total_frames, n_keyframes, dtype=int)
     annotated_frames = [
@@ -313,60 +308,90 @@ async def run_async(
         ("text_annotated_frames", annotated_jpeg),
     ]
 
-    results = {}
-    for condition, images in conditions:
-        print(f"  Running condition: {condition} ...", end=" ", flush=True)
-        result = await run_condition(
-            condition, analytics, markdown_context, images,
-            vision_provider, judge_provider, analysis_type
-        )
-        results[condition] = result
-        print(
-            f"grounding={result['grounding_rate']:.1%}  "
-            f"claims={result['n_claims']}  "
-            f"refuted={result['refuted']}"
+    all_results: dict[str, dict] = {}
+
+    for provider_name in providers_to_run:
+        vision_provider = VISION_PROVIDERS[provider_name]()
+        if not vision_provider.is_available():
+            print(f"  Skipping {provider_name} (no API key)")
+            continue
+
+        judge_provider = get_provider("gemini")
+        print(f"\n--- Provider: {provider_name} ---")
+
+        results: dict[str, dict] = {}
+        for condition, images in conditions:
+            print(f"  Running condition: {condition} ...", end=" ", flush=True)
+            result = await run_condition(
+                condition, analytics, markdown_context, images,
+                vision_provider, judge_provider, analysis_type
+            )
+            results[condition] = result
+            all_results[f"{provider_name}_{condition}"] = result
+            print(
+                f"grounding={result['grounding_rate']:.1%}  "
+                f"claims={result['n_claims']}  "
+                f"refuted={result['refuted']}"
+            )
+
+        # Per-provider artifacts
+        (Path(str(out)) / f"vlm_results_{provider_name}.json").write_text(
+            json.dumps(results, indent=2)
         )
 
-    # --- Save artifacts ---
-    (Path(str(out)) / "vlm_results.json").write_text(json.dumps(results, indent=2))
-
-    # --- Comparison table ---
-    table_rows = [
-        [
-            cond,
-            results[cond]["n_claims"],
-            results[cond]["verified"],
-            results[cond]["refuted"],
-            f"{results[cond]['grounding_rate']:.1%}",
-            f"{results[cond]['hallucination_rate']:.1%}",
+        table_rows = [
+            [
+                cond,
+                results[cond]["n_claims"],
+                results[cond]["verified"],
+                results[cond]["refuted"],
+                f"{results[cond]['grounding_rate']:.1%}",
+                f"{results[cond]['hallucination_rate']:.1%}",
+            ]
+            for cond in results
         ]
-        for cond in results
-    ]
-    save_latex_table(
-        headers=["Condition", "Claims", "Verified", "Refuted", "Grounding Rate", "Hallucination Rate"],
-        rows=table_rows,
-        caption=f"VLM grounding comparison: text-only vs text+vision ({analysis_type})",
-        name="vlm_comparison",
-        output_dir=str(out),
-        label="tab:vlm_comparison",
-    )
+        save_latex_table(
+            headers=["Condition", "Claims", "Verified", "Refuted", "Grounding Rate", "Hallucination Rate"],
+            rows=table_rows,
+            caption=f"VLM grounding comparison ({provider_name}): text-only vs text+vision ({analysis_type})",
+            name=f"vlm_comparison_{provider_name}",
+            output_dir=str(out),
+            label=f"tab:vlm_comparison_{provider_name}",
+        )
 
-    # --- Comparison bar chart ---
-    cond_labels = list(results.keys())
-    rates = [results[c]["grounding_rate"] * 100 for c in cond_labels]
-    colors = ["#4f86c6", "#e07b54", "#6aab6a"]
+        cond_labels = list(results.keys())
+        rates = [results[c]["grounding_rate"] * 100 for c in cond_labels]
+        colors = ["#4f86c6", "#e07b54", "#6aab6a"]
+        fig, ax = plt.subplots(figsize=(7, 4))
+        bars = ax.bar(cond_labels, rates, color=colors[:len(cond_labels)], edgecolor="white", linewidth=0.8)
+        ax.bar_label(bars, fmt="%.1f%%", padding=3)
+        ax.set_ylim(0, 110)
+        ax.set_ylabel("Grounding rate (%)")
+        ax.set_title(f"VLM Grounding Comparison — {provider_name}\n({analysis_type})")
+        ax.set_xticklabels(cond_labels, rotation=12, ha="right")
+        fig.tight_layout()
+        save_figure(fig, f"vlm_grounding_comparison_{provider_name}", str(out))
 
-    fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(cond_labels, rates, color=colors[:len(cond_labels)], edgecolor="white", linewidth=0.8)
-    ax.bar_label(bars, fmt="%.1f%%", padding=3)
-    ax.set_ylim(0, 110)
-    ax.set_ylabel("Grounding rate (%)")
-    ax.set_title(f"VLM Grounding Comparison\n({analysis_type})")
-    ax.set_xticklabels(cond_labels, rotation=12, ha="right")
-    fig.tight_layout()
-    save_figure(fig, "vlm_grounding_comparison", str(out))
+    # Cross-provider comparison table
+    if len(providers_to_run) > 1:
+        cmp_rows = []
+        for cond, _ in conditions:
+            row = [cond]
+            for pname in providers_to_run:
+                key = f"{pname}_{cond}"
+                gr = all_results[key]["grounding_rate"] if key in all_results else float("nan")
+                row.append(f"{gr:.1%}" if not (gr != gr) else "n/a")
+            cmp_rows.append(row)
+        save_latex_table(
+            headers=["Condition"] + providers_to_run,
+            rows=cmp_rows,
+            caption=f"Cross-provider VLM grounding comparison ({analysis_type})",
+            name="vlm_provider_comparison",
+            output_dir=str(out),
+            label="tab:vlm_provider_comparison",
+        )
 
-    # --- Save sample annotated frames for dissertation ---
+    # Save sample annotated frames
     frames_dir = Path(str(out)) / "sample_frames"
     frames_dir.mkdir(exist_ok=True)
     import cv2
@@ -375,7 +400,7 @@ async def run_async(
         cv2.imwrite(str(frames_dir / f"annotated_{i:02d}.jpg"), ann)
 
     print(f"\nOutputs saved to: {out}/")
-    return results
+    return all_results
 
 
 def run(
@@ -384,8 +409,11 @@ def run(
     video_path: str,
     output_dir: str,
     n_keyframes: int = 5,
+    provider: str = "gemini",
 ) -> dict:
-    return asyncio.run(run_async(analytics_path, tracks_path, video_path, output_dir, n_keyframes))
+    return asyncio.run(
+        run_async(analytics_path, tracks_path, video_path, output_dir, n_keyframes, provider=provider)
+    )
 
 
 def main() -> None:
@@ -396,12 +424,13 @@ def main() -> None:
     parser.add_argument("--n-keyframes", type=int, default=5)
     parser.add_argument("--analysis-type", default="match_overview",
                         choices=["match_overview", "tactical_deep_dive", "event_analysis", "player_spotlight"])
+    parser.add_argument("--provider", default="gemini", choices=["gemini", "openai", "all"])
     parser.add_argument("--output", default="eval_output/vlm")
     args = parser.parse_args()
 
     asyncio.run(run_async(
         args.analytics, args.tracks, args.video,
-        args.output, args.n_keyframes, args.analysis_type,
+        args.output, args.n_keyframes, args.analysis_type, args.provider,
     ))
 
 
