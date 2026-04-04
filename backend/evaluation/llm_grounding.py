@@ -411,7 +411,8 @@ def compute_grounding_score(results: list[VerificationResult]) -> dict:
     """Compute grounding rate and hallucination rate."""
     total = len(results)
     if total == 0:
-        return {"grounding_rate": 0.0, "hallucination_rate": 0.0, "total_claims": 0}
+        return {"grounding_rate": 0.0, "hallucination_rate": 0.0, "total_claims": 0,
+                "verified": 0, "refuted": 0, "unverifiable": 0, "plausible": 0, "by_claim_type": {}}
     counts = {v: 0 for v in ("verified", "refuted", "unverifiable", "plausible")}
     by_type: dict[str, dict] = {}
     for r in results:

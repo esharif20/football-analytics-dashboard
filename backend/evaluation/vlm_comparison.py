@@ -76,7 +76,12 @@ def annotate_frame(
 
     # Find closest frame in tracks
     closest = min(tracks, key=lambda f: abs(f.get("frameNumber", 0) - frame_idx))
-    players = closest.get("playerPositions", [])
+    players = closest.get("playerPositions", {})
+    # playerPositions is a dict {trackId: {x, y, teamId}} from the pipeline
+    if isinstance(players, dict):
+        players_iter = [(tid, pdata) for tid, pdata in players.items()]
+    else:
+        players_iter = [(p.get("trackId", p.get("id", "?")), p) for p in players]
 
     team_colors_bgr = {
         0: (255, 100, 100),   # Blue-ish for team 0
@@ -84,15 +89,14 @@ def annotate_frame(
         -1: (200, 200, 200),  # Grey for unknown
     }
 
-    for p in players:
-        cx = int(p.get("pixelX", 0))
-        cy = int(p.get("pixelY", 0))
+    for track_id, p in players_iter:
+        cx = int(p.get("x", p.get("pixelX", 0)))
+        cy = int(p.get("y", p.get("pixelY", 0)))
         team_id = p.get("teamId", -1)
         color = team_colors_bgr.get(team_id, (200, 200, 200))
 
         # Draw circle at player centre + team label
         cv2.circle(annotated, (cx, cy), 15, color, 2)
-        track_id = p.get("trackId", p.get("id", "?"))
         cv2.putText(
             annotated, f"#{track_id} T{team_id}",
             (cx - 20, cy - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1
@@ -100,8 +104,9 @@ def annotate_frame(
 
     ball = closest.get("ballPosition")
     if ball:
-        bx = int(ball.get("pixelX", 0))
-        by = int(ball.get("pixelY", 0))
+        pixel_pos = ball.get("pixelPos", [ball.get("pixelX", 0), ball.get("pixelY", 0)])
+        bx = int(pixel_pos[0]) if isinstance(pixel_pos, (list, tuple)) else int(ball.get("pixelX", 0))
+        by = int(pixel_pos[1]) if isinstance(pixel_pos, (list, tuple)) else int(ball.get("pixelY", 0))
         cv2.circle(annotated, (bx, by), 10, (0, 255, 255), -1)
         cv2.putText(annotated, "BALL", (bx + 12, by), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
 
@@ -125,7 +130,7 @@ def frames_to_jpeg_bytes(frames: list[np.ndarray]) -> list[bytes]:
 class GeminiVisionProvider:
     """Gemini 2.0 Flash with image support for A/B testing."""
 
-    def __init__(self, api_key: str | None = None, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str | None = None, model: str = "gemini-2.5-flash"):
         import os
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
         self.model_name = model
@@ -316,7 +321,7 @@ async def run_async(
             print(f"  Skipping {provider_name} (no API key)")
             continue
 
-        judge_provider = get_provider("gemini")
+        judge_provider = get_provider(provider_name)
         print(f"\n--- Provider: {provider_name} ---")
 
         results: dict[str, dict] = {}
