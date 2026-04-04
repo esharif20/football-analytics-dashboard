@@ -68,11 +68,25 @@ def format_as_markdown(analytics: dict) -> str:
 
 def format_as_raw_json(analytics: dict) -> str:
     """Raw JSON — what the assessor warned against (the control condition)."""
-    # Strip very large arrays to avoid token limits (same as production does)
-    stripped = {
-        k: v for k, v in analytics.items()
-        if k not in ("ball_path_positions",)
-    }
+    # Strip per-frame arrays to stay within LLM context limits
+    _PER_FRAME_PLAYER_KEYS = {"speeds_px_per_frame", "speeds_m_per_sec"}
+    _DROP_TOP_LEVEL = {"ball_path_positions"}
+    stripped: dict = {}
+    for k, v in analytics.items():
+        if k in _DROP_TOP_LEVEL:
+            continue
+        if k == "player_kinematics" and isinstance(v, dict):
+            stripped[k] = {
+                pid: {pk: pv for pk, pv in pdata.items() if pk not in _PER_FRAME_PLAYER_KEYS}
+                for pid, pdata in v.items()
+            }
+        elif k == "ball_path" and isinstance(v, dict):
+            stripped[k] = {pk: pv for pk, pv in v.items()
+                           if pk not in ("positions", "pitch_positions")}
+        elif k == "possession" and isinstance(v, dict):
+            stripped[k] = {pk: pv for pk, pv in v.items() if pk != "events"}
+        else:
+            stripped[k] = v
     return json.dumps(stripped, indent=2)
 
 
@@ -201,9 +215,74 @@ def _parse_numeric(val_str: str) -> float | None:
         return None
 
 
+# ── Tactical metric helpers for qualitative rules ─────────────────────────
+
+def _get_tactical_summary(a: dict) -> dict:
+    """Get tactical.summary from analytics, handling both nested and flat forms."""
+    t = a.get("tactical", {})
+    return t.get("summary", {}) if isinstance(t, dict) else {}
+
+
+def _check_compact(a: dict) -> tuple:
+    """Check 'compact' claims against convex hull compactness."""
+    s = _get_tactical_summary(a)
+    t1 = s.get("team_1_avg_compactness_m2")
+    t2 = s.get("team_2_avg_compactness_m2")
+    if t1 is not None and t2 is not None:
+        is_compact = min(t1, t2) < 1000  # < 1000m² is compact
+        return (is_compact, f"compactness T1={t1:.0f}m² T2={t2:.0f}m²")
+    # Fallback to possession changes
+    return (a.get("possession", {}).get("possession_changes", 0) > 10, "no tactical data, used possession_changes")
+
+
+def _check_high_line(a: dict) -> tuple:
+    """Check 'high line' / 'deep block' claims against defensive line height."""
+    s = _get_tactical_summary(a)
+    t1 = s.get("team_1_avg_defensive_line_m")
+    t2 = s.get("team_2_avg_defensive_line_m")
+    if t1 is not None and t2 is not None:
+        high = max(t1, t2) > 40  # > 40m from goal = high line
+        return (high, f"def_line T1={t1:.1f}m T2={t2:.1f}m")
+    return (False, "no defensive line data")
+
+
+def _check_press(a: dict) -> tuple:
+    """Check pressing claims against pressing intensity + PPDA."""
+    s = _get_tactical_summary(a)
+    t1_pi = s.get("team_1_avg_pressing_intensity")
+    t2_pi = s.get("team_2_avg_pressing_intensity")
+    ppda_1 = s.get("ppda_team_1")
+    ppda_2 = s.get("ppda_team_2")
+    if t1_pi is not None and t2_pi is not None:
+        high_press = max(t1_pi, t2_pi) > 0.3
+        evidence = f"pressing T1={t1_pi:.2f} T2={t2_pi:.2f}"
+        if ppda_1 is not None and ppda_2 is not None:
+            evidence += f", PPDA T1={ppda_1:.1f} T2={ppda_2:.1f}"
+        return (high_press, evidence)
+    # Fallback
+    return (a.get("possession", {}).get("possession_changes", 0) > 10, "possession_changes")
+
+
+def _check_stretched(a: dict) -> tuple:
+    """Check 'stretched' / 'spread' claims against stretch index."""
+    s = _get_tactical_summary(a)
+    t1 = s.get("team_1_avg_stretch_index_m")
+    t2 = s.get("team_2_avg_stretch_index_m")
+    if t1 is not None and t2 is not None:
+        stretched = max(t1, t2) > 20  # > 20m mean dist = stretched
+        return (stretched, f"stretch_index T1={t1:.1f}m T2={t2:.1f}m")
+    return (False, "no stretch index data")
+
+
 # Qualitative claim rules: (keyword pattern, analytics check function)
 _QUALITATIVE_RULES = [
-    ("press", lambda a: (a.get("possession", {}).get("possession_changes", 0) > 10, "possession_changes")),
+    ("compact", _check_compact),
+    ("stretched", _check_stretched),
+    ("spread", _check_stretched),
+    ("high line", _check_high_line),
+    ("deep block", _check_high_line),
+    ("deep defen", _check_high_line),
+    ("press", _check_press),
     ("dominat", lambda a: (
         abs(a.get("possession", {}).get("team_1_percentage", 50) - 50) > 15, "possession imbalance > 15%"
     )),
@@ -216,6 +295,51 @@ _QUALITATIVE_RULES = [
 ]
 
 
+def _search_tactical_summary(analytics: dict, claimed_num: float, claim_text: str) -> tuple:
+    """Search tactical.summary and possession for a value matching the claim.
+
+    Returns (actual_value, key_path) or (None, None).
+    """
+    text_lower = claim_text.lower()
+
+    # Determine which team the claim references
+    team_hint = None
+    if "team 1" in text_lower or "team 0" in text_lower:
+        team_hint = "team_1"
+    elif "team 2" in text_lower:
+        team_hint = "team_2"
+
+    # Search tactical summary
+    tactical = analytics.get("tactical", {})
+    summary = tactical.get("summary", {}) if isinstance(tactical, dict) else {}
+    for key, val in summary.items():
+        if val is None or not isinstance(val, (int, float)):
+            continue
+        # If team hint, prefer matching key
+        if team_hint and team_hint not in key:
+            continue
+        if abs(val - claimed_num) <= max(abs(val) * 0.05, 0.5):
+            return val, f"tactical.summary.{key}"
+
+    # Also search without team filter if no exact match
+    if team_hint:
+        for key, val in summary.items():
+            if val is None or not isinstance(val, (int, float)):
+                continue
+            if abs(val - claimed_num) <= max(abs(val) * 0.05, 0.5):
+                return val, f"tactical.summary.{key}"
+
+    # Search possession stats
+    poss = analytics.get("possession", {})
+    for key, val in poss.items():
+        if val is None or not isinstance(val, (int, float)):
+            continue
+        if abs(val - claimed_num) <= max(abs(val) * 0.05, 0.5):
+            return val, f"possession.{key}"
+
+    return None, None
+
+
 def verify_claim(claim: Claim, analytics: dict) -> VerificationResult:  # noqa: C901
     """Verify a single claim against the source analytics dict."""
     def _unverifiable(msg: str, val: Any = None) -> VerificationResult:
@@ -224,6 +348,13 @@ def verify_claim(claim: Claim, analytics: dict) -> VerificationResult:  # noqa: 
     if claim.claim_type == "numeric":
         actual = _get_nested(analytics, claim.referenced_metric)
         claimed_num = _parse_numeric(claim.referenced_value)
+
+        # Fallback: if dot-path failed, search tactical summary + top-level for matching value
+        if actual is None and claimed_num is not None:
+            actual, found_key = _search_tactical_summary(analytics, claimed_num, claim.text)
+            if actual is not None:
+                claim.referenced_metric = found_key  # Update for reporting
+
         if actual is None or claimed_num is None:
             return _unverifiable(f"Could not resolve metric path '{claim.referenced_metric}'", actual)
         display = actual * 3.6 if ("speed" in claim.referenced_metric and "per_sec" in claim.referenced_metric) else actual
@@ -439,7 +570,11 @@ async def run_async(config: EvalConfig) -> dict:
     # provider_name -> format -> analysis_type -> score
     all_provider_scores: dict[str, dict[str, dict[str, dict]]] = {}
     for provider_name in providers_to_run:
-        fmt_type_scores = await _run_provider(provider_name, analytics, out)
+        try:
+            fmt_type_scores = await _run_provider(provider_name, analytics, out)
+        except Exception as exc:
+            print(f"  Skipping {provider_name} (error: {type(exc).__name__}: {exc!s:.120})")
+            continue
         if fmt_type_scores:
             all_provider_scores[provider_name] = fmt_type_scores
 

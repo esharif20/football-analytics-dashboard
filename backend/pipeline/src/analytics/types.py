@@ -90,6 +90,36 @@ class FootballEvent:
 
 
 @dataclass
+class TacticalWindow:
+    """Tactical metrics for a single time window."""
+    start_frame: int
+    end_frame: int
+    minute: float
+    team_1_compactness: Optional[float] = None
+    team_2_compactness: Optional[float] = None
+    team_1_stretch_index: Optional[float] = None
+    team_2_stretch_index: Optional[float] = None
+    team_1_length: Optional[float] = None
+    team_2_length: Optional[float] = None
+    team_1_width: Optional[float] = None
+    team_2_width: Optional[float] = None
+    team_1_defensive_line: Optional[float] = None
+    team_2_defensive_line: Optional[float] = None
+    team_1_pressing_intensity: Optional[float] = None
+    team_2_pressing_intensity: Optional[float] = None
+    inter_team_distance: Optional[float] = None
+
+
+@dataclass
+class TacticalMetrics:
+    """Complete tactical metrics output."""
+    windows: List[TacticalWindow] = field(default_factory=list)
+    summary: Dict = field(default_factory=dict)
+    ppda_team_1: Optional[float] = None
+    ppda_team_2: Optional[float] = None
+
+
+@dataclass
 class AnalyticsResult:
     """Complete analytics output."""
     possession: PossessionStats
@@ -103,3 +133,4 @@ class AnalyticsResult:
     interaction_graph_team1: Optional[Dict] = None
     interaction_graph_team2: Optional[Dict] = None
     team_colors: Optional[Dict[int, Tuple[int, int, int]]] = None  # BGR per team
+    tactical: Optional[TacticalMetrics] = None
