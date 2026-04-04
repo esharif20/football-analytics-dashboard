@@ -42,7 +42,7 @@ from pitch import (
     draw_voronoi_on_frame,
 )
 from pitch.annotators import render_radar_overlay
-from analytics import AnalyticsEngine, print_analytics_summary, export_analytics_json, export_tracks_json
+from analytics import AnalyticsEngine, print_analytics_summary, export_analytics_json, export_tracks_json, export_mot_csv
 from analytics.kinematics import KinematicsCalculator
 from trackers.annotator import TrackAnnotator
 # Import Mode from __init__ (same directory)
@@ -784,6 +784,8 @@ def run(
         tracks_json_path = output_subdir / f"{video_name}_tracks.json"
         export_tracks_json(tracks, result, str(tracks_json_path),
                            per_frame_transformers=per_frame_transformers)
+        mot_csv_path = output_subdir / f"{video_name}_mot.csv"
+        export_mot_csv(tracks, str(mot_csv_path))
 
         # Export per-frame homography matrices for evaluation scripts
         if per_frame_transformers:
