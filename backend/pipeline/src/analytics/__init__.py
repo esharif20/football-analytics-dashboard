@@ -19,6 +19,8 @@ from .types import (
     KinematicStats,
     BallPath,
     FootballEvent,
+    TacticalWindow,
+    TacticalMetrics,
     AnalyticsResult,
 )
 from .possession import PossessionCalculator, compute_possession_stats
@@ -26,6 +28,7 @@ from .kinematics import KinematicsCalculator, compute_kinematics
 from .ball_path import BallPathTracker, draw_ball_path_on_pitch
 from .events import EventDetector
 from .interaction_graph import compute_interaction_graphs, compute_interaction_graph_timeline
+from .tactical import TacticalCalculator
 
 
 class AnalyticsEngine:
@@ -120,6 +123,24 @@ class AnalyticsEngine:
                           len(ig_team2["nodes"]) if ig_team2 else 0,
                           len(ig_team2["edges"]) if ig_team2 else 0)
 
+        # Tactical metrics (team shape, pressing, PPDA)
+        tactical_calc = TacticalCalculator(fps=self.fps)
+        tactical = tactical_calc.compute(
+            tracks,
+            per_frame_transformers=per_frame_transformers,
+            events=events,
+            possession_events=possession_events,
+        )
+        if tactical.summary and "error" not in tactical.summary:
+            _logger.info(
+                "Tactical: compactness T1=%.0fm² T2=%.0fm², pressing T1=%.2f T2=%.2f, PPDA T1=%s T2=%s",
+                tactical.summary.get("team_1_avg_compactness_m2", 0) or 0,
+                tactical.summary.get("team_2_avg_compactness_m2", 0) or 0,
+                tactical.summary.get("team_1_avg_pressing_intensity", 0) or 0,
+                tactical.summary.get("team_2_avg_pressing_intensity", 0) or 0,
+                tactical.ppda_team_1, tactical.ppda_team_2,
+            )
+
         return AnalyticsResult(
             possession=possession_stats,
             player_kinematics=player_kinematics,
@@ -131,6 +152,7 @@ class AnalyticsEngine:
             events=events,
             interaction_graph_team1=ig_team1,
             interaction_graph_team2=ig_team2,
+            tactical=tactical,
         )
 
 
@@ -243,12 +265,14 @@ def export_tracks_json(
     result: "AnalyticsResult",
     filepath: str,
     max_frames: int = 750,
+    per_frame_transformers: Optional[Dict] = None,
 ) -> None:
     """Export per-frame tracking data to JSON for database ingestion.
 
     Produces a list of frame objects suitable for POST /api/worker/tracks/{id}.
     Ball positions come from result.ball_path.positions (already computed).
     Player positions are derived from the raw tracks dict (bbox center-bottom point).
+    If per_frame_transformers provided, adds pitchX/pitchY to each player.
     Frame count is capped at max_frames via uniform downsampling.
 
     Args:
@@ -256,6 +280,7 @@ def export_tracks_json(
         result: AnalyticsResult (provides ball_path, possession, fps).
         filepath: Output file path.
         max_frames: Maximum rows to output (default 750 — 30s clip at 25fps).
+        per_frame_transformers: Per-frame ViewTransformers for pitch projection.
     """
     import math
 
@@ -288,10 +313,15 @@ def export_tracks_json(
     selected_frames = selected_frames[:max_frames]
 
     def _safe(v):
-        """Replace inf/nan with None for JSON safety."""
+        """Replace inf/nan with None for JSON safety. Coerce numpy scalars to Python float."""
+        if hasattr(v, 'item'):  # numpy scalar (float32, int64, etc.)
+            v = v.item()
         if isinstance(v, float):
             return v if math.isfinite(v) else None
         return v
+
+    # Get per-frame transformer for pitch projection
+    import numpy as np
 
     frame_rows = []
     for frame_idx in selected_frames:
@@ -300,7 +330,10 @@ def export_tracks_json(
         # Ball position for this frame
         ball_pos = ball_lookup.get(frame_idx)
 
-        # Player positions: dict of track_id -> {x, y, teamId}
+        # Per-frame transformer for pitch coords
+        transformer = per_frame_transformers.get(frame_idx) if per_frame_transformers else None
+
+        # Player positions: dict of track_id -> {x, y, teamId, pitchX?, pitchY?}
         # x, y = center-bottom of bbox (foot contact point, more stable than center)
         player_positions: Dict[str, Dict] = {}
         frame_detections = players_list[frame_idx] if frame_idx < len(players_list) else {}
@@ -312,11 +345,24 @@ def export_tracks_json(
             x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
             cx = _safe((x1 + x2) / 2)
             cy = _safe(float(y2))  # bottom-center (foot contact)
-            player_positions[str(track_id)] = {
+            entry = {
                 "x": cx,
                 "y": cy,
                 "teamId": det.get("team_id"),
             }
+            # Add pitch coords if transformer available
+            if transformer is not None:
+                try:
+                    foot = (float((x1 + x2) / 2), float(y2))
+                    arr = np.array([foot], dtype=np.float32)
+                    pitch = transformer.transform_points(arr)
+                    px, py = float(pitch[0][0]), float(pitch[0][1])
+                    if 0 <= px <= 10500 and 0 <= py <= 6800:
+                        entry["pitchX"] = _safe(px / 100.0)  # cm → m
+                        entry["pitchY"] = _safe(py / 100.0)
+                except Exception:
+                    pass
+            player_positions[str(track_id)] = entry
 
         # Also include goalkeepers in player_positions
         gk_list = tracks.get("goalkeepers", [])
@@ -326,12 +372,26 @@ def export_tracks_json(
                 if not bbox or len(bbox) < 4:
                     continue
                 x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
-                player_positions[str(track_id)] = {
-                    "x": _safe((x1 + x2) / 2),
-                    "y": _safe(float(y2)),
+                cx_gk = _safe((x1 + x2) / 2)
+                cy_gk = _safe(float(y2))
+                gk_entry = {
+                    "x": cx_gk,
+                    "y": cy_gk,
                     "teamId": det.get("team_id"),
                     "isGoalkeeper": True,
                 }
+                if transformer is not None:
+                    try:
+                        foot = (float((x1 + x2) / 2), float(y2))
+                        arr = np.array([foot], dtype=np.float32)
+                        pitch = transformer.transform_points(arr)
+                        px, py = float(pitch[0][0]), float(pitch[0][1])
+                        if 0 <= px <= 10500 and 0 <= py <= 6800:
+                            gk_entry["pitchX"] = _safe(px / 100.0)
+                            gk_entry["pitchY"] = _safe(py / 100.0)
+                    except Exception:
+                        pass
+                player_positions[str(track_id)] = gk_entry
 
         frame_rows.append({
             "frameNumber": frame_idx,
@@ -341,8 +401,14 @@ def export_tracks_json(
             "possessionTeamId": poss_lookup.get(frame_idx),
         })
 
+    class _NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if hasattr(obj, 'item'):  # numpy scalar (float32, int64, bool_, etc.)
+                return obj.item()
+            return super().default(obj)
+
     with open(filepath, "w") as f:
-        json.dump(frame_rows, f)
+        json.dump(frame_rows, f, cls=_NumpyEncoder)
 
     _logger.info(
         "Tracks exported: %d frames (total=%d, stride=%d, max=%d) → %s",
@@ -369,6 +435,8 @@ __all__ = [
     "KinematicStats",
     "BallPath",
     "FootballEvent",
+    "TacticalWindow",
+    "TacticalMetrics",
     "AnalyticsResult",
 
     # Sub-modules
@@ -376,6 +444,7 @@ __all__ = [
     "KinematicsCalculator",
     "BallPathTracker",
     "EventDetector",
+    "TacticalCalculator",
     "compute_interaction_graphs",
     "compute_interaction_graph_timeline",
 ]

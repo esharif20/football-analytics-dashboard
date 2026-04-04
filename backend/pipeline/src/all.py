@@ -21,6 +21,9 @@ from config import (
     PITCH_MODEL_STRETCH,
     PITCH_KEYFRAME_STRIDE,
     ROBOFLOW_API_KEY_ENV,
+    EVENT_MODEL_PATH,
+    EVENT_DETECTION_ENABLED,
+    EVENT_BATCH_SIZE,
 )
 from utils.drawing import draw_keypoints
 from utils.pitch_detector import PitchDetector
@@ -48,6 +51,19 @@ import os
 _src_dir = os.path.dirname(os.path.abspath(__file__))
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
+
+# Make backend/event_detector importable regardless of working directory.
+_backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
+# Lazy import — graceful if timm is not installed.
+_event_detector_available = False
+try:
+    import timm as _  # noqa: F401
+    _event_detector_available = True
+except ImportError:
+    pass
 
 from __init__ import Mode
 from base import load_frames, build_tracker, get_stub_path
@@ -717,12 +733,46 @@ def run(
     # After all frames processed, compute and export analytics
     if show_analytics and analytics_engine is not None:
         _all_logger.info("Computing analytics...")
+
+        # Launch ML event detection concurrently with analytics computation.
+        # Both use GPU (EfficientNet) and CPU (heuristic analytics) so they
+        # overlap naturally. ThreadPoolExecutor works because PyTorch releases
+        # the GIL during C++ tensor operations.
+        _ml_future = None
+        if EVENT_DETECTION_ENABLED and _event_detector_available:
+            import concurrent.futures as _cf
+            from event_detector import EventModelInference, SlidingWindowConfig
+
+            _ev_cfg = SlidingWindowConfig(
+                checkpoint_path=EVENT_MODEL_PATH,
+                batch_size=EVENT_BATCH_SIZE,
+            )
+            _ev_inf = EventModelInference.from_config(_ev_cfg)
+            if _ev_inf is not None:
+                _executor = _cf.ThreadPoolExecutor(max_workers=1)
+                _ml_future = _executor.submit(_ev_inf.detect_events, frames, video_fps)
+
         result = analytics_engine.compute(
             tracks, transformer=None,
             per_frame_transformers=per_frame_transformers or None,
             ball_metrics=ball_metrics,
         )
         result.team_colors = team_colors  # BGR dict from TeamAssigner
+
+        # Collect ML events and merge into result (they are plain dicts; heuristic
+        # events are FootballEvent dataclasses — both serialize correctly via the
+        # existing export_analytics_json serializer).
+        if _ml_future is not None:
+            try:
+                ml_events = _ml_future.result(timeout=300)
+                if ml_events:
+                    _all_logger.info("Merging %d ML events into analytics result", len(ml_events))
+                    result.events = list(result.events) + ml_events
+            except Exception as exc:
+                _all_logger.warning("ML event detection failed, skipping: %s", exc)
+            finally:
+                _executor.shutdown(wait=False)
+
         print_analytics_summary(result)
 
         # Export analytics (including ball_metrics) to JSON in output directory
@@ -732,4 +782,17 @@ def run(
         analytics_json_path = output_subdir / f"{video_name}_analytics.json"
         export_analytics_json(result, str(analytics_json_path))
         tracks_json_path = output_subdir / f"{video_name}_tracks.json"
-        export_tracks_json(tracks, result, str(tracks_json_path))
+        export_tracks_json(tracks, result, str(tracks_json_path),
+                           per_frame_transformers=per_frame_transformers)
+
+        # Export per-frame homography matrices for evaluation scripts
+        if per_frame_transformers:
+            homography_export = {
+                str(fi): vt.matrix.tolist()
+                for fi, vt in per_frame_transformers.items()
+                if hasattr(vt, "matrix") and vt.matrix is not None
+            }
+            homography_json_path = output_subdir / f"{video_name}_homography.json"
+            with open(homography_json_path, "w") as _hf:
+                import json as _json
+                _json.dump(homography_export, _hf)
