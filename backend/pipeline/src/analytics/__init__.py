@@ -416,6 +416,82 @@ def export_tracks_json(
     )
 
 
+def export_mot_csv(
+    tracks: Dict,
+    output_path: str,
+    categories: list | None = None,
+) -> str:
+    """Export raw tracker output as MOT Challenge CSV.
+
+    Format per line: <frame>,<id>,<bb_left>,<bb_top>,<bb_width>,<bb_height>,<conf>,-1,-1,-1
+    Frame numbers are 1-indexed (MOT convention).
+
+    Args:
+        tracks: Raw dict from get_object_tracks() with keys 'players', 'referees',
+                'goalkeepers', 'ball'. Each value is list[dict[int, dict]] where
+                inner dict has 'bbox' [x1,y1,x2,y2] and 'confidence'.
+        output_path: Path to write CSV file.
+        categories: Which track categories to include.
+                    Default: ['players', 'referees', 'goalkeepers'].
+
+    Returns:
+        Path to written CSV.
+    """
+    if categories is None:
+        categories = ["players", "referees", "goalkeepers"]
+
+    # Track ID offsets per category to guarantee global uniqueness
+    _offsets = {
+        "players": 0,
+        "goalkeepers": 1000,
+        "referees": 2000,
+    }
+
+    # Determine max frame count across all selected categories
+    max_frames = 0
+    for cat in categories:
+        cat_list = tracks.get(cat, [])
+        if len(cat_list) > max_frames:
+            max_frames = len(cat_list)
+
+    lines: list[str] = []
+    for frame_idx in range(max_frames):
+        frame_num = frame_idx + 1  # MOT is 1-indexed
+        for cat in categories:
+            cat_list = tracks.get(cat, [])
+            if frame_idx >= len(cat_list):
+                continue
+            frame_detections = cat_list[frame_idx]
+            id_offset = _offsets.get(cat, 0)
+            for track_id, det in frame_detections.items():
+                bbox = det.get("bbox") or det.get("bbox_tlwh")
+                if not bbox or len(bbox) < 4:
+                    continue
+                x1, y1, x2, y2 = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
+                w = x2 - x1
+                h = y2 - y1
+                conf = float(det.get("confidence", 1.0))
+                global_id = int(track_id) + id_offset
+                lines.append(
+                    f"{frame_num},{global_id},{x1:.2f},{y1:.2f},{w:.2f},{h:.2f},{conf:.4f},-1,-1,-1"
+                )
+
+    # Sort by frame number then track id (both are numeric prefix of the line)
+    def _sort_key(line: str) -> tuple:
+        parts = line.split(",")
+        return (int(parts[0]), int(parts[1]))
+
+    lines.sort(key=_sort_key)
+
+    with open(output_path, "w") as f:
+        f.write("\n".join(lines))
+        if lines:
+            f.write("\n")
+
+    _logger.info("MOT CSV exported: %d detections → %s", len(lines), output_path)
+    return output_path
+
+
 __all__ = [
     # Main engine
     "AnalyticsEngine",
@@ -426,6 +502,7 @@ __all__ = [
     "print_analytics_summary",
     "export_analytics_json",
     "export_tracks_json",
+    "export_mot_csv",
     "draw_ball_path_on_pitch",
 
     # Types
