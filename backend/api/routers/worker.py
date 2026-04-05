@@ -11,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..deps import get_db
 from ..models import Analysis, Event, Statistic, Track, Video
-from ..schemas import WorkerCompleteRequest, WorkerStatusUpdate, WorkerTracksCreate, WorkerUploadVideo
+from ..schemas import (
+    WorkerCompleteRequest,
+    WorkerStatusUpdate,
+    WorkerTracksCreate,
+    WorkerUploadVideo,
+)
 from ..storage import reencode_to_h264, storage_put
 from ..ws import broadcast_complete, broadcast_error, broadcast_progress
 
@@ -90,16 +95,25 @@ async def update_worker_status(
         raise HTTPException(status_code=400, detail="Progress must be 0-100")
     allowed_stages = {
         "upload",
+        "uploading",
         "load",
+        "loading",
         "detect",
+        "detecting",
         "track",
+        "tracking",
         "team",
+        "classifying",
         "pitch",
+        "mapping",
         "analytics",
+        "computing",
         "render",
+        "rendering",
         "queued",
         "downloading",
         "processing",
+        "done",
     }
     if body.currentStage and body.currentStage not in allowed_stages:
         raise HTTPException(status_code=400, detail="Invalid currentStage")

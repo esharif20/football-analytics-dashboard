@@ -117,3 +117,24 @@ backend/pipeline/src/stubs/
 *.db
 *.sqlite
 *.sqlite3
+
+# Tooling artifacts
+.manus/
+.codex/
+.opencode/
+.swarm/
+.claude-flow/
+.claude/
+.mcp.json
+
+# Local upload and output data
+uploads/
+test_uploads/
+eval_output/
+backend/eval_output/
+backend/pipeline/input_videos/
+
+# Test/build artifacts
+test-results/
+.pytest_cache/
+.ruff_cache/

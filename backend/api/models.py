@@ -68,7 +68,9 @@ class Video(Base):
     __tablename__ = "videos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    userId: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    userId: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     originalUrl: Mapped[str] = mapped_column(Text, nullable=False)
@@ -92,8 +94,12 @@ class Analysis(Base):
     __tablename__ = "analyses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    videoId: Mapped[int] = mapped_column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
-    userId: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    videoId: Mapped[int] = mapped_column(
+        Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False
+    )
+    userId: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     mode: Mapped[str] = mapped_column(Enum(PipelineMode, create_type=False), nullable=False)
     status: Mapped[str] = mapped_column(
         Enum(ProcessingStatus, create_type=False), nullable=False, server_default=text("'pending'")
@@ -123,7 +129,9 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    analysisId: Mapped[int] = mapped_column(Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False)
+    analysisId: Mapped[int] = mapped_column(
+        Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False
+    )
     type: Mapped[str] = mapped_column(String(64), nullable=False)
     frameNumber: Mapped[int] = mapped_column(Integer, nullable=False)
     timestamp: Mapped[float] = mapped_column(Float, nullable=False)
@@ -146,7 +154,9 @@ class Track(Base):
     __tablename__ = "tracks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    analysisId: Mapped[int] = mapped_column(Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False)
+    analysisId: Mapped[int] = mapped_column(
+        Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False
+    )
     frameNumber: Mapped[int] = mapped_column(Integer, nullable=False)
     timestamp: Mapped[float] = mapped_column(Float, nullable=False)
     playerPositions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -162,7 +172,9 @@ class Statistic(Base):
     __tablename__ = "statistics"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    analysisId: Mapped[int] = mapped_column(Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False)
+    analysisId: Mapped[int] = mapped_column(
+        Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False
+    )
     possessionTeam1: Mapped[float | None] = mapped_column(Float, nullable=True)
     possessionTeam2: Mapped[float | None] = mapped_column(Float, nullable=True)
     passesTeam1: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -200,8 +212,12 @@ class Commentary(Base):
     __tablename__ = "commentary"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    analysisId: Mapped[int] = mapped_column(Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False)
-    eventId: Mapped[int | None] = mapped_column(Integer, ForeignKey("events.id", ondelete="SET NULL"), nullable=True)
+    analysisId: Mapped[int] = mapped_column(
+        Integer, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False
+    )
+    eventId: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("events.id", ondelete="SET NULL"), nullable=True
+    )
     frameStart: Mapped[int | None] = mapped_column(Integer, nullable=True)
     frameEnd: Mapped[int | None] = mapped_column(Integer, nullable=True)
     type: Mapped[str] = mapped_column(String(64), nullable=False)

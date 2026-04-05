@@ -32,10 +32,20 @@ def reencode_to_h264(video_path: str) -> None:
     try:
         subprocess.run(
             [
-                "ffmpeg", "-y", "-i", video_path,
-                "-c:v", "libx264", "-preset", "fast",
-                "-crf", "23", "-movflags", "+faststart",
-                "-an", tmp,
+                "ffmpeg",
+                "-y",
+                "-i",
+                video_path,
+                "-c:v",
+                "libx264",
+                "-preset",
+                "fast",
+                "-crf",
+                "23",
+                "-movflags",
+                "+faststart",
+                "-an",
+                tmp,
             ],
             check=True,
             capture_output=True,
@@ -48,7 +58,9 @@ def reencode_to_h264(video_path: str) -> None:
             os.remove(tmp)
 
 
-async def storage_put(rel_key: str, data: bytes, content_type: str = "application/octet-stream") -> dict:
+async def storage_put(
+    rel_key: str, data: bytes, content_type: str = "application/octet-stream"
+) -> dict:
     """Write file to local storage. Returns {key, url}."""
     key = _normalize_key(rel_key)
     file_path = ensure_dir(key)

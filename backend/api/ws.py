@@ -1,7 +1,8 @@
-import json
-import hmac
 import hashlib
+import hmac
+import json
 from urllib.parse import parse_qs
+
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
@@ -54,7 +55,9 @@ async def websocket_endpoint(ws: WebSocket, analysis_id: int):
             s.discard(ws)
 
 
-async def broadcast_progress(analysis_id: int, status: str, progress: int, current_stage: str | None, eta: int | None = None):
+async def broadcast_progress(
+    analysis_id: int, status: str, progress: int, current_stage: str | None, eta: int | None = None
+):
     msg = {
         "type": "progress",
         "analysisId": analysis_id,

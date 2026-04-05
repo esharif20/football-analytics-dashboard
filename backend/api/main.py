@@ -1,22 +1,21 @@
 import os
 import time
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile, File, Form, Depends
+from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .config import settings
 from .auth import AutoLoginMiddleware
-from .ws import websocket_endpoint
-from .deps import get_current_user, get_db
-from .models import User, Video as VideoModel
+from .config import settings
+from .deps import get_db
+from .models import Video as VideoModel
+from .routers import analyses, chat, commentary, events, stats, system, tracks, videos, worker
 from .schemas import _serialize_user
 from .storage import storage_put
-
-from .routers import system, videos, analyses, events, tracks, stats, commentary, worker
+from .ws import websocket_endpoint
 
 
 @asynccontextmanager
@@ -127,6 +126,7 @@ app.include_router(events.router, prefix="/api")
 app.include_router(tracks.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(commentary.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 app.include_router(worker.router, prefix="/api")
 
 if os.getenv("ENABLE_TEST_SUPPORT", "").lower() == "true":

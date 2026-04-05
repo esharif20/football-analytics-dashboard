@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..deps import get_db, get_current_user
-from ..models import User, Analysis, Event
+from ..deps import get_current_user, get_db
+from ..models import Analysis, Event, User
 from ..schemas import EventsCreate, _row_to_dict
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -18,7 +18,9 @@ async def _verify_analysis_owner(analysis_id: int, user: User, db: AsyncSession)
 
 
 @router.get("/{analysis_id}")
-async def list_events(analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def list_events(
+    analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     await _verify_analysis_owner(analysis_id, user, db)
     result = await db.execute(
         select(Event).where(Event.analysisId == analysis_id).order_by(Event.frameNumber)
@@ -27,7 +29,12 @@ async def list_events(analysis_id: int, user: User = Depends(get_current_user), 
 
 
 @router.get("/{analysis_id}/by-type/{event_type}")
-async def list_events_by_type(analysis_id: int, event_type: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def list_events_by_type(
+    analysis_id: int,
+    event_type: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     await _verify_analysis_owner(analysis_id, user, db)
     result = await db.execute(
         select(Event)
@@ -38,7 +45,9 @@ async def list_events_by_type(analysis_id: int, event_type: str, user: User = De
 
 
 @router.post("")
-async def create_events(body: EventsCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def create_events(
+    body: EventsCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     await _verify_analysis_owner(body.analysisId, user, db)
 
     for e in body.events:

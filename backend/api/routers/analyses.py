@@ -1,26 +1,69 @@
-from datetime import datetime, timezone
-import hmac
 import hashlib
+import hmac
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..deps import get_db, get_current_user
-from ..models import User, Video, Analysis
-from ..schemas import AnalysisCreate, AnalysisStatusUpdate, AnalysisResultsUpdate, _row_to_dict
 from ..config import settings
+from ..deps import get_current_user, get_db
+from ..models import Analysis, User, Video
+from ..schemas import AnalysisCreate, AnalysisResultsUpdate, AnalysisStatusUpdate, _row_to_dict
 
 router = APIRouter(tags=["analyses"])
 
 # Pipeline modes constant (mirrors backend/shared/types.ts)
 PIPELINE_MODES = {
-    "all": {"id": "all", "name": "Full Analysis", "description": "Complete pipeline: detection, tracking, team classification, pitch mapping, and analytics", "outputs": ["annotated_video", "radar_video", "tracking_data", "analytics"], "icon": "Layers"},
-    "radar": {"id": "radar", "name": "Radar View", "description": "2D pitch visualization with player positions and ball trajectory", "outputs": ["radar_video", "tracking_data"], "icon": "Radar"},
-    "team": {"id": "team", "name": "Team Analysis", "description": "Team classification and formation detection using SigLIP embeddings", "outputs": ["annotated_video", "team_data"], "icon": "Users"},
-    "track": {"id": "track", "name": "Object Tracking", "description": "Player and ball tracking with ByteTrack persistence", "outputs": ["annotated_video", "tracking_data"], "icon": "Target"},
-    "players": {"id": "players", "name": "Player Detection", "description": "YOLOv8 player and referee detection with bounding boxes", "outputs": ["annotated_video"], "icon": "User"},
-    "ball": {"id": "ball", "name": "Ball Tracking", "description": "Ball detection with SAHI slicer and trajectory interpolation", "outputs": ["annotated_video", "ball_data"], "icon": "Circle"},
-    "pitch": {"id": "pitch", "name": "Pitch Mapping", "description": "Keypoint detection and homography transformation to pitch coordinates", "outputs": ["pitch_overlay", "homography_data"], "icon": "Map"},
+    "all": {
+        "id": "all",
+        "name": "Full Analysis",
+        "description": "Complete pipeline: detection, tracking, team classification, pitch mapping, and analytics",
+        "outputs": ["annotated_video", "radar_video", "tracking_data", "analytics"],
+        "icon": "Layers",
+    },
+    "radar": {
+        "id": "radar",
+        "name": "Radar View",
+        "description": "2D pitch visualization with player positions and ball trajectory",
+        "outputs": ["radar_video", "tracking_data"],
+        "icon": "Radar",
+    },
+    "team": {
+        "id": "team",
+        "name": "Team Analysis",
+        "description": "Team classification and formation detection using SigLIP embeddings",
+        "outputs": ["annotated_video", "team_data"],
+        "icon": "Users",
+    },
+    "track": {
+        "id": "track",
+        "name": "Object Tracking",
+        "description": "Player and ball tracking with ByteTrack persistence",
+        "outputs": ["annotated_video", "tracking_data"],
+        "icon": "Target",
+    },
+    "players": {
+        "id": "players",
+        "name": "Player Detection",
+        "description": "YOLOv8 player and referee detection with bounding boxes",
+        "outputs": ["annotated_video"],
+        "icon": "User",
+    },
+    "ball": {
+        "id": "ball",
+        "name": "Ball Tracking",
+        "description": "Ball detection with SAHI slicer and trajectory interpolation",
+        "outputs": ["annotated_video", "ball_data"],
+        "icon": "Circle",
+    },
+    "pitch": {
+        "id": "pitch",
+        "name": "Pitch Mapping",
+        "description": "Keypoint detection and homography transformation to pitch coordinates",
+        "outputs": ["pitch_overlay", "homography_data"],
+        "icon": "Map",
+    },
 }
 
 PROCESSING_STAGES = [
@@ -60,7 +103,9 @@ async def get_stages():
 
 
 @router.get("/analysis/by-video/{video_id}")
-async def list_by_video(video_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def list_by_video(
+    video_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     # Verify video belongs to user
     vr = await db.execute(select(Video).where(Video.id == video_id).limit(1))
     video = vr.scalar_one_or_none()
@@ -73,7 +118,9 @@ async def list_by_video(video_id: int, user: User = Depends(get_current_user), d
 
 
 @router.get("/analysis/{analysis_id}")
-async def get_analysis(analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_analysis(
+    analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
     analysis = result.scalar_one_or_none()
     if not analysis or analysis.userId != user.id:
@@ -84,7 +131,9 @@ async def get_analysis(analysis_id: int, user: User = Depends(get_current_user),
 
 
 @router.post("/analysis")
-async def create_analysis(body: AnalysisCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def create_analysis(
+    body: AnalysisCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     # Verify video belongs to user
     vr = await db.execute(select(Video).where(Video.id == body.videoId).limit(1))
     video = vr.scalar_one_or_none()
@@ -115,7 +164,12 @@ async def create_analysis(body: AnalysisCreate, user: User = Depends(get_current
 
 
 @router.put("/analysis/{analysis_id}/status")
-async def update_status(analysis_id: int, body: AnalysisStatusUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def update_status(
+    analysis_id: int,
+    body: AnalysisStatusUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
     analysis = result.scalar_one_or_none()
     if not analysis or analysis.userId != user.id:
@@ -128,16 +182,21 @@ async def update_status(analysis_id: int, body: AnalysisStatusUpdate, user: User
     if body.errorMessage is not None:
         analysis.errorMessage = body.errorMessage
     if body.status == "processing" and body.progress == 0:
-        analysis.startedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        analysis.startedAt = datetime.now(UTC).replace(tzinfo=None)
     if body.status in ("completed", "failed"):
-        analysis.completedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        analysis.completedAt = datetime.now(UTC).replace(tzinfo=None)
 
     await db.commit()
     return {"success": True}
 
 
 @router.put("/analysis/{analysis_id}/results")
-async def update_results(analysis_id: int, body: AnalysisResultsUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def update_results(
+    analysis_id: int,
+    body: AnalysisResultsUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
     analysis = result.scalar_one_or_none()
     if not analysis or analysis.userId != user.id:
@@ -159,7 +218,9 @@ async def update_results(analysis_id: int, body: AnalysisResultsUpdate, user: Us
 
 
 @router.post("/analysis/{analysis_id}/terminate")
-async def terminate_analysis(analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def terminate_analysis(
+    analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
     analysis = result.scalar_one_or_none()
     if not analysis or analysis.userId != user.id:
@@ -170,19 +231,22 @@ async def terminate_analysis(analysis_id: int, user: User = Depends(get_current_
 
     analysis.status = "failed"
     analysis.errorMessage = "Terminated by user"
-    analysis.completedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+    analysis.completedAt = datetime.now(UTC).replace(tzinfo=None)
     await db.commit()
     return {"success": True}
 
 
 @router.get("/analysis/{analysis_id}/eta")
-async def get_eta(analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_eta(
+    analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id).limit(1))
     analysis = result.scalar_one_or_none()
     if not analysis or analysis.userId != user.id:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
     import time
+
     now_ms = int(time.time() * 1000)
 
     start_time = now_ms
@@ -200,14 +264,23 @@ async def get_eta(analysis_id: int, user: User = Depends(get_current_user), db: 
     remaining = max(0, estimated_total - elapsed)
 
     stage_estimates = {
-        "upload": 5, "uploading": 5,
-        "load": 3, "loading": 3, "downloading": 5,
-        "detect": 60, "detecting": 60,
-        "track": 10, "tracking": 10,
-        "team": 30, "classifying": 30,
-        "pitch": 20, "mapping": 20,
-        "analytics": 15, "computing": 15,
-        "render": 45, "rendering": 45,
+        "upload": 5,
+        "uploading": 5,
+        "load": 3,
+        "loading": 3,
+        "downloading": 5,
+        "detect": 60,
+        "detecting": 60,
+        "track": 10,
+        "tracking": 10,
+        "team": 30,
+        "classifying": 30,
+        "pitch": 20,
+        "mapping": 20,
+        "analytics": 15,
+        "computing": 15,
+        "render": 45,
+        "rendering": 45,
         "done": 0,
     }
 
@@ -223,7 +296,9 @@ async def get_eta(analysis_id: int, user: User = Depends(get_current_user), db: 
         stage_id = PROCESSING_STAGES[i]["id"]
         estimate = stage_estimates.get(stage_id, 10)
         if i == stage_index:
-            stage_progress = (progress % (100 / len(PROCESSING_STAGES))) / (100 / len(PROCESSING_STAGES))
+            stage_progress = (progress % (100 / len(PROCESSING_STAGES))) / (
+                100 / len(PROCESSING_STAGES)
+            )
             stage_based_remaining += estimate * (1 - min(stage_progress, 1))
         else:
             stage_based_remaining += estimate

@@ -45,7 +45,7 @@ PAD_BALL = 10
 DETECTION_BATCH_SIZE = 0
 PITCH_MODEL_IMG_SIZE = 640
 PITCH_MODEL_STRETCH = True  # Match blog-style stretched 640x640 preprocessing
-PITCH_MODEL_BACKEND = "inference"  # "inference" for Roboflow API (more accurate), "ultralytics" for local GPU (faster)
+PITCH_MODEL_BACKEND = "ultralytics"  # "inference" for Roboflow API (more accurate), "ultralytics" for local GPU (faster)
 PITCH_KEYFRAME_STRIDE = 5  # Only run pitch detection every N frames, interpolate the rest
 PITCH_MODEL_ID = "football-field-detection-f07vi/14"
 ROBOFLOW_API_KEY_ENV = "ROBOFLOW_API_KEY"
@@ -98,3 +98,24 @@ ANALYTICS_CONTROL_THRESHOLD_PX = 100  # pixels - possession distance threshold
 ANALYTICS_CONTROL_THRESHOLD_CM = 300  # 3 meters - possession threshold with homography
 ANALYTICS_DIRECTION_CHANGE_DEG = 45.0  # degrees - ball direction change detection
 DEFAULT_VIDEO_FPS = 25.0
+
+# =============================================================================
+# ML Event Detection (event_detector module)
+# =============================================================================
+
+import os as _os
+
+# Path to EfficientNetV2-B0 event detection checkpoint.
+# Defaults to models/event_detection.ckpt (same models/ dir as YOLO weights).
+EVENT_MODEL_PATH = _os.environ.get(
+    "EVENT_MODEL_PATH",
+    str(MODELS_DIR / "event_detection.ckpt"),
+)
+
+# Set to "0" or "false" to disable ML event detection entirely.
+EVENT_DETECTION_ENABLED = _os.environ.get("EVENT_DETECTION_ENABLED", "1").lower() not in (
+    "0", "false", "no"
+)
+
+# Number of sliding windows to batch into a single GPU forward pass.
+EVENT_BATCH_SIZE = int(_os.environ.get("EVENT_BATCH_SIZE", "8"))

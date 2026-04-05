@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..deps import get_db, get_current_user
-from ..models import User, Analysis, Statistic
+from ..deps import get_current_user, get_db
+from ..models import Analysis, Statistic, User
 from ..schemas import StatisticsCreate, _row_to_dict
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
@@ -18,11 +18,11 @@ async def _verify_analysis_owner(analysis_id: int, user: User, db: AsyncSession)
 
 
 @router.get("/{analysis_id}")
-async def get_statistics(analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_statistics(
+    analysis_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     await _verify_analysis_owner(analysis_id, user, db)
-    result = await db.execute(
-        select(Statistic).where(Statistic.analysisId == analysis_id).limit(1)
-    )
+    result = await db.execute(select(Statistic).where(Statistic.analysisId == analysis_id).limit(1))
     stat = result.scalar_one_or_none()
     if not stat:
         return None
@@ -30,7 +30,11 @@ async def get_statistics(analysis_id: int, user: User = Depends(get_current_user
 
 
 @router.post("")
-async def create_statistics(body: StatisticsCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def create_statistics(
+    body: StatisticsCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     await _verify_analysis_owner(body.analysisId, user, db)
 
     stat = Statistic(

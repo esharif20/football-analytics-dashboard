@@ -1,9 +1,10 @@
 import logging
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+
+from sqlalchemy import select
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
-from sqlalchemy import select
 
 from .config import settings
 from .database import async_session
@@ -15,15 +16,16 @@ logger = logging.getLogger("api.auth")
 @dataclass
 class FallbackUser:
     """In-memory user when the DB is unavailable in local dev mode."""
+
     id: int = 1
     openId: str = "local-dev-user"
     name: str = "Local Developer"
     email: str = "dev@localhost"
     loginMethod: str = "local"
     role: str = "admin"
-    createdAt: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updatedAt: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    lastSignedIn: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    createdAt: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updatedAt: datetime = field(default_factory=lambda: datetime.now(UTC))
+    lastSignedIn: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class AutoLoginMiddleware:
@@ -69,13 +71,13 @@ class AutoLoginMiddleware:
                                     email="dev@localhost",
                                     loginMethod="local",
                                     role="admin",
-                                    lastSignedIn=datetime.now(timezone.utc),
+                                    lastSignedIn=datetime.now(UTC),
                                 )
                                 db.add(user)
                                 await db.commit()
                                 await db.refresh(user)
                             else:
-                                user.lastSignedIn = datetime.now(timezone.utc)
+                                user.lastSignedIn = datetime.now(UTC)
                                 await db.commit()
                                 await db.refresh(user)
                     except Exception:
@@ -89,4 +91,3 @@ class AutoLoginMiddleware:
                 request.state.user = user
 
         await self.app(scope, receive, send)
-

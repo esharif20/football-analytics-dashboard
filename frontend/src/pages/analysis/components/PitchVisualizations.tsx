@@ -347,10 +347,8 @@ export function PassNetworkView({
   const [teamToggle, setTeamToggle] = useState<'team1' | 'team2'>('team1')
   const { TEAM1_HEX, TEAM2_HEX } = useTeamColors()
 
-  const hasTeam1 =
-    Array.isArray(passNetworkTeam1?.nodes) && passNetworkTeam1.nodes.length > 0
-  const hasTeam2 =
-    Array.isArray(passNetworkTeam2?.nodes) && passNetworkTeam2.nodes.length > 0
+  const hasTeam1 = Array.isArray(passNetworkTeam1?.nodes) && passNetworkTeam1.nodes.length > 0
+  const hasTeam2 = Array.isArray(passNetworkTeam2?.nodes) && passNetworkTeam2.nodes.length > 0
   const hasAnyReal = hasTeam1 || hasTeam2
 
   const networkData = teamToggle === 'team1' ? passNetworkTeam1 : passNetworkTeam2
@@ -364,15 +362,12 @@ export function PassNetworkView({
 
   // Normalize coordinates: backend stores in cm (0-10500 x 0-6800), SVG viewBox is 0-105 x 0-68
   const nodes = useMemo(() => {
-    const needsScale = rawNodes.some(n => n.x > 200 || n.y > 200)
+    const needsScale = rawNodes.some((n) => n.x > 200 || n.y > 200)
     if (!needsScale) return rawNodes
-    return rawNodes.map(n => ({ ...n, x: n.x / 100, y: n.y / 100 }))
+    return rawNodes.map((n) => ({ ...n, x: n.x / 100, y: n.y / 100 }))
   }, [rawNodes])
 
-  const nodeMap = useMemo(
-    () => new Map(nodes.map((n) => [String(n.id), n])),
-    [nodes]
-  )
+  const nodeMap = useMemo(() => new Map(nodes.map((n) => [String(n.id), n])), [nodes])
   const teamColor = teamToggle === 'team1' ? TEAM1_HEX : TEAM2_HEX
 
   return (

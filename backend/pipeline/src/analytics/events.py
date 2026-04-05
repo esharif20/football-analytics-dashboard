@@ -322,8 +322,9 @@ class EventDetector:
         """
         counts: Dict[str, Dict[int, int]] = {}
         for ev in events:
-            if ev.event_type not in counts:
-                counts[ev.event_type] = {}
-            tid = ev.team_id or 0
-            counts[ev.event_type][tid] = counts[ev.event_type].get(tid, 0) + 1
+            etype = ev["event_type"] if isinstance(ev, dict) else ev.event_type
+            tid = (ev.get("team_id") if isinstance(ev, dict) else ev.team_id) or 0
+            if etype not in counts:
+                counts[etype] = {}
+            counts[etype][tid] = counts[etype].get(tid, 0) + 1
         return counts

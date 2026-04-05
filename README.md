@@ -1,8 +1,10 @@
 # Football Analytics Dashboard
 
+![CI](https://github.com/esharif20/football-analytics-dashboard/actions/workflows/ci.yml/badge.svg)
+
 Full-stack sports analytics platform — upload football match footage, get real-time player tracking, team classification, heatmaps, pass networks, and AI tactical commentary.
 
-Built with **React + FastAPI + MySQL** and a **Python CV pipeline** running on a cloud GPU.
+Built with **React 19 + FastAPI + PostgreSQL** and a **Python CV pipeline** running on a cloud GPU.
 
 ---
 
@@ -10,13 +12,13 @@ Built with **React + FastAPI + MySQL** and a **Python CV pipeline** running on a
 
 ```mermaid
 graph TD
-    Browser["Browser<br/><i>React + Vite · localhost:5173</i>"]
+    Browser["Browser<br/><i>React 19 + Vite 6 · localhost:5173</i>"]
 
     Browser -->|"upload video · view results"| API
     API -.->|"WebSocket · live progress"| Browser
 
     API["FastAPI Server<br/><i>REST API · localhost:8000</i>"]
-    API --> DB["MySQL 8.0<br/><i>localhost:3307</i>"]
+    API --> DB["PostgreSQL<br/><i>localhost:5432</i>"]
     API --> FS["File Storage<br/><i>./uploads/</i>"]
 
     API <-->|"ngrok tunnel"| Worker
@@ -43,12 +45,12 @@ graph TD
 
 ### The Flow
 
-1. You upload a video in the browser
-2. FastAPI saves it to `./uploads/` and writes a `pending` analysis row in MySQL
+1. Upload a video in the browser
+2. FastAPI saves it to `./uploads/` and writes a `pending` analysis row in PostgreSQL
 3. The worker (on RunPod) polls `/api/worker/pending` through the ngrok tunnel
 4. Worker downloads the video, runs detection + tracking + team classification + analytics
 5. Worker uploads annotated video and results back through the tunnel
-6. Frontend displays the analysis (pitch visualizations, stats, heatmaps)
+6. Frontend displays the analysis (pitch visualizations, stats, heatmaps, AI commentary)
 
 ---
 
@@ -120,11 +122,12 @@ graph LR
     subgraph Frontend
         React["React 19"]
         Vite2["Vite 6"]
-        TS["TypeScript"]
+        TS["TypeScript 5.9"]
         TW["Tailwind CSS 4"]
-        RQ["React Query"]
+        RQ["React Query v5"]
         Recharts["Recharts"]
         Shadcn["shadcn/ui"]
+        FM["Framer Motion"]
     end
 
     subgraph Backend
@@ -142,7 +145,7 @@ graph LR
     end
 
     subgraph Infra
-        MySQL2["MySQL 8.0"]
+        PG["PostgreSQL"]
         Docker["Docker"]
         Ngrok["ngrok"]
         RunPod["RunPod"]
@@ -159,8 +162,8 @@ graph LR
 ## Prerequisites
 
 - **Python 3.11+** — for the FastAPI backend
-- **Node.js 18+** and **pnpm** — for the frontend
-- **Docker Desktop** — for running MySQL
+- **Node.js 22+** and **pnpm** — for the frontend
+- **PostgreSQL** — any running instance on port 5432 (or update `DATABASE_URL`)
 - **ngrok** — `brew install ngrok` + [free account](https://ngrok.com)
 - **RunPod account** (or any cloud GPU) — for the CV pipeline worker
 
@@ -175,45 +178,59 @@ cd football-analytics-dashboard
 
 # 2. Copy environment config
 cp env.example .env
+# Edit .env: set DATABASE_URL to your PostgreSQL instance
 
-# 3. Start MySQL
-docker compose up db -d
-
-# 4. Install Python backend deps
+# 3. Install backend deps
 cd backend && pip install -r api/requirements.txt && cd ..
 
-# 5. Install frontend deps
+# 4. Install frontend deps
 cd frontend && pnpm install && cd ..
 
-# 6. Start FastAPI (terminal 1)
+# 5. Start FastAPI (terminal 1)
 cd backend && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 7. Start frontend (terminal 2)
+# 6. Start frontend (terminal 2)
 cd frontend && pnpm dev
 ```
 
-Open **http://localhost:5173** — auto-logged in, no auth needed.
-
-## GSD Workflow (opt-in)
-
-Use the GSD commands to track work on this brownfield repo:
-
-- Run `/gsd:map-codebase` once to index the stack and architecture.
-- Then `/gsd:new-project` to create `.planning/` with `ROADMAP.md` and `STATE.md`.
-- Check status anytime with `/gsd:progress` (or `/gsd:resume-work` if returning).
-- Fast start for the first phase: `/gsd:discuss-phase 1 --auto && /gsd:plan-phase 1 && /gsd:execute-phase 1`.
-- Planning artifacts live in `.planning/`; keep git-tracking them with the rest of the repo.
-
-If a command fails because `.planning/` is missing, run `/gsd:new-project` first.
+Open **http://localhost:5173** — auto-logged in locally, no auth required.
 
 ### Terminal Layout
 
 | Terminal | Command | What it does |
 |----------|---------|-------------|
-| 1 | `docker compose up db -d` | MySQL (run once, stays up) |
-| 2 | `cd backend && uvicorn api.main:app --port 8000 --reload` | FastAPI on :8000 |
-| 3 | `cd frontend && pnpm dev` | React frontend on :5173 |
-| 4 | `ngrok http 8000` | Public tunnel for the GPU worker |
+| 1 | `cd backend && uvicorn api.main:app --port 8000 --reload` | FastAPI on :8000 |
+| 2 | `cd frontend && pnpm dev` | React frontend on :5173 |
+| 3 | `ngrok http 8000` | Public tunnel for the GPU worker |
+
+---
+
+## Testing
+
+### Frontend
+
+```bash
+cd frontend
+pnpm lint          # ESLint
+pnpm format:check  # Prettier
+pnpm check         # TypeScript (tsc --noEmit)
+pnpm test          # Vitest unit tests
+pnpm build         # Production build
+```
+
+### Backend
+
+```bash
+cd backend
+ruff check api/                    # Lint
+ruff format --check api/           # Format check
+LOCAL_DEV_MODE=true \
+  JWT_SECRET=test \
+  DATABASE_URL=postgresql+asyncpg://skip:skip@skip/skip \
+  pytest                           # 40 unit tests (no DB required)
+```
+
+CI runs all of the above on every push to `main` via `.github/workflows/ci.yml`.
 
 ---
 
@@ -228,7 +245,7 @@ The CV pipeline requires a GPU. It runs as a polling worker on a cloud GPU insta
 git clone https://github.com/esharif20/football-analytics-dashboard.git
 cd football-analytics-dashboard/backend/pipeline
 pip install -r requirements.txt
-pip install requests
+pip install umap-learn sentencepiece protobuf
 ```
 
 ### Run
@@ -248,19 +265,25 @@ tail -f worker.log      # watch
 pkill -f worker.py      # stop
 ```
 
+### Docker image
+
+```bash
+docker build -f docker/Dockerfile.worker -t football-worker .
+```
+
 ---
 
 ## Project Structure
 
 ```
 football-analytics-dashboard/
-├── frontend/                          React 19 + Vite + TypeScript
+├── frontend/                          React 19 + Vite 6 + TypeScript 5.9
 │   └── src/
 │       ├── pages/                     Home, Upload, Dashboard, Analysis
-│       ├── components/                shadcn/ui components
+│       ├── components/                shadcn/ui + custom components
 │       ├── lib/api-local.ts           REST client (all API calls)
 │       ├── hooks/useWebSocket.ts      WebSocket for live progress
-│       └── shared/                    Shared types & constants
+│       └── test/                      Vitest unit tests
 │
 ├── backend/
 │   ├── api/                           FastAPI backend
@@ -270,18 +293,21 @@ football-analytics-dashboard/
 │   │   ├── database.py                Async engine + session
 │   │   ├── storage.py                 File storage + H.264 re-encoding
 │   │   ├── ws.py                      WebSocket for analysis progress
-│   │   └── routers/                   API route handlers
+│   │   ├── services/                  LLM providers (Gemini, OpenAI)
+│   │   ├── routers/                   API route handlers
+│   │   └── tests/                     pytest unit tests (40 tests)
 │   │
 │   ├── pipeline/                      Python CV pipeline
 │   │   ├── worker.py                  GPU worker (polls API)
 │   │   ├── requirements.txt
 │   │   └── src/                       Detection, tracking, analytics
 │   │
-│   └── uploads/                       Local file storage
+│   └── evaluation/                    Evaluation & validation scripts
 │
-├── docker-compose.yml                 MySQL container
-├── Dockerfile.worker                  Worker Docker image
-└── .github/workflows/ci.yml          CI pipeline
+├── docker/
+│   └── Dockerfile.worker              Worker Docker image
+├── scripts/                           Utility scripts (sync, e2e, ablation)
+└── .github/workflows/ci.yml           CI pipeline
 ```
 
 ---
@@ -304,7 +330,8 @@ football-analytics-dashboard/
 | `/api/events/{id}` | GET | Events for an analysis |
 | `/api/tracks/{id}` | GET | Tracks for an analysis |
 | `/api/statistics/{id}` | GET | Statistics for an analysis |
-| `/api/commentary/{id}` | GET / POST | Commentary list or generate |
+| `/api/commentary/{id}` | GET / POST | Commentary list or generate (streaming) |
+| `/api/chat/{id}` | POST | AI chat about an analysis |
 
 ### Worker Endpoints
 
@@ -321,7 +348,10 @@ football-analytics-dashboard/
 ws://localhost:8000/ws/{analysis_id}
 ```
 
-Real-time progress updates during pipeline processing.
+Real-time progress updates during pipeline processing. Messages:
+- `{"type": "progress", "stage": "...", "percent": 42}`
+- `{"type": "complete", "annotatedVideoUrl": "..."}`
+- `{"type": "error", "message": "..."}`
 
 ---
 
@@ -341,7 +371,7 @@ Real-time progress updates during pipeline processing.
 
 ## Database
 
-**ORM**: SQLAlchemy async (MySQL via aiomysql)
+**ORM**: SQLAlchemy async (PostgreSQL via asyncpg)
 
 | Table | Purpose |
 |-------|---------|
@@ -353,14 +383,7 @@ Real-time progress updates during pipeline processing.
 | `statistics` | Aggregated stats (possession, heatmaps, pass networks) |
 | `commentary` | AI-generated tactical analysis |
 
-Tables auto-create on first FastAPI startup.
-
-| | |
-|---|---|
-| Host | `localhost:3307` |
-| User | `root` |
-| Password | `football123` |
-| Database | `football_dashboard` |
+Tables auto-create on first FastAPI startup (`CREATE TABLE IF NOT EXISTS`).
 
 ---
 
@@ -370,21 +393,26 @@ Tables auto-create on first FastAPI startup.
 
 ```bash
 LOCAL_DEV_MODE=true
-DATABASE_URL=mysql://root:football123@localhost:3307/football_dashboard
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/football_dashboard
 LOCAL_STORAGE_DIR=./uploads
 OWNER_OPEN_ID=local-dev-user
 
+# AI Commentary — at least one required for tactical analysis
+LLM_PROVIDER=gemini          # "gemini" (default) or "openai"
+GEMINI_API_KEY=              # https://aistudio.google.com/app/apikey
+OPENAI_API_KEY=              # https://platform.openai.com/api-keys
+LLM_MODEL=                   # optional model override
+
 # Optional
-OPENAI_API_KEY=          # AI commentary
-ROBOFLOW_API_KEY=        # pitch detection
+ROBOFLOW_API_KEY=            # pitch detection (ultralytics backend used by default)
 ```
 
 ### Worker (on RunPod)
 
 ```bash
 DASHBOARD_URL=https://xxx.ngrok-free.dev
-ROBOFLOW_API_KEY=<key>   # optional
-POLL_INTERVAL=5           # seconds
+PIPELINE_SUBPROCESS=1        # non-TTY safe output
+POLL_INTERVAL=5              # seconds
 ```
 
 ---
@@ -411,20 +439,13 @@ POLL_INTERVAL=5           # seconds
 
 | Problem | Fix |
 |---------|-----|
-| MySQL won't connect | `docker compose up db -d && docker ps` |
-| Worker can't reach dashboard | Check ngrok is running, `DASHBOARD_URL` matches exactly |
+| DB won't connect | Verify `DATABASE_URL` in `.env` and that PostgreSQL is running |
+| Worker can't reach dashboard | Check ngrok is running; `DASHBOARD_URL` must match exactly |
 | Video won't play in browser | Install `ffmpeg` locally — `brew install ffmpeg` |
 | Port 8000 in use | `lsof -i :8000` then `kill <PID>` |
-| Pipeline module errors | `pip install -r requirements.txt && pip install requests` |
-| Models fail to download | Download `.pt` files manually into `backend/pipeline/models/` |
-
-### Full Reset
-
-```bash
-docker compose down -v && rm -rf backend/uploads/*
-docker compose up db -d
-# Restart FastAPI — tables auto-create
-```
+| Pipeline module errors | `pip install -r requirements.txt && pip install umap-learn sentencepiece protobuf` |
+| Models fail to download | Place `.pt` files manually in `backend/pipeline/models/` |
+| Local worker stealing jobs | Kill it: `ps aux \| grep worker.py` → `kill <PID>` |
 
 ---
 

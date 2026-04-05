@@ -1,13 +1,13 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import Analysis from "./pages/Analysis";
-import Upload from "./pages/Upload";
+import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import NotFound from '@/pages/NotFound'
+import { Route, Switch } from 'wouter'
+import ErrorBoundary from './components/ErrorBoundary'
+import { ThemeProvider } from './contexts/ThemeContext'
+import Home from './pages/Home'
+import Dashboard from './pages/Dashboard'
+import Analysis from './pages/analysis'
+import Upload from './pages/Upload'
 
 function Router() {
   return (
@@ -19,7 +19,7 @@ function Router() {
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
-  );
+  )
 }
 
 function App() {
@@ -32,7 +32,7 @@ function App() {
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
-  );
+  )
 }
 
-export default App;
+export default App

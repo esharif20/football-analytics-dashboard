@@ -1,10 +1,11 @@
 import base64
 import time
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy import select, delete, desc
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..deps import get_db, get_current_user
+from ..deps import get_current_user, get_db
 from ..models import User, Video
 from ..schemas import VideoUploadBase64, _row_to_dict
 from ..storage import storage_put
@@ -21,7 +22,9 @@ async def list_videos(user: User = Depends(get_current_user), db: AsyncSession =
 
 
 @router.get("/{video_id}")
-async def get_video(video_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_video(
+    video_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Video).where(Video.id == video_id).limit(1))
     video = result.scalar_one_or_none()
     if not video or video.userId != user.id:
@@ -30,7 +33,11 @@ async def get_video(video_id: int, user: User = Depends(get_current_user), db: A
 
 
 @router.post("/upload-base64")
-async def upload_base64(body: VideoUploadBase64, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def upload_base64(
+    body: VideoUploadBase64,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     file_bytes = base64.b64decode(body.fileBase64)
     file_key = f"videos/{user.id}/{int(time.time() * 1000)}-{body.fileName}"
     result = await storage_put(file_key, file_bytes, body.mimeType)
@@ -52,7 +59,9 @@ async def upload_base64(body: VideoUploadBase64, user: User = Depends(get_curren
 
 
 @router.delete("/{video_id}")
-async def delete_video(video_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def delete_video(
+    video_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Video).where(Video.id == video_id).limit(1))
     video = result.scalar_one_or_none()
     if not video or video.userId != user.id:
