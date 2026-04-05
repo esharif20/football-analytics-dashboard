@@ -938,7 +938,7 @@ class Tracker:
 
         cv2.ellipse(
             frame,
-            center=(x_center, y2),
+            center=(int(x_center), y2),
             axes=(int(width), int(0.35 * width)),
             angle=0.0,
             startAngle=-45,

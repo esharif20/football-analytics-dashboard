@@ -18,6 +18,61 @@ from config import (
 )
 
 
+def _pad_inference_keypoints(
+    result: object,
+    xy: "np.ndarray | None",
+    conf: "np.ndarray | None",
+    expected_n: int = 32,
+) -> "tuple[np.ndarray | None, np.ndarray | None]":
+    """Pad Roboflow inference keypoint arrays to fixed length expected_n.
+
+    sv.KeyPoints.from_inference() on older supervision versions returns only the
+    detected keypoints (variable length), not a zero-padded array of length N.
+    This means the xy array may be shorter than CONFIG.vertices (always 32), and
+    downstream boolean indexing on CONFIG.vertices would cause an IndexError.
+
+    This function rebuilds full-length arrays using the class_id of each raw
+    prediction as the keypoint index, leaving undetected slots as zeros.
+
+    Args:
+        result: Raw inference result object (may have a `predictions` attribute).
+        xy: Keypoints xy array from sv.KeyPoints, shape (1, k, 2) or None.
+        conf: Confidence array from sv.KeyPoints, shape (1, k) or None.
+        expected_n: Expected number of keypoints (default 32 for pitch model).
+
+    Returns:
+        (xy, conf) tuple — each is shape (1, expected_n, 2) / (1, expected_n) or
+        the original arrays unchanged if they already have the expected length.
+    """
+    if xy is None or xy.size == 0:
+        return xy, conf
+
+    actual_n = xy.shape[-2] if xy.ndim >= 2 else xy.shape[0]
+    if actual_n == expected_n:
+        return xy, conf
+
+    # Rebuild from raw predictions using class_id as the keypoint index.
+    full_xy = np.zeros((expected_n, 2), dtype=np.float32)
+    full_conf = np.zeros(expected_n, dtype=np.float32)
+
+    # The Roboflow inference result for a keypoint model has the structure:
+    #   result.predictions[0].keypoints  — list of keypoint objects
+    # Each keypoint has .class_id, .x, .y, .confidence.
+    predictions = getattr(result, "predictions", None)
+    if predictions:
+        keypoints = getattr(predictions[0], "keypoints", None)
+        if keypoints:
+            for kp in keypoints:
+                cid = getattr(kp, "class_id", None)
+                if not isinstance(cid, int) or not (0 <= cid < expected_n):
+                    continue
+                full_xy[cid, 0] = float(getattr(kp, "x", 0.0))
+                full_xy[cid, 1] = float(getattr(kp, "y", 0.0))
+                full_conf[cid] = float(getattr(kp, "confidence", 0.0))
+
+    return full_xy[np.newaxis, ...], full_conf[np.newaxis, ...]
+
+
 class PitchDetector:
     """Detect pitch keypoints using local YOLO pose or Roboflow Inference."""
 
@@ -143,6 +198,10 @@ class PitchDetector:
             keypoints = sv.KeyPoints.from_inference(result)
             xy = keypoints.xy
             conf = keypoints.confidence
+            # sv.KeyPoints.from_inference may return fewer than 32 keypoints (only
+            # detected ones, not padded).  Rebuild full-length arrays indexed by
+            # class_id so downstream boolean filters always match CONFIG.vertices.
+            xy, conf = _pad_inference_keypoints(result, xy, conf, expected_n=32)
         else:
             results = self.model.predict(
                 model_frame,
@@ -208,6 +267,7 @@ class PitchDetector:
                 keypoints = sv.KeyPoints.from_inference(result)
                 xy = keypoints.xy
                 conf = keypoints.confidence
+                xy, conf = _pad_inference_keypoints(result, xy, conf, expected_n=32)
 
                 if xy is None or xy.size == 0:
                     keypoints_list.append(sv.KeyPoints.empty())

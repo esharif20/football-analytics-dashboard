@@ -1,13 +1,16 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { videosApi, analysisApi } from "@/lib/api-local";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
-import { Link, useLocation } from "wouter";
-import { getLoginUrl } from "@/const";
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { videosApi, analysisApi } from '@/lib/api-local'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
+import { Link, useLocation } from 'wouter'
+import { getLoginUrl } from '@/const'
+import { motion, useReducedMotion } from 'framer-motion'
+import { cn } from '@/lib/utils'
 import {
   Activity,
   Upload,
@@ -19,50 +22,106 @@ import {
   Trash2,
   BarChart3,
   ArrowRight,
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { PIPELINE_MODES, PipelineMode } from "@/shared/types";
+  Zap,
+} from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { PIPELINE_MODES, PipelineMode } from '@/types'
 
+// ── Animated counter hook ──────────────────────────────────────────────
+function useAnimatedCount(target: number, duration = 1200) {
+  const [count, setCount] = useState(0)
+  const shouldReduceMotion = useReducedMotion()
+
+  useEffect(() => {
+    if (shouldReduceMotion || target === 0) {
+      setCount(target)
+      return
+    }
+    const start = performance.now()
+    let raf: number
+    const step = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setCount(Math.round(eased * target))
+      if (progress < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [target, duration, shouldReduceMotion])
+
+  return count
+}
+
+// ── Motion presets ─────────────────────────────────────────────────────
+const EASE = [0.16, 1, 0.3, 1] as const
+
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+  },
+}
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24, filter: 'blur(4px)' },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: { duration: 0.6, ease: EASE },
+  },
+}
+
+const scaleIn = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.5, ease: EASE },
+  },
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const { user, loading: authLoading, isAuthenticated } = useAuth();
-  const [, navigate] = useLocation();
-  const queryClient = useQueryClient();
+  const { user, loading: authLoading, isAuthenticated } = useAuth()
+  const [, navigate] = useLocation()
+  const queryClient = useQueryClient()
 
   const { data: videos, isLoading: videosLoading } = useQuery({
-    queryKey: ["videos"],
+    queryKey: ['videos'],
     queryFn: () => videosApi.list(),
     enabled: isAuthenticated,
-  });
+  })
 
   const { data: analyses, isLoading: analysesLoading } = useQuery({
-    queryKey: ["analyses"],
+    queryKey: ['analyses'],
     queryFn: () => analysisApi.list(),
     enabled: isAuthenticated,
-  });
+  })
 
   const deleteVideoMutation = useMutation({
     mutationFn: (videoId: number) => videosApi.delete(videoId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["videos"] });
-      queryClient.invalidateQueries({ queryKey: ["analyses"] });
-      toast.success("Video deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ['videos'] })
+      queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      toast.success('Video deleted successfully')
     },
     onError: () => {
-      toast.error("Failed to delete video");
+      toast.error('Failed to delete video')
     },
-  });
+  })
 
   const handleDeleteVideo = async (videoId: number) => {
-    if (!confirm("Are you sure you want to delete this video?")) return;
-    deleteVideoMutation.mutate(videoId);
-  };
+    if (!confirm('Are you sure you want to delete this video?')) return
+    deleteVideoMutation.mutate(videoId)
+  }
 
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
-    );
+    )
   }
 
   if (!isAuthenticated) {
@@ -80,216 +139,356 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
-  const recentAnalyses = analyses?.slice(0, 5) || [];
-  const processingAnalyses = analyses?.filter((a: any) => a.status === "processing") || [];
+  const recentAnalyses = analyses?.slice(0, 5) || []
+  const processingAnalyses = analyses?.filter((a: any) => a.status === 'processing') || []
+  const completedCount = analyses?.filter((a: any) => a.status === 'completed').length || 0
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* ── Header ── */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container flex items-center justify-between h-16">
+        <div className="container flex items-center justify-between h-14">
           <div className="flex items-center gap-2">
             <Link href="/">
               <div className="flex items-center gap-2 cursor-pointer">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                  <Activity className="w-5 h-5 text-primary-foreground" />
+                <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
+                  <Activity className="w-4 h-4 text-primary-foreground" />
                 </div>
-                <span className="font-semibold text-lg">Football Analytics</span>
+                <span className="font-mono font-semibold text-sm tracking-widest">
+                  FOOTBALL ANALYTICS
+                </span>
               </div>
             </Link>
           </div>
           <nav className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              Welcome, {user?.name || "User"}
+            <span className="text-xs font-mono text-muted-foreground hidden sm:block">
+              {user?.name || 'User'}
             </span>
             <Link href="/upload">
-              <Button>
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Video
+              <Button size="sm" className="gap-2 font-mono tracking-wide">
+                <Upload className="w-3.5 h-3.5" />
+                UPLOAD
               </Button>
             </Link>
           </nav>
         </div>
       </header>
 
-      <main className="container py-8">
-        {/* Stats Overview */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <main className="container py-8 space-y-8">
+        {/* ── Stats Grid ── */}
+        <motion.div
+          className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
           <StatCard
-            title="Total Videos"
+            title="TOTAL VIDEOS"
             value={videos?.length || 0}
             icon={<FileVideo className="w-5 h-5" />}
+            color="text-primary"
           />
           <StatCard
-            title="Total Analyses"
+            title="TOTAL ANALYSES"
             value={analyses?.length || 0}
             icon={<BarChart3 className="w-5 h-5" />}
+            color="text-blue-400"
           />
           <StatCard
-            title="Processing"
+            title="PROCESSING"
             value={processingAnalyses.length}
-            icon={<Loader2 className="w-5 h-5 animate-spin" />}
+            icon={
+              processingAnalyses.length > 0 ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Zap className="w-5 h-5" />
+              )
+            }
+            color="text-amber-400"
           />
           <StatCard
-            title="Completed"
-            value={analyses?.filter((a: any) => a.status === "completed").length || 0}
+            title="COMPLETED"
+            value={completedCount}
             icon={<CheckCircle2 className="w-5 h-5" />}
+            color="text-emerald-400"
           />
-        </div>
+        </motion.div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        {/* ── Main Grid ── */}
+        <div className="grid lg:grid-cols-3 gap-6">
           {/* Recent Analyses */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+          <motion.div
+            className="lg:col-span-2"
+            variants={scaleIn}
+            initial="hidden"
+            animate="visible"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Recent Analyses</CardTitle>
-                  <CardDescription>Your latest video analysis jobs</CardDescription>
+                  <h2 className="font-mono text-xs tracking-widest text-muted-foreground">
+                    RECENT ANALYSES
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Your latest video analysis jobs
+                  </p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {analysesLoading ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map(i => (
-                      <Skeleton key={i} className="h-20 w-full" />
-                    ))}
-                  </div>
-                ) : recentAnalyses.length === 0 ? (
-                  <div className="text-center py-8">
-                    <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground mb-4">No analyses yet</p>
-                    <Link href="/upload">
-                      <Button>Upload Your First Video</Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {recentAnalyses.map((analysis: any) => (
-                      <AnalysisCard key={analysis.id} analysis={analysis} />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+              </div>
 
-          {/* Videos List */}
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Videos</CardTitle>
-                <CardDescription>Uploaded match footage</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {videosLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map(i => (
-                      <Skeleton key={i} className="h-16 w-full" />
-                    ))}
-                  </div>
-                ) : videos?.length === 0 ? (
-                  <div className="text-center py-6">
-                    <FileVideo className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="text-sm text-muted-foreground">No videos uploaded</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {videos?.slice(0, 5).map((video: any) => (
-                      <div
-                        key={video.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <FileVideo className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{video.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(video.createdAt), { addSuffix: true })}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteVideo(video.id)}
-                          className="flex-shrink-0"
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+              {analysesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-20 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : recentAnalyses.length === 0 ? (
+                <motion.div
+                  className="text-center py-16 border border-dashed border-border rounded-xl"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <BarChart3 className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground mb-4 font-mono text-sm">No analyses yet</p>
+                  <Link href="/upload">
+                    <Button size="sm" className="gap-2 font-mono tracking-wide">
+                      <Upload className="w-3.5 h-3.5" /> UPLOAD FIRST VIDEO
+                    </Button>
+                  </Link>
+                </motion.div>
+              ) : (
+                <motion.div
+                  className="space-y-2"
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {recentAnalyses.map((analysis: any) => (
+                    <AnalysisCard key={analysis.id} analysis={analysis} />
+                  ))}
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Videos */}
+          <motion.div variants={scaleIn} initial="hidden" animate="visible">
+            <div className="space-y-3">
+              <div>
+                <h2 className="font-mono text-xs tracking-widest text-muted-foreground">
+                  YOUR VIDEOS
+                </h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Uploaded match footage</p>
+              </div>
+
+              {videosLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : videos?.length === 0 ? (
+                <motion.div
+                  className="text-center py-12 border border-dashed border-border rounded-xl"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <FileVideo className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground font-mono">No videos uploaded</p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  className="space-y-2"
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {videos?.slice(0, 6).map((video: any) => (
+                    <VideoCard
+                      key={video.id}
+                      video={video}
+                      onDelete={() => handleDeleteVideo(video.id)}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
         </div>
       </main>
     </div>
-  );
+  )
 }
 
-function StatCard({ title, value, icon }: { title: string; value: number; icon: React.ReactNode }) {
+// ── StatCard ───────────────────────────────────────────────────────────
+function StatCard({
+  title,
+  value,
+  icon,
+  color,
+}: {
+  title: string
+  value: number
+  icon: React.ReactNode
+  color: string
+}) {
+  const animatedValue = useAnimatedCount(value)
+
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
+    <motion.div variants={fadeUp}>
+      <motion.div
+        whileHover={{ y: -2, transition: { duration: 0.2 } }}
+        className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/40"
+      >
+        {/* Subtle gradient glow on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        <div className="relative flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold font-mono">{value}</p>
+            <p className="font-mono text-[10px] tracking-widest text-muted-foreground">{title}</p>
+            <p className="text-4xl font-bold font-mono mt-1">{animatedValue}</p>
           </div>
-          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+          <div
+            className={cn(
+              'w-10 h-10 rounded-lg flex items-center justify-center bg-card border border-border transition-colors group-hover:border-primary/30',
+              color
+            )}
+          >
             {icon}
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
+
+        {/* Bottom accent line */}
+        <div className="absolute bottom-0 left-0 h-px w-0 bg-primary group-hover:w-full transition-all duration-500" />
+      </motion.div>
+    </motion.div>
+  )
 }
 
+// ── AnalysisCard ───────────────────────────────────────────────────────
 function AnalysisCard({ analysis }: { analysis: any }) {
   const statusConfig = {
-    pending: { icon: <Clock className="w-4 h-4" />, color: "bg-yellow-500/10 text-yellow-500" },
-    uploading: { icon: <Loader2 className="w-4 h-4 animate-spin" />, color: "bg-blue-500/10 text-blue-500" },
-    processing: { icon: <Loader2 className="w-4 h-4 animate-spin" />, color: "bg-blue-500/10 text-blue-500" },
-    completed: { icon: <CheckCircle2 className="w-4 h-4" />, color: "bg-green-500/10 text-green-500" },
-    failed: { icon: <XCircle className="w-4 h-4" />, color: "bg-red-500/10 text-red-500" },
-  };
+    pending: {
+      icon: <Clock className="w-4 h-4" />,
+      color: 'text-amber-400',
+      bg: 'bg-amber-400/10',
+      border: 'border-l-amber-400/50',
+    },
+    uploading: {
+      icon: <Loader2 className="w-4 h-4 animate-spin" />,
+      color: 'text-blue-400',
+      bg: 'bg-blue-400/10',
+      border: 'border-l-blue-400/50',
+    },
+    processing: {
+      icon: <Loader2 className="w-4 h-4 animate-spin" />,
+      color: 'text-blue-400',
+      bg: 'bg-blue-400/10',
+      border: 'border-l-blue-400/50',
+    },
+    completed: {
+      icon: <CheckCircle2 className="w-4 h-4" />,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-400/10',
+      border: 'border-l-emerald-400/50',
+    },
+    failed: {
+      icon: <XCircle className="w-4 h-4" />,
+      color: 'text-red-400',
+      bg: 'bg-red-400/10',
+      border: 'border-l-red-400/50',
+    },
+  }
 
-  const status = statusConfig[analysis.status as keyof typeof statusConfig] || statusConfig.pending;
-  const mode = PIPELINE_MODES[analysis.mode as PipelineMode];
+  const status = statusConfig[analysis.status as keyof typeof statusConfig] || statusConfig.pending
+  const mode = PIPELINE_MODES[analysis.mode as PipelineMode]
 
   return (
-    <Link href={`/analysis/${analysis.id}`}>
-      <div className="flex items-center justify-between p-4 rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer">
-        <div className="flex items-center gap-4">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${status.color}`}>
-            {status.icon}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Analysis #{analysis.id}</span>
-              <Badge variant="outline" className="text-xs">
-                {mode?.name || analysis.mode}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{analysis.status}</span>
-              {analysis.status === "processing" && (
-                <span>• {analysis.progress}%</span>
+    <motion.div variants={fadeUp}>
+      <Link href={`/analysis/${analysis.id}`}>
+        <motion.div
+          whileHover={{ x: 4, transition: { duration: 0.15 } }}
+          whileTap={{ scale: 0.995 }}
+          className={cn(
+            'group flex items-center justify-between p-4 rounded-xl border border-border bg-card cursor-pointer transition-colors hover:border-primary/40',
+            'border-l-2',
+            status.border
+          )}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={cn(
+                'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                status.bg,
+                status.color
               )}
-              <span>•</span>
-              <span>{formatDistanceToNow(new Date(analysis.createdAt), { addSuffix: true })}</span>
+            >
+              {status.icon}
             </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-sm font-semibold">#{analysis.id}</span>
+                <Badge variant="outline" className="text-[10px] font-mono h-4 px-1.5 tracking-wide">
+                  {mode?.name || analysis.mode}
+                </Badge>
+                {analysis.status === 'processing' && (
+                  <span className="text-[10px] font-mono text-blue-400">{analysis.progress}%</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono mt-0.5">
+                <span className={cn('capitalize', status.color)}>{analysis.status}</span>
+                <span className="text-border">|</span>
+                <span>
+                  {formatDistanceToNow(new Date(analysis.createdAt), { addSuffix: true })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
+        </motion.div>
+      </Link>
+    </motion.div>
+  )
+}
+
+// ── VideoCard ──────────────────────────────────────────────────────────
+function VideoCard({ video, onDelete }: { video: any; onDelete: () => void }) {
+  return (
+    <motion.div variants={fadeUp}>
+      <motion.div
+        whileHover={{ x: 2, transition: { duration: 0.15 } }}
+        className="group flex items-center justify-between p-3 rounded-xl border border-border bg-card transition-colors hover:border-primary/40"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileVideo className="w-4 h-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-mono text-sm font-medium truncate">{video.title}</p>
+            <p className="text-[10px] text-muted-foreground font-mono">
+              {formatDistanceToNow(new Date(video.createdAt), { addSuffix: true })}
+            </p>
           </div>
         </div>
-        <ArrowRight className="w-5 h-5 text-muted-foreground" />
-      </div>
-    </Link>
-  );
+        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.preventDefault()
+              onDelete()
+            }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive transition-colors" />
+          </Button>
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  )
 }

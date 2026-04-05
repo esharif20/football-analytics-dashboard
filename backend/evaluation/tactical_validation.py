@@ -42,8 +42,8 @@ _METRICA_BASE = (
 )
 
 _METRICA_FILES = {
-    "game1_home": f"{_METRICA_BASE}/Sample_Game_1/Sample_Game1_RawTrackingData_Home_Team.csv",
-    "game1_away": f"{_METRICA_BASE}/Sample_Game_1/Sample_Game1_RawTrackingData_Away_Team.csv",
+    "game1_home": f"{_METRICA_BASE}/Sample_Game_1/Sample_Game_1_RawTrackingData_Home_Team.csv",
+    "game1_away": f"{_METRICA_BASE}/Sample_Game_1/Sample_Game_1_RawTrackingData_Away_Team.csv",
 }
 
 # Pitch dimensions used by Metrica (standard FIFA)

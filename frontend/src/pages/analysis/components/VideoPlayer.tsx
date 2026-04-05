@@ -1,10 +1,10 @@
-import { useRef } from "react";
-import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Video } from "lucide-react";
-import { AnimatedSection } from "../context";
+import { useRef } from 'react'
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Video } from 'lucide-react'
+import { AnimatedSection } from '../context'
 
 export function VideoPlayer({ analysis, videoUrl }: { analysis: any; videoUrl: string | null }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   return (
     <AnimatedSection className="lg:col-span-3" delay={0}>
@@ -18,13 +18,20 @@ export function VideoPlayer({ analysis, videoUrl }: { analysis: any; videoUrl: s
               </div>
               <div>
                 <CardTitle className="text-sm font-semibold">Annotated Video</CardTitle>
-                <CardDescription className="text-xs mt-0.5">AI-processed output with bounding boxes &amp; track IDs</CardDescription>
+                <CardDescription className="text-xs mt-0.5">
+                  AI-processed output with bounding boxes &amp; track IDs
+                </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-4">
             <div className="video-player-container rounded-xl overflow-hidden ring-1 ring-white/5">
-              <video ref={videoRef} src={videoUrl} controls className="w-full h-full object-contain" />
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                controls
+                className="w-full h-full object-contain"
+              />
             </div>
           </CardContent>
         </div>
@@ -33,9 +40,11 @@ export function VideoPlayer({ analysis, videoUrl }: { analysis: any; videoUrl: s
           <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
             <Video className="w-8 h-8 text-muted-foreground" />
           </div>
-          <p className="text-muted-foreground text-sm">No annotated video available for this mode</p>
+          <p className="text-muted-foreground text-sm">
+            No annotated video available for this mode
+          </p>
         </div>
       )}
     </AnimatedSection>
-  );
+  )
 }

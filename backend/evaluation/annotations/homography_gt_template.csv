@@ -1,0 +1,5 @@
+frame_idx,pixel_x,pixel_y,pitch_x_cm,pitch_y_cm,landmark_name
+0,689,395,0,0,"left_top_corner"
+0,1154,422,6000,2585,"centre_circle_top"
+0,1106,452,6000,3500,"centre_spot"
+0,1861,371,12000,0,"right_top_corner"

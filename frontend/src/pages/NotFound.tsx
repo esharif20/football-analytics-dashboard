@@ -1,9 +1,9 @@
-import { Button } from "@/components/ui/button";
-import { AlertCircle, Home } from "lucide-react";
-import { useLocation } from "wouter";
+import { Button } from '@/components/ui/button'
+import { AlertCircle, Home } from 'lucide-react'
+import { useLocation } from 'wouter'
 
 export default function NotFound() {
-  const [, setLocation] = useLocation();
+  const [, setLocation] = useLocation()
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background">
@@ -28,7 +28,7 @@ export default function NotFound() {
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation('/')}
             className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2.5 rounded-lg transition-all duration-200"
           >
             <Home className="w-4 h-4 mr-2" />
@@ -37,5 +37,5 @@ export default function NotFound() {
         </div>
       </div>
     </div>
-  );
+  )
 }

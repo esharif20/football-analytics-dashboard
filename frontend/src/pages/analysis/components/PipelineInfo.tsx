@@ -142,7 +142,12 @@ export function PipelinePerformanceCard({ mode }: { mode: PipelineMode }) {
             <Timer className="w-4 h-4 text-emerald-400" />
           </div>
           <div>
-            <CardTitle className="text-base font-black uppercase tracking-tight" style={{ fontFamily: 'Barlow Condensed, Inter, sans-serif' }}>Pipeline Architecture</CardTitle>
+            <CardTitle
+              className="text-base font-black uppercase tracking-tight"
+              style={{ fontFamily: 'Barlow Condensed, Inter, sans-serif' }}
+            >
+              Pipeline Architecture
+            </CardTitle>
             <CardDescription className="text-xs mt-0.5">
               Model performance from CS350 evaluation
             </CardDescription>
@@ -274,9 +279,9 @@ const TRAIL_SEGMENTS = 5
 const SEGMENT_STYLE = [
   { opacity: 0.08, strokeWidth: 0.3, color: 'rgba(255,255,255,0.15)' },
   { opacity: 0.18, strokeWidth: 0.4, color: 'rgba(255,255,255,0.40)' },
-  { opacity: 0.35, strokeWidth: 0.5, color: 'rgba(255,200,80,0.65)'  },
-  { opacity: 0.60, strokeWidth: 0.6, color: 'rgba(251,191,36,0.85)'  },
-  { opacity: 0.95, strokeWidth: 0.9, color: 'rgba(251,191,36,1)'     },
+  { opacity: 0.35, strokeWidth: 0.5, color: 'rgba(255,200,80,0.65)' },
+  { opacity: 0.6, strokeWidth: 0.6, color: 'rgba(251,191,36,0.85)' },
+  { opacity: 0.95, strokeWidth: 0.9, color: 'rgba(251,191,36,1)' },
 ]
 
 export function BallTrajectoryDiagram({
@@ -316,9 +321,8 @@ export function BallTrajectoryDiagram({
 
     // Ghost: all points before the window (very faint historical context)
     const ghostPoints = pts.slice(0, startIdx + 1)
-    const ghostPath = ghostPoints.length >= 2
-      ? catmullRomToSvgPath(rdpSimplify(ghostPoints, 1.5), 0.4)
-      : ''
+    const ghostPath =
+      ghostPoints.length >= 2 ? catmullRomToSvgPath(rdpSimplify(ghostPoints, 1.5), 0.4) : ''
 
     // Active trail: split into TRAIL_SEGMENTS fade segments
     const windowPts = pts.slice(startIdx, endIdx + 1)
@@ -351,7 +355,12 @@ export function BallTrajectoryDiagram({
               <Move className="w-4 h-4 text-amber-400" />
             </div>
             <div>
-              <CardTitle className="text-base font-black uppercase tracking-tight" style={{ fontFamily: 'Barlow Condensed, Inter, sans-serif' }}>Ball Trajectory</CardTitle>
+              <CardTitle
+                className="text-base font-black uppercase tracking-tight"
+                style={{ fontFamily: 'Barlow Condensed, Inter, sans-serif' }}
+              >
+                Ball Trajectory
+              </CardTitle>
               <CardDescription className="text-xs mt-0.5">
                 Movement path across the pitch
               </CardDescription>
@@ -373,7 +382,9 @@ export function BallTrajectoryDiagram({
             <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="text-center">
                 <div className="text-white/20 text-xs">No trajectory data available</div>
-                <div className="text-white/10 text-[10px] mt-1">Complete an analysis to see ball movement</div>
+                <div className="text-white/10 text-[10px] mt-1">
+                  Complete an analysis to see ball movement
+                </div>
               </div>
             </div>
           ) : null}
@@ -435,18 +446,21 @@ export function BallTrajectoryDiagram({
                   />
                 )}
                 {/* Active trailing window — 5 fade segments */}
-                {segments.map((seg, i) => seg && (
-                  <path
-                    key={i}
-                    d={seg.pathD}
-                    fill="none"
-                    stroke={seg.color}
-                    strokeWidth={seg.strokeWidth}
-                    strokeOpacity={seg.opacity}
-                    strokeLinecap="round"
-                    filter={i === segments.length - 1 ? 'url(#trajGlow)' : undefined}
-                  />
-                ))}
+                {segments.map(
+                  (seg, i) =>
+                    seg && (
+                      <path
+                        key={i}
+                        d={seg.pathD}
+                        fill="none"
+                        stroke={seg.color}
+                        strokeWidth={seg.strokeWidth}
+                        strokeOpacity={seg.opacity}
+                        strokeLinecap="round"
+                        filter={i === segments.length - 1 ? 'url(#trajGlow)' : undefined}
+                      />
+                    )
+                )}
                 {/* Ball head — current position with pulse */}
                 {ballHead && (
                   <>
@@ -465,8 +479,18 @@ export function BallTrajectoryDiagram({
                       stroke="white"
                       strokeWidth="0.4"
                     >
-                      <animate attributeName="r" values="1.5;2.8;1.5" dur="1.5s" repeatCount="indefinite" />
-                      <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.5s" repeatCount="indefinite" />
+                      <animate
+                        attributeName="r"
+                        values="1.5;2.8;1.5"
+                        dur="1.5s"
+                        repeatCount="indefinite"
+                      />
+                      <animate
+                        attributeName="stroke-opacity"
+                        values="0.9;0.3;0.9"
+                        dur="1.5s"
+                        repeatCount="indefinite"
+                      />
                     </circle>
                   </>
                 )}
@@ -616,7 +640,7 @@ export function PlayerInteractionGraph({
 
   // Single-pass node repulsion to reduce overlap
   const nudgedNodes = useMemo(() => {
-    const nodes = allNodes.map(n => ({ ...n }))
+    const nodes = allNodes.map((n) => ({ ...n }))
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const dx = nodes[j].x - nodes[i].x
@@ -637,7 +661,7 @@ export function PlayerInteractionGraph({
   }, [allNodes])
 
   // Normalize edge weights to prevent absurdly thick lines
-  const maxWeight = useMemo(() => Math.max(...allEdges.map(e => e.weight), 1), [allEdges])
+  const maxWeight = useMemo(() => Math.max(...allEdges.map((e) => e.weight), 1), [allEdges])
 
   // Segment-aware node pass counts (for node resizing when period is selected)
   const segmentNodePassCounts = useMemo(() => {
@@ -668,16 +692,16 @@ export function PlayerInteractionGraph({
 
   // Dijkstra's key passing route: from leftmost to rightmost player (dominant build-up path)
   const keyRoute = useMemo(() => {
-    const visibleNodes = nudgedNodes.filter(n =>
-      graphView === 'all' || (graphView === 'team1' ? n.teamId === 1 : n.teamId === 2)
+    const visibleNodes = nudgedNodes.filter(
+      (n) => graphView === 'all' || (graphView === 'team1' ? n.teamId === 1 : n.teamId === 2)
     )
     if (visibleNodes.length < 2) return new Set<string>()
     const sorted = [...visibleNodes].sort((a, b) => a.x - b.x)
     const startId = sorted[0].id
     const endId = sorted[sorted.length - 1].id
-    const visibleEdges = allEdges.filter(e => {
-      const fn = nudgedNodes.find(n => n.id === e.from)
-      const tn = nudgedNodes.find(n => n.id === e.to)
+    const visibleEdges = allEdges.filter((e) => {
+      const fn = nudgedNodes.find((n) => n.id === e.from)
+      const tn = nudgedNodes.find((n) => n.id === e.to)
       return fn && tn && isEdgeVisible(e)
     })
     const path = dijkstraPassRoute(visibleNodes, visibleEdges, startId, endId)
@@ -702,7 +726,12 @@ export function PlayerInteractionGraph({
               <GitBranch className="w-4 h-4 text-cyan-400" />
             </div>
             <div>
-              <CardTitle className="text-base font-black uppercase tracking-tight" style={{ fontFamily: 'Barlow Condensed, Inter, sans-serif' }}>Passing Network</CardTitle>
+              <CardTitle
+                className="text-base font-black uppercase tracking-tight"
+                style={{ fontFamily: 'Barlow Condensed, Inter, sans-serif' }}
+              >
+                Passing Network
+              </CardTitle>
               <CardDescription className="text-xs mt-0.5">
                 Pass connections between players
               </CardDescription>
@@ -756,19 +785,46 @@ export function PlayerInteractionGraph({
           >
             <defs>
               {/* Small subtle arrowheads — scaled proportionally to thin edges */}
-              <marker id="arr-t1" markerWidth="3" markerHeight="2.5" refX="2.8" refY="1.25" orient="auto" markerUnits="strokeWidth">
+              <marker
+                id="arr-t1"
+                markerWidth="3"
+                markerHeight="2.5"
+                refX="2.8"
+                refY="1.25"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
                 <polygon points="0 0, 3 1.25, 0 2.5" fill={TEAM1_HEX} fillOpacity="0.7" />
               </marker>
-              <marker id="arr-t2" markerWidth="3" markerHeight="2.5" refX="2.8" refY="1.25" orient="auto" markerUnits="strokeWidth">
+              <marker
+                id="arr-t2"
+                markerWidth="3"
+                markerHeight="2.5"
+                refX="2.8"
+                refY="1.25"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
                 <polygon points="0 0, 3 1.25, 0 2.5" fill={TEAM2_HEX} fillOpacity="0.7" />
               </marker>
               {/* Key route markers — brighter */}
-              <marker id="arr-route" markerWidth="3" markerHeight="2.5" refX="2.8" refY="1.25" orient="auto" markerUnits="strokeWidth">
+              <marker
+                id="arr-route"
+                markerWidth="3"
+                markerHeight="2.5"
+                refX="2.8"
+                refY="1.25"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
                 <polygon points="0 0, 3 1.25, 0 2.5" fill="white" fillOpacity="0.9" />
               </marker>
               <filter id="routeGlow">
                 <feGaussianBlur stdDeviation="0.5" result="blur" />
-                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
               </filter>
             </defs>
             {/* Pitch lines — subtle, recede behind graph */}
@@ -811,8 +867,12 @@ export function PlayerInteractionGraph({
                 const opacity = visible ? (active ? (isKeyRoute ? 0.85 : 0.35) : 0.04) : 0
                 const delay = Math.min(i * 15, 300)
 
-                const color = isKeyRoute ? 'white' : (edge.teamId === 1 ? TEAM1_HEX : TEAM2_HEX)
-                const arrowId = isKeyRoute ? 'url(#arr-route)' : (edge.teamId === 1 ? 'url(#arr-t1)' : 'url(#arr-t2)')
+                const color = isKeyRoute ? 'white' : edge.teamId === 1 ? TEAM1_HEX : TEAM2_HEX
+                const arrowId = isKeyRoute
+                  ? 'url(#arr-route)'
+                  : edge.teamId === 1
+                    ? 'url(#arr-t1)'
+                    : 'url(#arr-t2)'
 
                 return (
                   <path
