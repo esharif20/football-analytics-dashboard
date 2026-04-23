@@ -232,6 +232,12 @@ LOCAL_DEV_MODE=true \
 
 CI runs all of the above on every push to `main` via `.github/workflows/ci.yml`.
 
+### End-to-End
+
+```bash
+pnpm dlx playwright test           # Playwright e2e suite under tests/e2e/
+```
+
 ---
 
 ## GPU Worker (RunPod)
@@ -293,7 +299,7 @@ football-analytics-dashboard/
 │   │   ├── database.py                Async engine + session
 │   │   ├── storage.py                 File storage + H.264 re-encoding
 │   │   ├── ws.py                      WebSocket for analysis progress
-│   │   ├── services/                  LLM providers (Gemini, OpenAI)
+│   │   ├── services/                  LLM providers (Gemini, OpenAI, Anthropic, Groq, HuggingFace)
 │   │   ├── routers/                   API route handlers
 │   │   └── tests/                     pytest unit tests (40 tests)
 │   │
@@ -304,6 +310,9 @@ football-analytics-dashboard/
 │   │
 │   └── evaluation/                    Evaluation & validation scripts
 │
+├── dissertation/                      Dissertation chapters, findings, figures
+├── notebooks/                         Jupyter notebooks (training, prototyping)
+├── tests/                             Playwright end-to-end tests
 ├── docker/
 │   └── Dockerfile.worker              Worker Docker image
 ├── scripts/                           Utility scripts (sync, e2e, ablation)
@@ -398,9 +407,12 @@ LOCAL_STORAGE_DIR=./uploads
 OWNER_OPEN_ID=local-dev-user
 
 # AI Commentary — at least one required for tactical analysis
-LLM_PROVIDER=gemini          # "gemini" (default) or "openai"
+LLM_PROVIDER=gemini          # gemini, openai, claude, groq, huggingface, or stub
 GEMINI_API_KEY=              # https://aistudio.google.com/app/apikey
 OPENAI_API_KEY=              # https://platform.openai.com/api-keys
+ANTHROPIC_API_KEY=           # https://console.anthropic.com/settings/keys
+GROQ_API_KEY=                # https://console.groq.com/keys
+HUGGINGFACE_API_KEY=         # https://huggingface.co/settings/tokens
 LLM_MODEL=                   # optional model override
 
 # Optional
