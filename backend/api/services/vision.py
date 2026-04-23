@@ -74,12 +74,24 @@ def frames_to_jpeg_bytes(frames: list) -> list[bytes]:
 def resolve_local_path(url: str, storage_dir: str) -> str | None:
     """Convert a /uploads/ URL or raw path to an absolute local filesystem path.
 
-    Returns None if the file does not exist.
+    Handles:
+    - Full HTTP/HTTPS URLs (e.g. from ngrok/RunPod) — path component is extracted
+    - /uploads/-relative paths
+    - Absolute filesystem paths
+
+    Returns None if the file does not exist locally.
     """
     if not url:
         return None
 
     path_str = url.strip()
+
+    # Strip HTTP/HTTPS prefix — extract just the path component so that
+    # URLs like https://host.ngrok-free.dev/uploads/videos/foo.mp4 resolve correctly.
+    if path_str.startswith(("http://", "https://")):
+        from urllib.parse import urlparse
+
+        path_str = urlparse(path_str).path
 
     if path_str.startswith("/uploads/"):
         relative = path_str.replace("/uploads/", "", 1)

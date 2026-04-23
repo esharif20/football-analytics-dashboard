@@ -23,6 +23,67 @@ MAX_PLAYER_SPEED_KMH = 40.0
 # fast clearances while filtering homography noise
 MAX_BALL_SPEED_KMH = 200.0
 
+# Speed zones (km/h) — FIFA TSG 2022 World Cup Technical Report
+_SPEED_ZONES = {
+    "walking": (0.0, 7.0),
+    "jogging": (7.0, 14.0),
+    "running": (14.0, 21.0),
+    "high_speed_running": (21.0, 25.0),
+    "sprinting": (25.0, float("inf")),
+}
+_SPRINT_MIN_FRAMES = 25  # ~1 second at 25fps to count as a sprint bout
+_HIGH_INTENSITY_THRESHOLD_KMH = 21.0
+
+
+def _compute_speed_zones(
+    speeds_m_per_sec: List[float],
+    distances_m: List[float],
+    fps: float,
+) -> Tuple[Dict[str, float], int, float]:
+    """Compute distance per speed zone, sprint count, and high-intensity distance.
+
+    Args:
+        speeds_m_per_sec: Per-segment speeds in m/s.
+        distances_m: Per-segment distances in m.
+        fps: Video frame rate (used to estimate time per segment).
+
+    Returns:
+        (distance_by_zone_m, sprint_count, high_intensity_distance_m)
+    """
+    zone_dist: Dict[str, float] = {z: 0.0 for z in _SPEED_ZONES}
+    hi_dist = 0.0
+
+    for spd_ms, dist in zip(speeds_m_per_sec, distances_m):
+        spd_kmh = spd_ms * 3.6
+        for zone, (lo, hi) in _SPEED_ZONES.items():
+            if lo <= spd_kmh < hi:
+                zone_dist[zone] += dist
+                break
+        if spd_kmh >= _HIGH_INTENSITY_THRESHOLD_KMH:
+            hi_dist += dist
+
+    # Sprint count: consecutive frames above 25 km/h, min 1 second
+    sprint_count = 0
+    in_sprint = False
+    sprint_frames = 0
+    sprint_threshold_ms = 25.0 / 3.6
+    for spd_ms in speeds_m_per_sec:
+        if spd_ms >= sprint_threshold_ms:
+            if not in_sprint:
+                in_sprint = True
+                sprint_frames = 1
+            else:
+                sprint_frames += 1
+        else:
+            if in_sprint and sprint_frames >= _SPRINT_MIN_FRAMES:
+                sprint_count += 1
+            in_sprint = False
+            sprint_frames = 0
+    if in_sprint and sprint_frames >= _SPRINT_MIN_FRAMES:
+        sprint_count += 1
+
+    return {z: round(v, 2) for z, v in zone_dist.items()}, sprint_count, round(hi_dist, 2)
+
 
 class KinematicsCalculator:
     """Calculate speed and distance metrics for players and ball."""
@@ -365,6 +426,21 @@ class KinematicsCalculator:
             )
             dist_m_valid = [d for d in dist_m_opt if d is not None]
             speeds_m_valid = [s for s in speeds_m_opt if s is not None]
+
+            # Speed zones + acceleration (A4) — players/goalkeepers only
+            zone_dist, sprint_count, hi_dist = None, None, None
+            max_accel = None
+            if speeds_m_valid and entity_type in ("player", "goalkeeper"):
+                zone_dist, sprint_count, hi_dist = _compute_speed_zones(
+                    speeds_m_valid, dist_m_valid, self.fps
+                )
+                if len(speeds_m_valid) >= 2:
+                    accels = [
+                        abs(speeds_m_valid[i] - speeds_m_valid[i - 1]) * self.fps
+                        for i in range(1, len(speeds_m_valid))
+                    ]
+                    max_accel = round(float(max(accels)), 3) if accels else None
+
             return KinematicStats(
                 track_id=track_id,
                 entity_type=entity_type,
@@ -377,11 +453,29 @@ class KinematicsCalculator:
                 avg_speed_m_per_sec=float(np.mean(speeds_m_valid)) if speeds_m_valid else None,
                 max_speed_px=float(max(speeds_px)) if speeds_px else 0.0,
                 max_speed_m_per_sec=float(max(speeds_m_valid)) if speeds_m_valid else None,
+                max_acceleration_m_per_sec2=max_accel,
+                distance_by_speed_zone_m=zone_dist,
+                sprint_count=sprint_count,
+                high_intensity_distance_m=hi_dist,
             )
 
         dist_px, speeds_px, dist_m, speeds_m = self.compute_distances_and_speeds(
             positions, max_speed_m_per_sec=speed_cap_m_s,
         )
+
+        # Speed zones + acceleration (A4)
+        zone_dist2, sprint_count2, hi_dist2 = None, None, None
+        max_accel2 = None
+        if speeds_m and entity_type in ("player", "goalkeeper"):
+            zone_dist2, sprint_count2, hi_dist2 = _compute_speed_zones(
+                speeds_m, dist_m or [], self.fps
+            )
+            if len(speeds_m) >= 2:
+                accels = [
+                    abs(speeds_m[i] - speeds_m[i - 1]) * self.fps
+                    for i in range(1, len(speeds_m))
+                ]
+                max_accel2 = round(float(max(accels)), 3) if accels else None
 
         return KinematicStats(
             track_id=track_id,
@@ -395,6 +489,10 @@ class KinematicsCalculator:
             avg_speed_m_per_sec=float(np.mean(speeds_m)) if speeds_m else None,
             max_speed_px=float(max(speeds_px)) if speeds_px else 0.0,
             max_speed_m_per_sec=float(max(speeds_m)) if speeds_m else None,
+            max_acceleration_m_per_sec2=max_accel2,
+            distance_by_speed_zone_m=zone_dist2,
+            sprint_count=sprint_count2,
+            high_intensity_distance_m=hi_dist2,
         )
 
     def compute_all_player_stats(

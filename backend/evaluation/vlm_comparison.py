@@ -162,12 +162,14 @@ class GeminiVisionProvider:
         content_parts = [f"{system_prompt}\n\n---\n\n{user_prompt}"]
 
         if images:
+            import base64
             for img_bytes in images:
-                content_parts.append(
-                    genai.types.Part(
-                        inline_data={"mime_type": "image/jpeg", "data": img_bytes}
-                    )
-                )
+                content_parts.append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64encode(img_bytes).decode("utf-8"),
+                    }
+                })
             content_parts.append(
                 "\nThe images above show keyframes from the match. "
                 "Use them alongside the data above to provide a more complete analysis."
@@ -238,6 +240,48 @@ VISION_PROVIDERS = {
 }
 
 
+def classify_spatial_claims(results: list) -> dict:
+    """Classify verification results into spatial vs non-spatial claims.
+
+    Spatial claims reference positions, zones, or locations (prone to VLM hallucination
+    per CAPTURE benchmark -- 14.75% error rate on GPT-4o).
+
+    Returns:
+        {
+            "spatial": {verified, refuted, unverifiable, total, grounding_rate},
+            "non_spatial": {verified, refuted, unverifiable, total, grounding_rate},
+        }
+    """
+    spatial_keywords = {
+        "zone", "half", "third", "left", "right", "wing", "flank", "area",
+        "position", "region", "territory", "pitch", "space", "box", "penalty",
+    }
+
+    def _is_spatial(text: str) -> bool:
+        text_lower = text.lower()
+        return any(kw in text_lower for kw in spatial_keywords)
+
+    spatial_res, non_spatial_res = [], []
+    for r in results:
+        claim_text = r.get("text", "") if isinstance(r, dict) else getattr(r.claim, "text", "")
+        if _is_spatial(claim_text):
+            spatial_res.append(r)
+        else:
+            non_spatial_res.append(r)
+
+    def _counts(rs):
+        counts = {"verified": 0, "refuted": 0, "unverifiable": 0, "plausible": 0}
+        for r in rs:
+            v = r.get("verdict", "") if isinstance(r, dict) else r.verdict
+            counts[v] = counts.get(v, 0) + 1
+        denom = counts["verified"] + counts["refuted"] + counts["unverifiable"]
+        counts["total"] = len(rs)
+        counts["grounding_rate"] = counts["verified"] / denom if denom else 0.0
+        return counts
+
+    return {"spatial": _counts(spatial_res), "non_spatial": _counts(non_spatial_res)}
+
+
 # ── Comparison runner ─────────────────────────────────────────────────────────
 
 
@@ -259,7 +303,9 @@ async def run_condition(
     )
     claims = await extract_claims(commentary, judge_provider)
     results = [verify_claim(c, analytics) for c in claims]
-    score = compute_grounding_score(results)
+    score = compute_grounding_score(results, commentary=commentary, analytics=analytics)
+    spatial_breakdown = classify_spatial_claims(results)
+    score["spatial_breakdown"] = spatial_breakdown
 
     return {
         "condition": condition,
@@ -270,6 +316,7 @@ async def run_condition(
         "verified": score.get("verified", 0),
         "refuted": score.get("refuted", 0),
         "score": score,
+        "spatial_breakdown": spatial_breakdown,
     }
 
 
@@ -422,6 +469,11 @@ def run(
 
 
 def main() -> None:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=".env", override=True)
+    except ImportError:
+        pass
     parser = argparse.ArgumentParser(description="VLM text-only vs text+vision grounding comparison")
     parser.add_argument("--analytics", required=True)
     parser.add_argument("--tracks", required=True)
@@ -429,7 +481,7 @@ def main() -> None:
     parser.add_argument("--n-keyframes", type=int, default=5)
     parser.add_argument("--analysis-type", default="match_overview",
                         choices=["match_overview", "tactical_deep_dive", "event_analysis", "player_spotlight"])
-    parser.add_argument("--provider", default="gemini", choices=["gemini", "openai", "all"])
+    parser.add_argument("--provider", default="gemini", choices=["gemini", "openai", "claude", "groq", "all"])
     parser.add_argument("--output", default="eval_output/vlm")
     args = parser.parse_args()
 

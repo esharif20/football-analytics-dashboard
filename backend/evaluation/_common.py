@@ -24,6 +24,32 @@ def load_analytics(path: str) -> dict:
         return json.load(f)
 
 
+def load_db_ground_truth(path: str) -> dict:
+    """Load per-frame DB ground-truth JSON (from db_extractor.py).
+
+    Structure:
+        {
+            "analysis_id": int,
+            "analytics": {...},          # same as load_analytics()
+            "per_frame": {"frames": [...], "total_frames": int, "fps": float},
+            "events_db": [{type, frame_number, timestamp, player_id, team_id,
+                           start_x, start_y, end_x, end_y, success}, ...],
+            "statistics": {...},
+            "frame_metrics": {
+                "inter_team_distance_m": [...],
+                "ball_speed_m_per_s": [...],
+                "team_1_centroid": [...],
+                "team_2_centroid": [...],
+                "compactness": {...},
+                "zone_occupancy": {...},
+            },
+            "formations": {"team_1": {...}, "team_2": {...}},
+        }
+    """
+    with open(path, "r") as f:
+        return json.load(f)
+
+
 def load_tracks(path: str) -> list[dict]:
     """Load per-frame tracks JSON (from export_tracks_json())."""
     with open(path, "r") as f:
@@ -108,6 +134,7 @@ def save_latex_table(
 class EvalConfig:
     """Container for evaluation script paths and options."""
     analytics_path: str = ""
+    ground_truth_path: str = ""       # DB ground truth from db_extractor.py
     tracks_path: str = ""
     homography_path: str = ""
     video_path: str = ""

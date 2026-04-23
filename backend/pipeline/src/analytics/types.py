@@ -60,6 +60,10 @@ class KinematicStats:
 
     # Acceleration (optional)
     max_acceleration_m_per_sec2: Optional[float] = None
+    # Speed zone breakdown (A4) — FIFA TSG zones in km/h: walk<7, jog<14, run<21, hsr<25, sprint≥25
+    distance_by_speed_zone_m: Optional[Dict[str, float]] = None
+    sprint_count: Optional[int] = None
+    high_intensity_distance_m: Optional[float] = None  # distance covered >21 km/h
 
 
 @dataclass
@@ -87,6 +91,10 @@ class FootballEvent:
     success: Optional[bool] = None
     pitch_start: Optional[Tuple[float, float]] = None  # (x, y) in cm
     pitch_end: Optional[Tuple[float, float]] = None    # (x, y) in cm
+    # Pass classification (A3)
+    is_progressive: Optional[bool] = None   # ≥10m toward opponent goal
+    pass_direction: Optional[str] = None    # "forward", "backward", "lateral"
+    pass_distance_m: Optional[float] = None
 
 
 @dataclass
@@ -108,6 +116,19 @@ class TacticalWindow:
     team_1_pressing_intensity: Optional[float] = None
     team_2_pressing_intensity: Optional[float] = None
     inter_team_distance: Optional[float] = None
+    # Phase-of-play (A1): "ip", "oop", "dat", "adt", "contested"
+    phase_team_1: Optional[str] = None
+    phase_team_2: Optional[str] = None
+    # Voronoi territory control (A2)
+    team_1_territory_pct: Optional[float] = None
+    team_2_territory_pct: Optional[float] = None
+    team_1_opp_half_territory_pct: Optional[float] = None
+    team_2_opp_half_territory_pct: Optional[float] = None
+    # Press classification (A5)
+    team_1_press_type: Optional[str] = None   # "high", "mid", "low"
+    team_2_press_type: Optional[str] = None
+    team_1_counter_press: Optional[bool] = None
+    team_2_counter_press: Optional[bool] = None
 
 
 @dataclass

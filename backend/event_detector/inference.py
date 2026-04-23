@@ -157,11 +157,14 @@ class EventModelInference:
             return []
 
         logger.info(
-            "Event detection: %.1fs clip, %d windows (stride=%.1fs, window=%.1fs)",
+            "Event detection: %.1fs clip, %d windows (stride=%.1fs, window=%.1fs) | "
+            "thresholds=%s | nms_per_class=%s",
             duration,
             len(starts),
             cfg.stride_seconds,
             cfg.window_seconds,
+            dict(zip(cfg.class_names, cfg.detection_thresholds)),
+            dict(zip(cfg.class_names, cfg.nms_window_seconds_per_class)),
         )
 
         raw_detections: List[Dict] = []
@@ -215,7 +218,7 @@ class EventModelInference:
         if pending_windows:
             _flush(pending_windows, pending_meta)
 
-        nms_results = temporal_nms(raw_detections, cfg.nms_window_seconds)
+        nms_results = temporal_nms(raw_detections, cfg.nms_window_seconds_per_class)
         events = [d for d in nms_results if d["class_name"] != "background"]
         events = merge_nearby_events(events, merge_window_seconds=1.0)
         events = compute_frame_numbers(events, fps)

@@ -29,6 +29,7 @@ from .ball_path import BallPathTracker, draw_ball_path_on_pitch
 from .events import EventDetector
 from .interaction_graph import compute_interaction_graphs, compute_interaction_graph_timeline
 from .tactical import TacticalCalculator
+from .expected_threat import compute_team_xt, compute_xt_gained, lookup_xt
 
 
 class AnalyticsEngine:
@@ -524,4 +525,7 @@ __all__ = [
     "TacticalCalculator",
     "compute_interaction_graphs",
     "compute_interaction_graph_timeline",
+    "compute_team_xt",
+    "compute_xt_gained",
+    "lookup_xt",
 ]

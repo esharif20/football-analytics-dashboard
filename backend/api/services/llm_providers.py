@@ -102,15 +102,20 @@ class GeminiProvider(LLMProvider):
     ) -> str:
         import asyncio
 
-        import google.generativeai as genai
-
         client = self._get_client()
         content_parts = [f"{system_prompt}\n\n---\n\n{user_prompt}"]
 
         if images:
+            import base64
+
             for img_bytes in images:
                 content_parts.append(
-                    genai.types.Part(inline_data={"mime_type": "image/jpeg", "data": img_bytes})
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": base64.b64encode(img_bytes).decode("utf-8"),
+                        }
+                    }
                 )
             content_parts.append(
                 "\nThe images above are keyframes from the match video (annotated with tracking overlays). "
@@ -228,13 +233,13 @@ class OpenAIProvider(LLMProvider):
 class HuggingFaceProvider(LLMProvider):
     """HuggingFace Inference API provider using huggingface_hub SDK.
 
-    Default model: mistralai/Mistral-7B-Instruct-v0.3
+    Default model: Qwen/Qwen2.5-7B-Instruct (Hui et al. 2024)
     """
 
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "mistralai/Mistral-7B-Instruct-v0.3",
+        model: str = "Qwen/Qwen2.5-7B-Instruct",
     ):
         self.api_key = api_key or os.getenv("HUGGINGFACE_API_KEY", "")
         self.model_name = model
@@ -281,6 +286,226 @@ class HuggingFaceProvider(LLMProvider):
         return response.choices[0].message.content or ""
 
 
+class ClaudeProvider(LLMProvider):
+    """Anthropic Claude provider using the anthropic SDK.
+
+    Default model: claude-haiku-4-5 (fast, cheap — ideal for evaluation/judging).
+    Use claude-sonnet-4-6 for higher quality generation.
+    """
+
+    def __init__(self, api_key: str | None = None, model: str = "claude-haiku-4-5-20251001"):
+        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        self.model_name = model
+        self._client = None
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    def _get_client(self):
+        if self._client is None:
+            import anthropic
+
+            self._client = anthropic.AsyncAnthropic(api_key=self.api_key)
+        return self._client
+
+    async def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        images: list[bytes] | None = None,
+    ) -> str:
+        import asyncio
+
+        client = self._get_client()
+        content: list = []
+        if images:
+            for img_bytes in images:
+                b64 = base64.b64encode(img_bytes).decode("utf-8")
+                content.append(
+                    {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": "image/jpeg", "data": b64},
+                    }
+                )
+        content.append({"type": "text", "text": user_prompt})
+
+        for attempt in range(3):
+            try:
+                response = await client.messages.create(
+                    model=self.model_name,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": content}],
+                    temperature=0.7,
+                )
+                return response.content[0].text
+            except Exception as e:
+                if attempt < 2 and (
+                    "500" in str(e) or "529" in str(e) or "overloaded" in str(e).lower()
+                ):
+                    wait = 5 * (attempt + 1)
+                    logger.warning(
+                        "Anthropic transient error, retrying in %ds (attempt %d/3)",
+                        wait,
+                        attempt + 1,
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+        return ""  # unreachable
+
+    async def stream_generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        images: list[bytes] | None = None,
+    ):
+        """Stream text chunks from Claude (native streaming support)."""
+        client = self._get_client()
+        content: list = [{"type": "text", "text": user_prompt}]
+        async with client.messages.stream(
+            model=self.model_name,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": content}],
+            temperature=0.7,
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+
+    async def chat(self, system_prompt: str, messages: list[dict]) -> str:
+        """Claude native multi-turn chat."""
+        import asyncio
+
+        client = self._get_client()
+        for attempt in range(3):
+            try:
+                response = await client.messages.create(
+                    model=self.model_name,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=messages,
+                    temperature=0.7,
+                )
+                return response.content[0].text
+            except Exception as e:
+                if attempt < 2 and (
+                    "500" in str(e) or "529" in str(e) or "overloaded" in str(e).lower()
+                ):
+                    wait = 5 * (attempt + 1)
+                    logger.warning("Anthropic transient error in chat, retrying in %ds", wait)
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+        return ""  # unreachable
+
+
+class GroqProvider(LLMProvider):
+    """Groq Inference API provider using the groq SDK.
+
+    Default model: llama-3.3-70b-versatile — open-weights, free tier.
+    Free tier TPM is 12,000 so large prompts require retry with backoff.
+    Retries automatically on 429/413 rate-limit errors (up to 3 attempts).
+    """
+
+    def __init__(self, api_key: str | None = None, model: str = "llama-3.3-70b-versatile"):
+        self.api_key = api_key or os.getenv("GROQ_API_KEY", "")
+        self.model_name = os.getenv("GROQ_MODEL", model)
+        self._client = None
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    def _get_client(self):
+        if self._client is None:
+            from groq import AsyncGroq
+
+            self._client = AsyncGroq(api_key=self.api_key)
+        return self._client
+
+    async def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        images: list[bytes] | None = None,
+    ) -> str:
+        import asyncio
+
+        # Groq: text-only (images not supported on Llama-3.x)
+        client = self._get_client()
+        for attempt in range(4):
+            try:
+                response = await client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.7,
+                    max_tokens=4096,
+                )
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                if attempt < 3 and (
+                    "429" in str(e) or "413" in str(e) or "rate_limit" in str(e).lower()
+                ):
+                    wait = 65 * (attempt + 1)
+                    logger.warning(
+                        "Groq rate limit hit, waiting %ds (attempt %d/4)", wait, attempt + 1
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+        return ""  # unreachable
+
+    async def stream_generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        images: list[bytes] | None = None,
+    ):
+        client = self._get_client()
+        stream = await client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7,
+            max_tokens=4096,
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+
+    async def chat(self, system_prompt: str, messages: list[dict]) -> str:
+        import asyncio
+
+        client = self._get_client()
+        all_messages = [{"role": "system", "content": system_prompt}] + messages
+        for attempt in range(4):
+            try:
+                response = await client.chat.completions.create(
+                    model=self.model_name,
+                    messages=all_messages,
+                    temperature=0.7,
+                    max_tokens=4096,
+                )
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                if attempt < 3 and (
+                    "429" in str(e) or "413" in str(e) or "rate_limit" in str(e).lower()
+                ):
+                    wait = 65 * (attempt + 1)
+                    logger.warning("Groq rate limit hit in chat, waiting %ds", wait)
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+        return ""
+
+
 class StubProvider(LLMProvider):
     """Deterministic stub provider for tests (no external calls)."""
 
@@ -309,7 +534,7 @@ def get_provider(provider_name: str | None = None) -> LLMProvider:
     StubProvider is only selected when explicitly requested by name.
 
     Args:
-        provider_name: "gemini", "openai", or "stub". If None, uses LLM_PROVIDER env var.
+        provider_name: "gemini", "openai", "claude", "groq", "huggingface", or "stub". If None, uses LLM_PROVIDER env var.
 
     Returns:
         An initialized LLMProvider.
@@ -322,6 +547,8 @@ def get_provider(provider_name: str | None = None) -> LLMProvider:
     providers = {
         "gemini": GeminiProvider,
         "openai": OpenAIProvider,
+        "claude": ClaudeProvider,
+        "groq": GroqProvider,
         "huggingface": HuggingFaceProvider,
         "stub": StubProvider,
     }
@@ -344,5 +571,6 @@ def get_provider(provider_name: str | None = None) -> LLMProvider:
             return provider
 
     raise RuntimeError(
-        "No LLM provider available. Set GEMINI_API_KEY or OPENAI_API_KEY in your .env file."
+        "No LLM provider available. Set one of: GEMINI_API_KEY, OPENAI_API_KEY, "
+        "ANTHROPIC_API_KEY, or GROQ_API_KEY in your .env file."
     )

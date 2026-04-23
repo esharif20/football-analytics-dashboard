@@ -43,6 +43,9 @@ MODEL_URL_PLAYER = os.getenv("MODEL_URL_PLAYER", "")
 MODEL_URL_BALL = os.getenv("MODEL_URL_BALL", "")
 MODEL_URL_PITCH = os.getenv("MODEL_URL_PITCH", "")
 
+# Event detection checkpoint — Google Drive file ID (override with EVENT_MODEL_GDRIVE_ID env var)
+EVENT_MODEL_GDRIVE_ID = os.getenv("EVENT_MODEL_GDRIVE_ID", "1uvI9vb1mVTPvxIkPltHfTu22wKHDZn4j")
+
 MODEL_URLS = {
     "player_detection.pt": MODEL_URL_PLAYER,
     "ball_detection.pt": MODEL_URL_BALL,
@@ -93,6 +96,29 @@ def download_models():
             log(f"Downloaded: {model_name} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
         except Exception as e:
             log(f"Failed to download {model_name}: {e}", "ERROR")
+
+
+def download_event_model():
+    """Download the event detection checkpoint from Google Drive if not already present."""
+    ckpt_path = MODELS_DIR / "event_detection.ckpt"
+    if ckpt_path.exists():
+        log(f"Event model already exists: {ckpt_path.name}")
+        return
+    if not EVENT_MODEL_GDRIVE_ID:
+        log("EVENT_MODEL_GDRIVE_ID not set — skipping event model download", "WARN")
+        return
+    log(f"Downloading event detection checkpoint from Google Drive ({EVENT_MODEL_GDRIVE_ID})...")
+    try:
+        import gdown
+        gdown.download(id=EVENT_MODEL_GDRIVE_ID, output=str(ckpt_path), quiet=False)
+        if ckpt_path.exists():
+            log(f"Downloaded: {ckpt_path.name} ({ckpt_path.stat().st_size / 1024 / 1024:.1f} MB)")
+        else:
+            log("gdown completed but file not found — check Drive permissions", "WARN")
+    except ImportError:
+        log("gdown not installed — run: pip install gdown>=5.0", "WARN")
+    except Exception as e:
+        log(f"Failed to download event model: {e}", "WARN")
 
 
 def validate_model_urls():
@@ -612,6 +638,7 @@ def main():
     # Download models if not present
     log_banner("Downloading Models")
     download_models()
+    download_event_model()
 
     # Check for models
     models = list(MODELS_DIR.glob("*.pt"))

@@ -68,6 +68,19 @@ class TacticalWindow:
     team_1_pressing_intensity: Optional[float] = None  # 0-1 ratio
     team_2_pressing_intensity: Optional[float] = None
     inter_team_distance: Optional[float] = None   # metres between centroids
+    # Phase-of-play (A1): "ip", "oop", "dat", "adt", "contested"
+    phase_team_1: Optional[str] = None
+    phase_team_2: Optional[str] = None
+    # Voronoi territory control (A2)
+    team_1_territory_pct: Optional[float] = None
+    team_2_territory_pct: Optional[float] = None
+    team_1_opp_half_territory_pct: Optional[float] = None
+    team_2_opp_half_territory_pct: Optional[float] = None
+    # Press classification (A5)
+    team_1_press_type: Optional[str] = None   # "high", "mid", "low"
+    team_2_press_type: Optional[str] = None
+    team_1_counter_press: Optional[bool] = None
+    team_2_counter_press: Optional[bool] = None
 
 
 @dataclass
@@ -150,6 +163,150 @@ def _pressing_intensity(
     dists = np.linalg.norm(defending_positions - ball, axis=1)
     n_pressing = int((dists < _PRESSING_RADIUS_CM).sum())
     return n_pressing / len(defending_positions)
+
+
+def _voronoi_territory(
+    team_1_pts: np.ndarray,
+    team_2_pts: np.ndarray,
+    pitch_length: float = _PITCH_LENGTH_CM,
+    pitch_width: float = _PITCH_WIDTH_CM,
+) -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+    """Grid-based Voronoi territory approximation (Fernandez & Bornn 2018).
+
+    Divides pitch into a 60×40 grid, assigns each cell to nearest player.
+    Returns (team_1_pct, team_2_pct, team_1_opp_half_pct, team_2_opp_half_pct).
+    All values are fractions 0-1.
+    """
+    if len(team_1_pts) == 0 or len(team_2_pts) == 0:
+        return None, None, None, None
+
+    try:
+        from scipy.spatial import cKDTree
+    except ImportError:
+        return None, None, None, None
+
+    all_pts = np.vstack([team_1_pts, team_2_pts])
+    labels = np.array([1] * len(team_1_pts) + [2] * len(team_2_pts))
+
+    # 60×40 grid over the pitch
+    xs = np.linspace(0, pitch_length, 60)
+    ys = np.linspace(0, pitch_width, 40)
+    gx, gy = np.meshgrid(xs, ys)
+    grid_pts = np.column_stack([gx.ravel(), gy.ravel()])
+
+    tree = cKDTree(all_pts)
+    _, idx = tree.query(grid_pts)
+    grid_labels = labels[idx]
+
+    total = len(grid_pts)
+    t1_pct = float((grid_labels == 1).sum()) / total
+    t2_pct = float((grid_labels == 2).sum()) / total
+
+    # Opponent-half territory: team attacking higher x occupies right half
+    mid_x = pitch_length / 2.0
+    t1_mean_x = team_1_pts[:, 0].mean()
+    t2_mean_x = team_2_pts[:, 0].mean()
+
+    if t1_mean_x < t2_mean_x:
+        # Team 1 attacks right (positive x)
+        t1_opp_mask = grid_pts[:, 0] > mid_x
+        t2_opp_mask = grid_pts[:, 0] <= mid_x
+    else:
+        t1_opp_mask = grid_pts[:, 0] <= mid_x
+        t2_opp_mask = grid_pts[:, 0] > mid_x
+
+    t1_opp_total = t1_opp_mask.sum()
+    t2_opp_total = t2_opp_mask.sum()
+    t1_opp_pct = float((grid_labels[t1_opp_mask] == 1).sum()) / t1_opp_total if t1_opp_total > 0 else None
+    t2_opp_pct = float((grid_labels[t2_opp_mask] == 2).sum()) / t2_opp_total if t2_opp_total > 0 else None
+
+    return t1_pct, t2_pct, t1_opp_pct, t2_opp_pct
+
+
+def _classify_phase(
+    win_start: int,
+    win_end: int,
+    poss_lookup: Dict[int, int],
+    fps: float,
+) -> Tuple[str, str]:
+    """Classify phase-of-play for each team (Rein & Memmert 2016).
+
+    Returns (phase_team_1, phase_team_2) where each is one of:
+    "ip" (in possession), "oop" (out of possession),
+    "dat" (defensive→attack transition), "adt" (attack→defensive transition),
+    "contested".
+    """
+    transition_frames = int(5.0 * fps)  # 5-second lookback for transition detection
+
+    # Count possession in window
+    t1_count = sum(1 for fi in range(win_start, win_end) if poss_lookup.get(fi) == 1)
+    t2_count = sum(1 for fi in range(win_start, win_end) if poss_lookup.get(fi) == 2)
+    total = win_end - win_start
+
+    if total == 0:
+        return "contested", "contested"
+
+    # Determine dominant possession
+    if t1_count / total > 0.60:
+        dominant = 1
+    elif t2_count / total > 0.60:
+        dominant = 2
+    else:
+        return "contested", "contested"
+
+    # Check if possession was recently won (transition in last 5 seconds)
+    lookback = max(0, win_start - transition_frames)
+    prev_dominant = 0
+    prev_count: Dict[int, int] = {1: 0, 2: 0}
+    for fi in range(lookback, win_start):
+        t = poss_lookup.get(fi, 0)
+        if t in (1, 2):
+            prev_count[t] += 1
+    lookback_total = win_start - lookback
+    if lookback_total > 0:
+        if prev_count[1] / lookback_total > 0.55:
+            prev_dominant = 1
+        elif prev_count[2] / lookback_total > 0.55:
+            prev_dominant = 2
+
+    if dominant == 1:
+        if prev_dominant == 2:
+            return "dat", "adt"  # Team 1 just won ball
+        return "ip", "oop"
+    else:
+        if prev_dominant == 1:
+            return "adt", "dat"  # Team 2 just won ball
+        return "oop", "ip"
+
+
+def _classify_press_type(
+    defensive_line_m: Optional[float],
+    pressing_intensity: Optional[float],
+) -> Optional[str]:
+    """Classify pressing block type (FIFA TSG 2022).
+
+    High press: defensive line > 60m from own goal AND pressing > 0.3
+    Mid-block:  defensive line 35-60m
+    Low block:  defensive line < 35m
+    """
+    if defensive_line_m is None:
+        return None
+    if defensive_line_m > 60 and (pressing_intensity or 0.0) > 0.3:
+        return "high"
+    if defensive_line_m >= 35:
+        return "mid"
+    return "low"
+
+
+def _detect_counter_press(
+    phase: str,
+    prev_phase: Optional[str],
+    pressing_intensity: Optional[float],
+) -> Optional[bool]:
+    """Detect counter-press: high pressing intensity immediately after losing ball."""
+    if prev_phase in ("ip", "dat") and phase == "oop":
+        return pressing_intensity is not None and pressing_intensity > 0.30
+    return False
 
 
 def _compute_ppda(
@@ -237,6 +394,7 @@ class TacticalCalculator:
 
         total_frames = frame_indices[-1] + 1
         windows: List[TacticalWindow] = []
+        prev_phases: Dict[int, Optional[str]] = {1: None, 2: None}
 
         for win_start in range(0, total_frames, self.window_size):
             win_end = min(win_start + self.window_size, total_frames)
@@ -312,6 +470,28 @@ class TacticalCalculator:
                     np.mean([b[1] for b in valid_balls]),
                 )
 
+            # Phase-of-play (A1)
+            phase_t1, phase_t2 = _classify_phase(win_start, win_end, poss_lookup, self.fps)
+
+            # Voronoi territory (A2) — use mean positions per window
+            t1_territory, t2_territory, t1_opp_territory, t2_opp_territory = (
+                _voronoi_territory(t1, t2) if len(t1) >= 3 and len(t2) >= 3 else (None, None, None, None)
+            )
+
+            # Press classification (A5)
+            t1_def_line = _defensive_line_height(t1, t1_dir)
+            t2_def_line = _defensive_line_height(t2, t2_dir)
+            t1_press_int = _pressing_intensity(p1_arr, mean_ball)
+            t2_press_int = _pressing_intensity(p2_arr, mean_ball)
+
+            t1_press_type = _classify_press_type(t1_def_line, t1_press_int)
+            t2_press_type = _classify_press_type(t2_def_line, t2_press_int)
+            t1_counter = _detect_counter_press(phase_t1, prev_phases[1], t1_press_int)
+            t2_counter = _detect_counter_press(phase_t2, prev_phases[2], t2_press_int)
+
+            prev_phases[1] = phase_t1
+            prev_phases[2] = phase_t2
+
             window = TacticalWindow(
                 start_frame=win_start,
                 end_frame=win_end,
@@ -324,11 +504,21 @@ class TacticalCalculator:
                 team_2_length=t2_len,
                 team_1_width=t1_wid,
                 team_2_width=t2_wid,
-                team_1_defensive_line=_defensive_line_height(t1, t1_dir),
-                team_2_defensive_line=_defensive_line_height(t2, t2_dir),
-                team_1_pressing_intensity=_pressing_intensity(p1_arr, mean_ball),
-                team_2_pressing_intensity=_pressing_intensity(p2_arr, mean_ball),
+                team_1_defensive_line=t1_def_line,
+                team_2_defensive_line=t2_def_line,
+                team_1_pressing_intensity=t1_press_int,
+                team_2_pressing_intensity=t2_press_int,
                 inter_team_distance=inter_dist,
+                phase_team_1=phase_t1,
+                phase_team_2=phase_t2,
+                team_1_territory_pct=t1_territory,
+                team_2_territory_pct=t2_territory,
+                team_1_opp_half_territory_pct=t1_opp_territory,
+                team_2_opp_half_territory_pct=t2_opp_territory,
+                team_1_press_type=t1_press_type,
+                team_2_press_type=t2_press_type,
+                team_1_counter_press=t1_counter,
+                team_2_counter_press=t2_counter,
             )
             windows.append(window)
 
@@ -432,7 +622,12 @@ class TacticalCalculator:
             filtered = [v for v in vals if v is not None]
             return round(float(np.mean(filtered)), 2) if filtered else None
 
-        summary = {
+        def _windows_by_phase(team: int, phase: str) -> List[TacticalWindow]:
+            attr = f"phase_team_{team}"
+            return [w for w in windows if getattr(w, attr, None) == phase]
+
+        # Overall averages
+        summary: Dict = {
             "team_1_avg_compactness_m2": _mean([w.team_1_compactness for w in windows]),
             "team_2_avg_compactness_m2": _mean([w.team_2_compactness for w in windows]),
             "team_1_avg_stretch_index_m": _mean([w.team_1_stretch_index for w in windows]),
@@ -448,5 +643,46 @@ class TacticalCalculator:
             "avg_inter_team_distance_m": _mean([w.inter_team_distance for w in windows]),
             "ppda_team_1": round(ppda_1, 2) if ppda_1 is not None else None,
             "ppda_team_2": round(ppda_2, 2) if ppda_2 is not None else None,
+            # Territory control (A2)
+            "team_1_avg_territory_pct": _mean([w.team_1_territory_pct for w in windows]),
+            "team_2_avg_territory_pct": _mean([w.team_2_territory_pct for w in windows]),
+            "team_1_avg_opp_half_territory_pct": _mean([w.team_1_opp_half_territory_pct for w in windows]),
+            "team_2_avg_opp_half_territory_pct": _mean([w.team_2_opp_half_territory_pct for w in windows]),
+            # Press classification distribution (A5)
+            "team_1_press_type_distribution": {
+                pt: sum(1 for w in windows if w.team_1_press_type == pt)
+                for pt in ("high", "mid", "low")
+            },
+            "team_2_press_type_distribution": {
+                pt: sum(1 for w in windows if w.team_2_press_type == pt)
+                for pt in ("high", "mid", "low")
+            },
+            "team_1_counter_press_windows": sum(1 for w in windows if w.team_1_counter_press),
+            "team_2_counter_press_windows": sum(1 for w in windows if w.team_2_counter_press),
         }
+
+        # Phase-of-play breakdown (A1): per-phase averages for key metrics
+        for team in (1, 2):
+            for phase in ("ip", "oop", "dat", "adt"):
+                phase_wins = _windows_by_phase(team, phase)
+                if not phase_wins:
+                    continue
+                prefix = f"team_{team}_{phase}"
+                summary[f"{prefix}_compactness_m2"] = _mean(
+                    [getattr(w, f"team_{team}_compactness") for w in phase_wins]
+                )
+                summary[f"{prefix}_stretch_index_m"] = _mean(
+                    [getattr(w, f"team_{team}_stretch_index") for w in phase_wins]
+                )
+                summary[f"{prefix}_defensive_line_m"] = _mean(
+                    [getattr(w, f"team_{team}_defensive_line") for w in phase_wins]
+                )
+                summary[f"{prefix}_pressing_intensity"] = _mean(
+                    [getattr(w, f"team_{team}_pressing_intensity") for w in phase_wins]
+                )
+                summary[f"{prefix}_territory_pct"] = _mean(
+                    [getattr(w, f"team_{team}_territory_pct") for w in phase_wins]
+                )
+                summary[f"{prefix}_window_count"] = len(phase_wins)
+
         return summary

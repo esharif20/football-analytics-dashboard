@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Sequence, Union
 
 
 def temporal_nms(
     detections: List[Dict],
-    nms_window_seconds: float,
+    nms_window_seconds: Union[float, Sequence[float]],
 ) -> List[Dict]:
     """Per-class temporal NMS — keeps highest-confidence detection per window.
 
     Args:
         detections: Raw detections list (dicts with timestamp, class_idx, confidence …).
-        nms_window_seconds: Any two same-class detections within this window are merged,
-            keeping the higher-confidence one.
+        nms_window_seconds: Suppression window in seconds. Can be:
+            - A single float applied uniformly to all classes (legacy behaviour).
+            - A sequence of floats indexed by class_idx for per-class windows.
+              §4.8 deployment values: (2.0, 2.0, 2.5, 3.0) for
+              (background, challenge, play, throwin).
 
     Returns:
         Sorted (by timestamp) list of surviving detections.
@@ -27,7 +30,13 @@ def temporal_nms(
         by_class.setdefault(d["class_idx"], []).append(d)
 
     kept: List[Dict] = []
-    for dets in by_class.values():
+    for cls_idx, dets in by_class.items():
+        # Resolve the NMS window for this class.
+        if isinstance(nms_window_seconds, (int, float)):
+            window = float(nms_window_seconds)
+        else:
+            window = float(nms_window_seconds[cls_idx]) if cls_idx < len(nms_window_seconds) else float(nms_window_seconds[-1])
+
         dets = sorted(dets, key=lambda x: x["confidence"], reverse=True)
         suppressed: set[int] = set()
         for i, d in enumerate(dets):
@@ -36,7 +45,7 @@ def temporal_nms(
             kept.append(d)
             for j, other in enumerate(dets):
                 if j != i and j not in suppressed:
-                    if abs(d["timestamp"] - other["timestamp"]) < nms_window_seconds:
+                    if abs(d["timestamp"] - other["timestamp"]) < window:
                         suppressed.add(j)
 
     return sorted(kept, key=lambda x: x["timestamp"])

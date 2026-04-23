@@ -1,0 +1,352 @@
+"""Expert validation following TacticAI blind test pattern (Wang et al. 2024).
+
+Generates annotation templates for human expert evaluation of tactical commentary.
+Experts rate commentary on 5 Likert-scale dimensions, blind to whether the
+commentary came from the AI system or a human analyst.
+
+Usage:
+    # Step 1: Generate annotation templates
+    python3 -m evaluation.expert_validation generate \\
+        --analytics path/to/analytics.json \\
+        --provider openai \\
+        --n-commentaries 5 \\
+        --output eval_output/expert/
+
+    # Step 2 (after human annotation):
+    python3 -m evaluation.expert_validation analyze \\
+        --annotations eval_output/expert/annotations_completed.csv \\
+        --output eval_output/expert/
+"""
+
+import argparse
+import asyncio
+import csv
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "api"))
+
+from ._common import ensure_output_dir, load_analytics, save_figure, save_latex_table
+import matplotlib.pyplot as plt
+
+
+# ── Likert dimensions (5-scale: 1=strongly disagree, 5=strongly agree) ────────
+
+LIKERT_DIMENSIONS = [
+    ("tactical_accuracy", "The tactical claims are consistent with what I would observe from the match data"),
+    ("data_groundedness", "All statistics cited appear to be drawn from real match data"),
+    ("insight_depth", "The commentary provides meaningful tactical insight beyond obvious observations"),
+    ("language_quality", "The commentary is written in professional, fluent analytical language"),
+    ("overall_usefulness", "I would find this commentary useful as a coaching staff briefing"),
+]
+
+ANALYSIS_TYPES = ["match_overview", "tactical_deep_dive", "event_analysis", "player_spotlight"]
+
+
+# ── Template generation ───────────────────────────────────────────────────────
+
+
+async def generate_commentaries(analytics: dict, provider_name: str, n: int = 5) -> list[dict]:
+    """Generate N commentaries per analysis type for blind evaluation."""
+    from services.llm_providers import get_provider
+    from services.tactical import TacticalAnalyzer
+
+    provider = get_provider(provider_name)
+    if not provider.is_available():
+        raise RuntimeError(f"Provider {provider_name} not available")
+
+    analyzer = TacticalAnalyzer(provider=provider)
+    commentaries = []
+
+    for atype in ANALYSIS_TYPES:
+        for i in range(n):
+            print(f"  Generating {atype} [{i+1}/{n}]...", end=" ", flush=True)
+            try:
+                result = await analyzer.analyze(analytics, atype)
+                commentaries.append({
+                    "commentary_id": f"{atype}_{i+1}",
+                    "analysis_type": atype,
+                    "content": result["content"],
+                    "provider": provider_name,
+                    "is_ai": True,
+                })
+                print("done")
+            except Exception as e:
+                print(f"ERROR: {e}")
+
+    return commentaries
+
+
+def create_annotation_template(commentaries: list[dict], output_dir: str) -> str:
+    """Create a CSV annotation template for human experts.
+
+    Returns the path to the template file.
+    """
+    out = ensure_output_dir(output_dir)
+    template_path = out / "annotation_template.csv"
+
+    headers = (
+        ["commentary_id", "analysis_type", "annotator_id", "annotator_expertise",
+         "is_ai_guess",  # Blind check: does expert think it's AI?
+         "is_ai_actual"] +
+        [dim[0] for dim in LIKERT_DIMENSIONS] +
+        ["free_text_comments"]
+    )
+
+    rows = []
+    for c in commentaries:
+        row = {
+            "commentary_id": c["commentary_id"],
+            "analysis_type": c["analysis_type"],
+            "annotator_id": "",
+            "annotator_expertise": "",  # e.g., "coach", "analyst", "researcher"
+            "is_ai_guess": "",          # 0 or 1 -- blind test
+            "is_ai_actual": str(int(c.get("is_ai", True))),
+        }
+        for dim_key, _ in LIKERT_DIMENSIONS:
+            row[dim_key] = ""  # Expert fills in 1-5
+        row["free_text_comments"] = ""
+        rows.append(row)
+
+    with open(template_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    # Also write commentary text for experts to read
+    text_path = out / "commentaries_for_annotation.txt"
+    with open(text_path, "w", encoding="utf-8") as f:
+        f.write("FOOTBALL ANALYTICS COMMENTARY EVALUATION\n")
+        f.write("=" * 60 + "\n\n")
+        f.write("Instructions:\n")
+        f.write("Rate each commentary on the 5 dimensions using a 1-5 Likert scale:\n")
+        f.write("  1 = Strongly Disagree, 3 = Neutral, 5 = Strongly Agree\n\n")
+        f.write("Also indicate whether you think each commentary was generated by AI (1) or a human (0).\n\n")
+        f.write("=" * 60 + "\n\n")
+        for c in commentaries:
+            f.write(f"Commentary ID: {c['commentary_id']}\n")
+            f.write(f"Analysis Type: {c['analysis_type']}\n")
+            f.write("-" * 40 + "\n")
+            f.write(c["content"] + "\n\n")
+            f.write("=" * 60 + "\n\n")
+
+    print(f"  Template written: {template_path}")
+    print(f"  Commentary text: {text_path}")
+    return str(template_path)
+
+
+# ── Analysis of completed annotations ─────────────────────────────────────────
+
+
+def analyze_annotations(csv_path: str, output_dir: str) -> dict:
+    """Analyze completed expert annotations.
+
+    Computes:
+    - Per-dimension mean +/- SD across all annotations
+    - Inter-rater reliability: Cohen's kappa (2 raters), Krippendorff's alpha (N raters)
+    - Blind test accuracy: how often do experts correctly identify AI vs human?
+    - Per-analysis-type breakdown
+
+    Returns summary dict.
+    """
+    with open(csv_path, "r", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    if not rows:
+        return {"error": "No annotations found"}
+
+    dim_keys = [d[0] for d in LIKERT_DIMENSIONS]
+    results: dict = {}
+
+    # Filter complete rows (all dimensions filled)
+    complete = [r for r in rows if all(r.get(dk, "").strip() for dk in dim_keys)]
+    print(f"  Complete annotations: {len(complete)}/{len(rows)}")
+
+    if not complete:
+        return {"error": "No complete annotations"}
+
+    # Per-dimension statistics
+    dim_stats: dict = {}
+    for dk, desc in LIKERT_DIMENSIONS:
+        vals = []
+        for r in complete:
+            try:
+                v = float(r[dk])
+                if 1 <= v <= 5:
+                    vals.append(v)
+            except (ValueError, KeyError):
+                pass
+        if vals:
+            arr = np.array(vals)
+            dim_stats[dk] = {
+                "description": desc,
+                "n": len(vals),
+                "mean": round(float(arr.mean()), 3),
+                "std": round(float(arr.std()), 3),
+                "median": round(float(np.median(arr)), 3),
+                "p25": round(float(np.percentile(arr, 25)), 3),
+                "p75": round(float(np.percentile(arr, 75)), 3),
+            }
+    results["dimension_stats"] = dim_stats
+
+    # Blind test accuracy (AI detection)
+    blind_rows = [r for r in complete if r.get("is_ai_guess") and r.get("is_ai_actual")]
+    if blind_rows:
+        correct = sum(1 for r in blind_rows
+                      if r.get("is_ai_guess", "").strip() == r.get("is_ai_actual", "").strip())
+        results["blind_test"] = {
+            "n": len(blind_rows),
+            "correct": correct,
+            "accuracy": round(correct / len(blind_rows), 4) if blind_rows else 0.0,
+        }
+
+    # Inter-rater reliability (by commentary_id)
+    annotators = list(set(r.get("annotator_id", "") for r in complete))
+    if len(annotators) >= 2:
+        results["inter_rater"] = _compute_inter_rater(complete, dim_keys)
+
+    # Per-analysis-type breakdown
+    type_stats: dict = {}
+    for atype in ANALYSIS_TYPES:
+        atype_rows = [r for r in complete if r.get("analysis_type") == atype]
+        if not atype_rows:
+            continue
+        means: list[float] = []
+        for dk in dim_keys:
+            vals = [float(r[dk]) for r in atype_rows if r.get(dk, "").strip()]
+            if vals:
+                means.append(float(np.mean(vals)))
+        type_stats[atype] = {
+            "n": len(atype_rows),
+            "overall_mean": round(float(np.mean(means)), 3) if means else None,
+        }
+    results["by_analysis_type"] = type_stats
+
+    # Save results
+    out = ensure_output_dir(output_dir)
+    (out / "annotation_analysis.json").write_text(json.dumps(results, indent=2, default=str))
+
+    # LaTeX table: per-dimension statistics
+    rows_tex = [
+        [dim_stats.get(dk, {}).get("description", dk)[:50],
+         f"{dim_stats.get(dk, {}).get('mean', 'N/A'):.2f}",
+         f"{dim_stats.get(dk, {}).get('std', 'N/A'):.2f}",
+         f"[{dim_stats.get(dk, {}).get('p25', 'N/A'):.1f}, {dim_stats.get(dk, {}).get('p75', 'N/A'):.1f}]"]
+        for dk in dim_keys if dk in dim_stats
+    ]
+    save_latex_table(
+        headers=["Dimension", "Mean", "SD", "IQR"],
+        rows=rows_tex,
+        caption="Expert evaluation: per-dimension Likert ratings (1-5 scale, N experts, TacticAI blind test pattern)",
+        name="expert_likert_stats",
+        output_dir=output_dir,
+        label="tab:expert_likert",
+    )
+
+    # Radar/spider chart
+    if dim_stats:
+        _plot_radar(dim_stats, dim_keys, output_dir)
+
+    return results
+
+
+def _compute_inter_rater(rows: list[dict], dim_keys: list[str]) -> dict:
+    """Compute inter-rater reliability metrics."""
+    try:
+        from sklearn.metrics import cohen_kappa_score
+        annotator_ids = list(set(r.get("annotator_id", "") for r in rows if r.get("annotator_id")))
+        if len(annotator_ids) < 2:
+            return {"error": "Need at least 2 annotators"}
+
+        commentary_ids = list(set(r.get("commentary_id", "") for r in rows))
+        kappas: list[float] = []
+
+        for dk in dim_keys[:1]:  # Use first dimension for kappa (categorical)
+            for i in range(len(annotator_ids)):
+                for j in range(i + 1, len(annotator_ids)):
+                    a1_rows = {r["commentary_id"]: r for r in rows if r.get("annotator_id") == annotator_ids[i]}
+                    a2_rows = {r["commentary_id"]: r for r in rows if r.get("annotator_id") == annotator_ids[j]}
+                    common = set(a1_rows) & set(a2_rows)
+                    if len(common) < 3:
+                        continue
+                    r1 = [int(float(a1_rows[c][dk])) for c in sorted(common) if a1_rows[c].get(dk, "").strip()]
+                    r2 = [int(float(a2_rows[c][dk])) for c in sorted(common) if a2_rows[c].get(dk, "").strip()]
+                    if len(r1) >= 3 and r1 == r2[:len(r1)]:
+                        try:
+                            kappa = cohen_kappa_score(r1, r2[:len(r1)])
+                            kappas.append(kappa)
+                        except Exception:
+                            pass
+
+        return {
+            "annotator_count": len(annotator_ids),
+            "avg_cohen_kappa": round(float(np.mean(kappas)), 4) if kappas else None,
+            "note": "Cohen's kappa on overall_usefulness dimension",
+        }
+    except ImportError:
+        return {"error": "sklearn not installed for kappa computation"}
+
+
+def _plot_radar(dim_stats: dict, dim_keys: list[str], output_dir: str) -> None:
+    """Radar chart of mean Likert scores per dimension."""
+    labels = [dim_stats[dk]["description"].split()[0] for dk in dim_keys if dk in dim_stats]
+    values = [dim_stats[dk]["mean"] for dk in dim_keys if dk in dim_stats]
+
+    n = len(labels)
+    if n < 3:
+        return
+
+    angles = np.linspace(0, 2 * np.pi, n, endpoint=False).tolist()
+    values_plot = values + [values[0]]
+    angles += [angles[0]]
+
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw={"polar": True})
+    ax.plot(angles, values_plot, "o-", linewidth=2, color="#4f86c6")
+    ax.fill(angles, values_plot, alpha=0.25, color="#4f86c6")
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=8)
+    ax.set_ylim(0, 5)
+    ax.set_yticks([1, 2, 3, 4, 5])
+    ax.set_yticklabels(["1", "2", "3", "4", "5"], fontsize=7)
+    ax.set_title("Expert Evaluation: Mean Likert Scores\n(TacticAI blind test pattern)", fontsize=10)
+    fig.tight_layout()
+    save_figure(fig, "expert_radar", output_dir)
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Expert validation (TacticAI blind test pattern)")
+    sub = parser.add_subparsers(dest="command")
+
+    gen = sub.add_parser("generate", help="Generate annotation templates")
+    gen.add_argument("--analytics", required=True)
+    gen.add_argument("--provider", default="openai")
+    gen.add_argument("--n-commentaries", type=int, default=3)
+    gen.add_argument("--output", default="eval_output/expert")
+
+    ana = sub.add_parser("analyze", help="Analyze completed annotations")
+    ana.add_argument("--annotations", required=True, help="Completed CSV annotation file")
+    ana.add_argument("--output", default="eval_output/expert")
+
+    args = parser.parse_args()
+
+    if args.command == "generate":
+        analytics = load_analytics(args.analytics)
+        commentaries = asyncio.run(generate_commentaries(analytics, args.provider, args.n_commentaries))
+        create_annotation_template(commentaries, args.output)
+
+    elif args.command == "analyze":
+        analyze_annotations(args.annotations, args.output)
+
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

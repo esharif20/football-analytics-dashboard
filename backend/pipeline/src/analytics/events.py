@@ -68,8 +68,19 @@ class EventDetector:
         Returns:
             Deduplicated list of FootballEvent sorted by frame index.
         """
+        # Pre-compute ball pitch positions for pass enrichment
+        ball_frames = tracks.get("ball", [])
+        ball_positions: Dict[int, Tuple[float, float]] = {}
+        for fi, bf in enumerate(ball_frames):
+            pos = self._ball_pitch_pos(fi, bf, per_frame_transformers)
+            if pos is not None:
+                ball_positions[fi] = pos
+
+        # Estimate team attacking direction from player pixel centroids
+        team_1_dir = self._estimate_team_direction(tracks)
+
         events: List[FootballEvent] = []
-        events.extend(self._detect_passes(possession_events))
+        events.extend(self._detect_passes(possession_events, ball_positions, team_1_dir))
         events.extend(self._detect_shots(possession_events, tracks,
                                           per_frame_transformers))
         events.extend(self._detect_tackles(possession_events))
@@ -78,14 +89,42 @@ class EventDetector:
 
     # ── Pass detection ──────────────────────────────────────────────
 
+    def _estimate_team_direction(self, tracks: Dict[str, List[Dict]]) -> int:
+        """Estimate which direction team 1 attacks from pixel centroids.
+
+        Returns +1 if team 1 attacks toward higher x, -1 otherwise.
+        Uses raw pixel coords as proxy (no homography needed).
+        """
+        t1_xs, t2_xs = [], []
+        for frame_data in tracks.get("players", []):
+            for data in frame_data.values():
+                bbox = data.get("bbox")
+                if bbox is None:
+                    continue
+                raw_tid = data.get("team_id")
+                cx = (bbox[0] + bbox[2]) / 2.0
+                if raw_tid == 0:
+                    t1_xs.append(cx)
+                elif raw_tid == 1:
+                    t2_xs.append(cx)
+        if t1_xs and t2_xs:
+            return 1 if float(np.mean(t1_xs)) < float(np.mean(t2_xs)) else -1
+        return 1  # default: team 1 attacks right
+
     def _detect_passes(
         self,
         possession_events: List[PossessionEvent],
+        ball_positions: Optional[Dict[int, Tuple[float, float]]] = None,
+        team_1_dir: int = 1,
     ) -> List[FootballEvent]:
         """Detect passes: possession changes from player A → player B on
         the same team within ``_PASS_MAX_FRAMES``.
+
+        Enriches pass events with pitch_start/pitch_end, pass_distance_m,
+        pass_direction, and is_progressive (A3).
         """
         passes: List[FootballEvent] = []
+        ball_positions = ball_positions or {}
 
         # Build runs of controlled-possession by the same player
         i = 0
@@ -125,6 +164,33 @@ class EventDetector:
                     if ek.player_track_id != run_player:
                         gap = ek.frame_idx - run_end_frame
                         if _PASS_MIN_FRAMES <= gap <= _PASS_MAX_FRAMES:
+                            p_start = ball_positions.get(run_end_frame)
+                            p_end = ball_positions.get(ek.frame_idx)
+
+                            # Compute distance and direction (A3)
+                            dist_m: Optional[float] = None
+                            direction: Optional[str] = None
+                            progressive: Optional[bool] = None
+                            if p_start is not None and p_end is not None:
+                                dx = p_end[0] - p_start[0]
+                                dy = p_end[1] - p_start[1]
+                                dist_m = round(
+                                    float(np.hypot(dx, dy)) / 100.0, 2
+                                )
+                                # Attacking direction for this team
+                                t_dir = team_1_dir if run_team == 1 else -team_1_dir
+                                fwd_dx = dx * t_dir  # positive = forward
+                                if abs(dx) > abs(dy) * 1.5:
+                                    direction = "forward" if fwd_dx > 0 else "backward"
+                                else:
+                                    direction = "lateral"
+                                # Progressive: ≥10m toward opponent goal
+                                progressive = (
+                                    dist_m >= 10.0
+                                    and fwd_dx > 0
+                                    and p_end[0] * t_dir > self.pitch_length / 2 * t_dir
+                                )
+
                             passes.append(FootballEvent(
                                 event_type="pass",
                                 frame_idx=run_end_frame,
@@ -134,6 +200,11 @@ class EventDetector:
                                 target_player_track_id=ek.player_track_id,
                                 confidence=max(0.5, 1.0 - gap / _PASS_MAX_FRAMES),
                                 success=True,
+                                pitch_start=p_start,
+                                pitch_end=p_end,
+                                pass_distance_m=dist_m,
+                                pass_direction=direction,
+                                is_progressive=progressive,
                             ))
                     break
                 # If possession goes to the other team, not a pass

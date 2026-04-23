@@ -5,7 +5,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -414,6 +414,50 @@ async def complete_analysis(
                     )
                 )
 
+            # Flush events so they're visible to the UPDATE below
+            await db.flush()
+
+            # Backfill startX/Y/endX/Y from player positions in the tracks table
+            # for any events where pitch_start/pitch_end were unavailable (e.g. no homography).
+            await db.execute(
+                text("""
+                    UPDATE events e
+                    SET
+                        "startX" = (
+                            SELECT (t."playerPositions" -> (e."playerId"::text) ->> 'x')::float
+                            FROM tracks t
+                            WHERE t."analysisId" = e."analysisId"
+                              AND t."frameNumber" = e."frameNumber"
+                            LIMIT 1
+                        ),
+                        "startY" = (
+                            SELECT (t."playerPositions" -> (e."playerId"::text) ->> 'y')::float
+                            FROM tracks t
+                            WHERE t."analysisId" = e."analysisId"
+                              AND t."frameNumber" = e."frameNumber"
+                            LIMIT 1
+                        ),
+                        "endX" = (
+                            SELECT (t."playerPositions" -> (e."targetPlayerId"::text) ->> 'x')::float
+                            FROM tracks t
+                            WHERE t."analysisId" = e."analysisId"
+                              AND t."frameNumber" = e."frameNumber"
+                            LIMIT 1
+                        ),
+                        "endY" = (
+                            SELECT (t."playerPositions" -> (e."targetPlayerId"::text) ->> 'y')::float
+                            FROM tracks t
+                            WHERE t."analysisId" = e."analysisId"
+                              AND t."frameNumber" = e."frameNumber"
+                            LIMIT 1
+                        )
+                    WHERE e."analysisId" = :analysis_id
+                      AND e."startX" IS NULL
+                      AND e."playerId" IS NOT NULL
+                """),
+                {"analysis_id": analysis_id},
+            )
+
     try:
         await db.commit()
     except Exception as e:
@@ -426,6 +470,115 @@ async def complete_analysis(
     await broadcast_complete(analysis_id, None)
 
     return {"success": True}
+
+
+@router.post("/analysis/{analysis_id}/ml-events")
+async def replace_ml_events(
+    analysis_id: int,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _auth: str = Depends(verify_worker_key),
+):
+    """Replace only ML-sourced events (challenge/play/throwin) for an analysis.
+
+    Preserves rule-based events (pass, shot, challenge detected by heuristics).
+    Expects body ``{"events": [...]}`` in the format returned by
+    ``event_detector.postprocess.to_football_events``.
+
+    Populates ``event_metadata`` with source, weighted_score, and config tag so
+    results can be traced back to the §4.8 deployment configuration.
+    """
+    analysis = await db.get(Analysis, analysis_id)
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    events_list = body.get("events", [])
+    if not isinstance(events_list, list):
+        raise HTTPException(status_code=422, detail="'events' must be a list")
+
+    # Delete existing ML-sourced events only (challenge / play / throwin whose
+    # metadata marks them as ML-sourced, or any event of those types).
+    ml_types = ("challenge", "play", "throwin")
+    existing = await db.execute(
+        select(Event).where(
+            Event.analysisId == analysis_id,
+            Event.type.in_(ml_types),
+        )
+    )
+    for old_ev in existing.scalars().all():
+        await db.delete(old_ev)
+
+    # Insert new ML events.
+    for ev in events_list:
+        if not isinstance(ev, dict):
+            continue
+        event_type = ev.get("event_type", "unknown")
+        ml_metadata = {
+            "source": ev.get("_ml_source", "effnet_bce_v3"),
+            "weighted_score": ev.get("_weighted_score"),
+            "config": "diss_4_8",
+        }
+        db.add(
+            Event(
+                analysisId=analysis_id,
+                type=event_type,
+                frameNumber=ev.get("frame_idx", 0),
+                timestamp=ev.get("timestamp_sec", 0.0),
+                playerId=ev.get("player_track_id"),
+                teamId=ev.get("team_id"),
+                targetPlayerId=ev.get("target_player_track_id"),
+                startX=None,
+                startY=None,
+                endX=None,
+                endY=None,
+                success=ev.get("success"),
+                confidence=ev.get("confidence"),
+                event_metadata=ml_metadata,
+            )
+        )
+
+    await db.flush()
+
+    # Backfill spatial coords from tracks table where player IDs are known.
+    await db.execute(
+        text("""
+            UPDATE events e
+            SET
+                "startX" = (
+                    SELECT (t."playerPositions" -> (e."playerId"::text) ->> 'x')::float
+                    FROM tracks t
+                    WHERE t."analysisId" = e."analysisId"
+                      AND t."frameNumber" = e."frameNumber"
+                    LIMIT 1
+                ),
+                "startY" = (
+                    SELECT (t."playerPositions" -> (e."playerId"::text) ->> 'y')::float
+                    FROM tracks t
+                    WHERE t."analysisId" = e."analysisId"
+                      AND t."frameNumber" = e."frameNumber"
+                    LIMIT 1
+                )
+            WHERE e."analysisId" = :analysis_id
+              AND e."startX" IS NULL
+              AND e."playerId" IS NOT NULL
+              AND e.type IN ('challenge', 'play', 'throwin')
+        """),
+        {"analysis_id": analysis_id},
+    )
+
+    try:
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        logger.error("Failed to save ML events for analysis %s: %s", analysis_id, exc)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(exc)[:200]}")
+
+    logger.info(
+        "Replaced ML events for analysis %s: %d events stored (§4.8 config)",
+        analysis_id,
+        len(events_list),
+    )
+    return {"success": True, "stored": len(events_list)}
 
 
 @router.post("/upload-video")

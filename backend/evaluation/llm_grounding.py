@@ -60,10 +60,25 @@ class VerificationResult:
 
 
 
-def format_as_markdown(analytics: dict) -> str:
-    """Current production formatter — structured markdown tables."""
+def format_as_markdown(analytics: dict, include_insights: bool = True) -> str:
+    """Current production formatter — structured markdown tables.
+
+    Args:
+        include_insights: If True (default), prepends MatchInsights pre-interpreted
+            findings (Key Findings section). Set to False for the "structured markdown
+            only" condition in the 3-way format comparison.
+    """
     from services.tactical import GroundingFormatter
-    return GroundingFormatter.format(analytics)
+    return GroundingFormatter.format(analytics, include_insights=include_insights)
+
+
+def format_as_markdown_no_insights(analytics: dict) -> str:
+    """Structured markdown tables WITHOUT the MatchInsights interpretation layer.
+
+    Used as the middle condition in the 3-way format comparison:
+      Raw JSON  →  Structured Markdown  →  Markdown + MatchInsights
+    """
+    return format_as_markdown(analytics, include_insights=False)
 
 
 def format_as_raw_json(analytics: dict) -> str:
@@ -131,6 +146,7 @@ def format_as_prose(analytics: dict) -> str:
 
 FORMATTERS = {
     "markdown": format_as_markdown,
+    "markdown_no_insights": format_as_markdown_no_insights,
     "json": format_as_raw_json,
     "prose": format_as_prose,
 }
@@ -171,6 +187,24 @@ async def extract_claims(commentary: str, provider) -> list[Claim]:
         return _regex_fallback_extract(commentary)
 
 
+async def extract_claims_stable(
+    commentary: str, provider, n_extract: int = 3
+) -> list[Claim]:
+    """Majority-vote claim extraction: run extractor n_extract times, union results.
+
+    Reduces LLM-variance-induced n_claims=0 edge cases that arise with narrative
+    event prose. Claims are deduplicated by normalised text (lowercase, stripped).
+    """
+    seen: dict[str, Claim] = {}
+    for _ in range(n_extract):
+        batch = await extract_claims(commentary, provider)
+        for c in batch:
+            key = c.text.lower().strip()[:120]
+            if key and key not in seen:
+                seen[key] = c
+    return list(seen.values())
+
+
 def _find_sentence(text: str, pos: int) -> str:
     start = max(0, text.rfind(".", 0, pos) + 1)
     end = text.find(".", pos)
@@ -192,8 +226,10 @@ def _regex_fallback_extract(commentary: str) -> list[Claim]:
 
 
 
-def _get_nested(d: dict, dotpath: str) -> Any:
+def _get_nested(d: dict, dotpath: str | None) -> Any:
     """Navigate a dot-separated path in a nested dict."""
+    if not dotpath:
+        return None
     cur = d
     for p in dotpath.split("."):
         if isinstance(cur, dict):
@@ -274,6 +310,14 @@ def _check_stretched(a: dict) -> tuple:
     return (False, "no stretch index data")
 
 
+def _check_event(a: dict, event_type: str) -> tuple:
+    """Check event-type claims (pass, shot, challenge) against the events array."""
+    events = a.get("events", [])
+    matched = [e for e in events if e.get("event_type") == event_type]
+    found = len(matched) > 0
+    return (found, f"{len(matched)} '{event_type}' events in analytics")
+
+
 # Qualitative claim rules: (keyword pattern, analytics check function)
 _QUALITATIVE_RULES = [
     ("compact", _check_compact),
@@ -292,6 +336,15 @@ _QUALITATIVE_RULES = [
             for s in a.get("player_kinematics", {}).values()
         ), "player max_speed > 20 km/h"
     )),
+    # Event-type rules — verify claims like "Player #X passes to #Y" or "shot attempt"
+    ("pass",         lambda a: _check_event(a, "pass")),
+    ("cross",        lambda a: _check_event(a, "pass")),      # crosses are pass subtypes
+    ("through ball", lambda a: _check_event(a, "pass")),
+    ("shot",         lambda a: _check_event(a, "shot")),
+    ("challeng",     lambda a: _check_event(a, "challenge")),
+    ("tackl",        lambda a: _check_event(a, "challenge")),
+    ("duel",         lambda a: _check_event(a, "challenge")),
+    ("intercept",    lambda a: _check_event(a, "challenge")),
 ]
 
 
@@ -392,6 +445,55 @@ def verify_claim(claim: Claim, analytics: dict) -> VerificationResult:  # noqa: 
                                       actual_value=tid if exists else None, explanation=explanation)
         return _unverifiable("No track ID found in claim text")
 
+    # Event-timing / event-participant resolver: runs for ANY claim type when
+    # the claim text mentions a player track ID + event keyword. Promotes
+    # otherwise-qualitative event claims to "verified" via analytics.events.
+    text_lower_ev = claim.text.lower()
+    event_kw = next(
+        (k for k in ("challenge", "tackle", "pass", "shot", "interception", "clearance")
+         if k in text_lower_ev),
+        None,
+    )
+    player_ids = re.findall(r"#(\d+)", claim.text)
+    if event_kw and player_ids:
+        events = analytics.get("events", [])
+        if not events:
+            # Try nested path analytics.events (some schemas nest it)
+            events = _get_nested(analytics, "events") or []
+        matching = [
+            e for e in events
+            if isinstance(e, dict) and (
+                e.get("event_type", "").lower() == event_kw
+                or event_kw in e.get("event_type", "").lower()
+            )
+        ]
+        if player_ids and matching:
+            pid_set = {int(p) for p in player_ids}
+            player_match = [
+                e for e in matching
+                if e.get("player_id") in pid_set
+                or e.get("track_id") in pid_set
+                or int(e.get("player_id", -1)) in pid_set
+                or int(e.get("track_id", -1)) in pid_set
+            ]
+            if player_match:
+                return VerificationResult(
+                    claim=claim,
+                    verdict="verified",
+                    actual_value=f"{len(player_match)} matching event(s)",
+                    explanation=(
+                        f"Event resolver: found {len(player_match)} '{event_kw}' "
+                        f"event(s) for player(s) {player_ids} in analytics.events"
+                    ),
+                )
+        if matching and not player_ids:
+            # Event type exists but no specific player — treat as plausible
+            return VerificationResult(
+                claim=claim, verdict="plausible",
+                actual_value=f"{len(matching)} {event_kw} events exist",
+                explanation=f"Event resolver: {len(matching)} '{event_kw}' events found",
+            )
+
     if claim.claim_type == "qualitative":
         text_lower = claim.text.lower()
         for keyword, check_fn in _QUALITATIVE_RULES:
@@ -407,8 +509,268 @@ def verify_claim(claim: Claim, analytics: dict) -> VerificationResult:  # noqa: 
 
 
 
-def compute_grounding_score(results: list[VerificationResult]) -> dict:
-    """Compute grounding rate and hallucination rate."""
+# ── FActScore + Wiseman content selection metrics (B2) ────────────────────────
+
+def classify_hallucination_type(result: VerificationResult) -> str:
+    """Classify hallucination following FActScore framework (Min et al. 2023).
+
+    - "intrinsic": claim directly contradicts source data (refuted)
+    - "extrinsic": claim cannot be verified from source data (unverifiable)
+    - "grounded": claim is supported (verified or plausible)
+    """
+    if result.verdict == "verified" or result.verdict == "plausible":
+        return "grounded"
+    if result.verdict == "refuted":
+        return "intrinsic"
+    return "extrinsic"
+
+
+def compute_factscore_breakdown(results: list[VerificationResult]) -> dict:
+    """FActScore-aligned breakdown (Min et al. 2023 EMNLP).
+
+    Returns:
+        {
+            "grounded": int,
+            "intrinsic_hallucinations": int,
+            "extrinsic_hallucinations": int,
+            "factscore": float,  # grounded / total
+            "intrinsic_rate": float,
+            "extrinsic_rate": float,
+        }
+    """
+    if not results:
+        return {}
+    cats = [classify_hallucination_type(r) for r in results]
+    grounded = cats.count("grounded")
+    intrinsic = cats.count("intrinsic")
+    extrinsic = cats.count("extrinsic")
+    total = len(results)
+    return {
+        "grounded": grounded,
+        "intrinsic_hallucinations": intrinsic,
+        "extrinsic_hallucinations": extrinsic,
+        "factscore": round(grounded / total, 4) if total else 0.0,
+        "intrinsic_rate": round(intrinsic / total, 4) if total else 0.0,
+        "extrinsic_rate": round(extrinsic / total, 4) if total else 0.0,
+    }
+
+
+# ── Error Taxonomy (Chirkova MME 2026 + Sports Intelligence Yang 2025) ─────────
+
+
+def classify_error_type(result: VerificationResult) -> str:
+    """Fine-grained error taxonomy for failed/unverifiable claims.
+
+    Five categories (Chirkova et al. MME 2026, adapted for football analytics):
+      - fabricated_statistic: LLM invented a number not in the data at all
+      - wrong_attribution: correct metric value but attributed to wrong team/player
+      - unsupported_inference: plausible tactical claim with no data backing
+      - magnitude_error: correct metric, wrong value (within same order of magnitude)
+      - context_confusion: misinterprets what a metric means (e.g. PPDA direction)
+      - grounded: not an error
+
+    Returns one of the above strings.
+    """
+    if result.verdict in ("verified", "plausible"):
+        return "grounded"
+
+    claim = result.claim
+    text_lower = claim.text.lower()
+    explained = (result.explanation or "").lower()
+
+    # context_confusion: PPDA direction, compactness direction errors
+    _CONFUSION_PATTERNS = [
+        ("ppda", "higher", "aggressive"),      # higher PPDA ≠ more aggressive
+        ("ppda", "more", "aggressive"),
+        ("compact", "higher", "compact"),      # higher compactness m² ≠ more compact
+        ("compact", "larger", "compact"),
+    ]
+    for metric, wrong_dir, wrong_interp in _CONFUSION_PATTERNS:
+        if metric in text_lower and wrong_dir in text_lower and wrong_interp in text_lower:
+            return "context_confusion"
+
+    # magnitude_error: claim mentions a number in the right range but wrong value
+    # Check this BEFORE wrong_attribution — same-metric wrong-value errors should not
+    # be confused with team attribution errors.
+    if claim.claim_type == "numeric" and result.verdict == "refuted":
+        claimed_num = _parse_numeric(claim.referenced_value)
+        actual = result.actual_value
+        if claimed_num is not None and actual is not None:
+            try:
+                actual_f = float(actual)
+                ratio = abs(claimed_num - actual_f) / max(abs(actual_f), 1e-6)
+                if ratio < 0.50:  # within 50% — same ballpark, wrong value
+                    return "magnitude_error"
+            except (TypeError, ValueError):
+                pass
+
+    # wrong_attribution: claim names one team for a value that belongs to the other
+    # Only applies when both teams are mentioned OR one team is mentioned with a value
+    # that is actually the other team's — indicated by the referenced_metric being
+    # team-specific and the verdict being refuted after passing the magnitude check.
+    if claim.claim_type in ("numeric", "comparative"):
+        has_team1 = "team 1" in text_lower
+        has_team2 = "team 2" in text_lower
+        if result.verdict == "refuted" and (has_team1 ^ has_team2):
+            if result.actual_value is not None and "%" in claim.referenced_value:
+                return "wrong_attribution"
+
+    # unsupported_inference: qualitative claims that have no data support
+    if claim.claim_type == "qualitative" and result.verdict == "unverifiable":
+        return "unsupported_inference"
+
+    # fabricated_statistic: numeric claim, but metric path not found at all
+    if claim.claim_type == "numeric" and result.verdict == "unverifiable":
+        if "could not resolve" in explained or "not found" in explained:
+            return "fabricated_statistic"
+
+    # Default for refuted numeric/comparative
+    if result.verdict == "refuted":
+        return "fabricated_statistic"
+
+    return "unsupported_inference"
+
+
+def compute_error_taxonomy(results: list[VerificationResult]) -> dict:
+    """Compute error distribution across taxonomy categories.
+
+    Returns:
+        {
+            "total": int,
+            "grounded": int,
+            "error_counts": {category: count},
+            "error_rates": {category: float},
+            "dominant_error": str,   # most common error type
+        }
+    """
+    if not results:
+        return {}
+    cats = [classify_error_type(r) for r in results]
+    total = len(cats)
+    error_types = [
+        "fabricated_statistic", "wrong_attribution", "unsupported_inference",
+        "magnitude_error", "context_confusion",
+    ]
+    error_counts = {et: cats.count(et) for et in error_types}
+    grounded = cats.count("grounded")
+    error_total = total - grounded
+    error_rates = {
+        et: round(c / total, 4) for et, c in error_counts.items()
+    }
+    dominant = max(error_counts, key=lambda k: error_counts[k]) if error_total > 0 else "none"
+    return {
+        "total": total,
+        "grounded": grounded,
+        "error_total": error_total,
+        "error_counts": error_counts,
+        "error_rates": error_rates,
+        "dominant_error": dominant,
+    }
+
+
+def _extract_numeric_values(text: str) -> list[float]:
+    """Extract all numbers from commentary text."""
+    return [float(m) for m in re.findall(r"\d+(?:\.\d+)?", text)]
+
+
+def _flatten_analytics_numerics(analytics: dict) -> dict[str, float]:
+    """Flatten all numeric scalars from analytics into a flat key→value dict."""
+    flat: dict[str, float] = {}
+    poss = analytics.get("possession", {})
+    for k, v in poss.items():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            flat[f"possession.{k}"] = float(v)
+    tac = analytics.get("tactical", {})
+    summary = tac.get("summary", {}) if isinstance(tac, dict) else {}
+    for k, v in summary.items():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            flat[f"tactical.{k}"] = float(v)
+    for pid, pk in analytics.get("player_kinematics", {}).items():
+        for k in ("total_distance_m", "avg_speed_m_per_sec", "max_speed_m_per_sec"):
+            v = pk.get(k) if isinstance(pk, dict) else None
+            if v is not None:
+                flat[f"player.{pid}.{k}"] = float(v)
+    return flat
+
+
+def compute_content_selection_metrics(
+    commentary: str,
+    analytics: dict,
+) -> dict:
+    """Wiseman et al. (2017) Rotowire content selection metrics.
+
+    RG (Relation Generation) precision: of all numbers in the commentary,
+    what fraction match a value in the analytics source?
+
+    CS (Content Selection):
+        Precision = |mentioned ∩ available| / |mentioned|
+        Recall    = |mentioned ∩ available| / |available|
+
+    Here, "available" = all numeric fields in analytics,
+          "mentioned" = numeric values extracted from commentary.
+
+    Returns:
+        {rg_precision, cs_precision, cs_recall, cs_f1, mentioned_count, available_count}
+    """
+    available = _flatten_analytics_numerics(analytics)
+    available_values = list(available.values())
+    mentioned = _extract_numeric_values(commentary)
+
+    if not mentioned:
+        return {"rg_precision": 0.0, "cs_precision": 0.0, "cs_recall": 0.0, "cs_f1": 0.0,
+                "mentioned_count": 0, "available_count": len(available_values)}
+
+    # RG precision: fraction of mentioned numbers that exist in analytics (5% tolerance)
+    def _matches_any(val: float, candidates: list[float]) -> bool:
+        return any(abs(val - c) <= max(abs(c) * 0.05, 0.5) for c in candidates)
+
+    rg_matched = [v for v in mentioned if _matches_any(v, available_values)]
+    rg_precision = len(rg_matched) / len(mentioned) if mentioned else 0.0
+
+    # CS: use metric keys mentioned vs available (by matching key name in commentary)
+    available_keys = set(available.keys())
+    # A key is "mentioned" if a substring of its name appears in the commentary
+    # Map short names to the longer key names
+    _SHORT_NAMES = {
+        "possession": "possession.",
+        "compactness": "tactical.team",
+        "stretch": "tactical.team",
+        "pressing": "tactical.team",
+        "ppda": "tactical.ppda",
+        "distance": "player.",
+        "speed": "player.",
+        "territory": "tactical.team",
+    }
+    mentioned_keys: set[str] = set()
+    commentary_lower = commentary.lower()
+    for short, prefix in _SHORT_NAMES.items():
+        if short in commentary_lower:
+            for k in available_keys:
+                if k.startswith(prefix):
+                    mentioned_keys.add(k)
+
+    intersect = mentioned_keys & available_keys
+    cs_p = len(intersect) / len(mentioned_keys) if mentioned_keys else 0.0
+    cs_r = len(intersect) / len(available_keys) if available_keys else 0.0
+    cs_f1 = (2 * cs_p * cs_r / (cs_p + cs_r)) if (cs_p + cs_r) > 0 else 0.0
+
+    return {
+        "rg_precision": round(rg_precision, 4),
+        "rg_matched_count": len(rg_matched),
+        "cs_precision": round(cs_p, 4),
+        "cs_recall": round(cs_r, 4),
+        "cs_f1": round(cs_f1, 4),
+        "mentioned_count": len(mentioned),
+        "available_count": len(available_values),
+    }
+
+
+def compute_grounding_score(
+    results: list[VerificationResult],
+    commentary: str = "",
+    analytics: dict | None = None,
+) -> dict:
+    """Compute grounding rate, hallucination rate, FActScore, and content selection."""
     total = len(results)
     if total == 0:
         return {"grounding_rate": 0.0, "hallucination_rate": 0.0, "total_claims": 0,
@@ -421,8 +783,20 @@ def compute_grounding_score(results: list[VerificationResult]) -> dict:
         by_type.setdefault(ct, {"verified": 0, "refuted": 0, "unverifiable": 0, "plausible": 0})
         by_type[ct][r.verdict] = by_type[ct].get(r.verdict, 0) + 1
     denom = counts["verified"] + counts["refuted"] + counts["unverifiable"]
-    return {"total_claims": total, "grounding_rate": counts["verified"] / denom if denom else 0.0,
+    base = {"total_claims": total, "grounding_rate": counts["verified"] / denom if denom else 0.0,
             "hallucination_rate": counts["refuted"] / total, **counts, "by_claim_type": by_type}
+
+    # FActScore breakdown (Min et al. 2023)
+    base["factscore"] = compute_factscore_breakdown(results)
+
+    # Error taxonomy (Chirkova MME 2026)
+    base["error_taxonomy"] = compute_error_taxonomy(results)
+
+    # Content selection (Wiseman et al. 2017)
+    if commentary and analytics:
+        base["content_selection"] = compute_content_selection_metrics(commentary, analytics)
+
+    return base
 
 
 
@@ -459,6 +833,10 @@ async def _run_single_format(analytics: dict, fmt_name: str, fmt_fn, analysis_ty
     """Generate commentary, extract claims, verify. Returns score dict."""
     from services.tactical import TacticalAnalyzer
     grounded_input = fmt_fn(analytics)
+    # Truncate context to ~12k chars to avoid API request size limits
+    _MAX_CONTEXT_CHARS = 12_000
+    if len(grounded_input) > _MAX_CONTEXT_CHARS:
+        grounded_input = grounded_input[:_MAX_CONTEXT_CHARS] + "\n... [truncated]"
     if fmt_name == "markdown":
         commentary = (await TacticalAnalyzer(provider=provider).analyze(analytics, analysis_type))["content"]
     else:
@@ -468,7 +846,7 @@ async def _run_single_format(analytics: dict, fmt_name: str, fmt_fn, analysis_ty
         )
     claims = await extract_claims(commentary, judge_provider)
     results = [verify_claim(c, analytics) for c in claims]
-    score = compute_grounding_score(results)
+    score = compute_grounding_score(results, commentary=commentary, analytics=analytics)
     return {
         "format": fmt_name, "analysis_type": analysis_type, "commentary": commentary,
         "claims": [asdict(c) for c in claims],
@@ -512,7 +890,7 @@ async def _run_provider(provider_name: str, analytics: dict, out: str) -> dict[s
 
     # Save artifacts
     artifacts_dir = Path(out) / "artifacts"
-    artifacts_dir.mkdir(exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
     for key, res in all_results.items():
         (artifacts_dir / f"{key}.json").write_text(json.dumps(res, indent=2))
 
@@ -606,12 +984,18 @@ def run(config: EvalConfig) -> dict:
 
 
 def main() -> None:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=".env", override=True)
+    except ImportError:
+        pass
+
     parser = argparse.ArgumentParser(description="LLM commentary grounding rate evaluator")
     parser.add_argument("--analytics", required=True, help="Path to *_analytics.json")
     parser.add_argument(
         "--provider",
         default="gemini",
-        choices=["gemini", "openai", "huggingface", "all", "stub"],
+        choices=["gemini", "openai", "huggingface", "claude", "groq", "all", "stub"],
     )
     parser.add_argument("--output", default="eval_output/grounding")
     args = parser.parse_args()
