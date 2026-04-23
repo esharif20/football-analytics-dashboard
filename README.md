@@ -8,6 +8,41 @@ Built with **React 19 + FastAPI + PostgreSQL** and a **Python CV pipeline** runn
 
 ---
 
+## For Assessors — Where to Start
+
+This repository accompanies a CS310 dissertation. If you are reviewing the code without running it, the fastest tour is:
+
+| You want to read… | Look at |
+|---|---|
+| The thesis itself | submitted as `project.pdf` on Tabula (separate from this repo) |
+| Dissertation chapter sources & findings | [`dissertation/`](dissertation/) — markdown chapters, evaluation findings, figures referenced in the PDF |
+| The CV pipeline (detection → tracking → analytics) | [`backend/pipeline/src/`](backend/pipeline/src/) — entrypoint `worker.py`, modules in `analytics/`, `trackers/`, `team_classification/` |
+| Computer-vision evaluation (probing, ablations, grounding) | [`backend/evaluation/`](backend/evaluation/) — 40+ standalone scripts, one per dissertation experiment (e.g. `linear_probing.py`, `prompt_stability.py`, `vlm_comparison.py`, `tactical_validation.py`) |
+| Web application (FastAPI) | [`backend/api/`](backend/api/) — `main.py`, routers in `routers/`, ORM models in `models.py` |
+| Web application (React) | [`frontend/src/`](frontend/src/) — pages in `pages/`, REST client `lib/api-local.ts` |
+| Architecture overview | [`ARCHITECTURE.md`](ARCHITECTURE.md) — module-level system design |
+| Continuous integration | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — lint, format, type-check, unit tests, build |
+
+### Verifying the build without running the full stack
+
+The fastest signal is the **CI status badge above** — every commit on `main` runs lint, type-check, unit tests, and a production build for both backend and frontend. To reproduce locally without provisioning Postgres or a GPU:
+
+```bash
+# Frontend (React 19 + Vite 6)
+cd frontend && pnpm install && pnpm lint && pnpm check && pnpm test && pnpm build
+
+# Backend (FastAPI + ruff + pytest)
+cd backend && pip install -r api/requirements.txt
+ruff check api/ && ruff format --check api/
+LOCAL_DEV_MODE=true JWT_SECRET=test \
+  DATABASE_URL=postgresql+asyncpg://skip:skip@skip/skip \
+  pytest                          # 40 unit tests, no DB or GPU required
+```
+
+Running the full application end-to-end (upload a video, see analytics) requires PostgreSQL and a GPU — see the [Quick Start](#quick-start) and [GPU Worker](#gpu-worker-runpod) sections below.
+
+---
+
 ## System Architecture
 
 ```mermaid
@@ -304,19 +339,41 @@ football-analytics-dashboard/
 │   │   └── tests/                     pytest unit tests (40 tests)
 │   │
 │   ├── pipeline/                      Python CV pipeline
-│   │   ├── worker.py                  GPU worker (polls API)
+│   │   ├── worker.py                  GPU worker (polls API for jobs)
 │   │   ├── requirements.txt
-│   │   └── src/                       Detection, tracking, analytics
+│   │   └── src/
+│   │       ├── trackers/              ByteTrack + role stabiliser
+│   │       ├── team_classification/   SigLIP + UMAP + KMeans
+│   │       ├── analytics/             Possession, passes, tactical metrics
+│   │       └── utils/                 Video I/O, drawing, homography
 │   │
-│   └── evaluation/                    Evaluation & validation scripts
+│   ├── evaluation/                    40+ standalone dissertation experiments:
+│   │                                  linear/dense probing, ablations,
+│   │                                  prompt stability, VLM comparison,
+│   │                                  tactical validation, db grounding
+│   │
+│   └── event_detector/                Match-event detection module
 │
-├── dissertation/                      Dissertation chapters, findings, figures
-├── notebooks/                         Jupyter notebooks (training, prototyping)
+├── dissertation/                      Dissertation source content
+│   ├── chapter_reasoning_evaluation.md
+│   ├── findings/                      Per-experiment writeups (DB findings,
+│   │                                  linear probing, visual time-series,
+│   │                                  examples appendix, etc.)
+│   ├── prompts_and_outputs.md         Prompts used + raw model outputs
+│   └── figures/                       PDF + PNG figures referenced in chapters
+│
+├── notebooks/                         Jupyter notebooks
+│   ├── Full Pipeline.ipynb            End-to-end pipeline walkthrough
+│   └── EfficientNet BCE.ipynb         Event-detector training experiment
+│
 ├── tests/                             Playwright end-to-end tests
-├── docker/
-│   └── Dockerfile.worker              Worker Docker image
-├── scripts/                           Utility scripts (sync, e2e, ablation)
-└── .github/workflows/ci.yml           CI pipeline
+│   └── e2e/                           7 spec files covering upload → analysis
+│
+├── docker/Dockerfile.worker           Worker container image
+├── scripts/                           Utility scripts (sync-to-pod, e2e helpers)
+├── supabase/                          Supabase config + SQL migrations
+├── docs/                              Architecture diagrams (.mmd, .d2, .png)
+└── .github/workflows/ci.yml           CI pipeline (lint, test, build)
 ```
 
 ---
