@@ -125,7 +125,15 @@ backend/pipeline/src/stubs/
 .swarm/
 .claude-flow/
 .claude/
+.planning/
+.gsd/
 .mcp.json
+
+# Dissertation drafts and intermediate figures (kept locally, excluded from submission)
+drafts/
+final_eval/
+final_figures/
+dissertation-notes.md
 
 # Local upload and output data
 uploads/
