@@ -14,11 +14,11 @@
 #   --help       Show this help
 #
 # Required in .env (or exported before running):
-#   RUNPOD_SSH_HOST      e.g. 107.150.186.62
-#   RUNPOD_SSH_PORT      e.g. 12610
-#   RUNPOD_SSH_KEY       e.g. ~/.runpod/ssh/RunPod-Key-Go
+#   RUNPOD_SSH_HOST      e.g. <pod-ip>
+#   RUNPOD_SSH_PORT      e.g. <pod-ssh-port>
+#   RUNPOD_SSH_KEY       e.g. ~/.ssh/runpod-key
 #   RUNPOD_WORKER_DIR    e.g. /workspace/pipeline  (pipeline dir on pod)
-#   DASHBOARD_URL        e.g. https://marcie-nonchurchgoing-sonya.ngrok-free.dev
+#   DASHBOARD_URL        e.g. https://your-tunnel.ngrok-free.dev
 # =============================================================================
 
 set -euo pipefail
@@ -64,7 +64,7 @@ done
 # ── Read required SSH config ──────────────────────────────────────────────────
 SSH_HOST="${RUNPOD_SSH_HOST:-}"
 SSH_PORT="${RUNPOD_SSH_PORT:-22}"
-SSH_KEY="${RUNPOD_SSH_KEY:-$HOME/.runpod/ssh/RunPod-Key-Go}"
+SSH_KEY="${RUNPOD_SSH_KEY:-$HOME/.ssh/runpod-key}"
 SSH_USER="${RUNPOD_SSH_USER:-root}"
 WORKER_DIR="${RUNPOD_WORKER_DIR:-/workspace/pipeline}"
 DASHBOARD_URL="${DASHBOARD_URL:-}"
